@@ -169,6 +169,8 @@ function corsHeaders(origin: string | null): Record<string, string> {
     'http://localhost:4173',
     'https://recipesaurus.pages.dev',
     'https://recipesaurus-git-main.pages.dev',
+    'https://recipesaurus.ai',
+    'https://www.recipesaurus.ai',
   ];
 
   // Allow any *.pages.dev subdomain for Cloudflare Pages previews
