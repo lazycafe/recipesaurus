@@ -143,8 +143,8 @@ function jsonResponse(data: unknown, status = 200, headers: Record<string, strin
   });
 }
 
-function errorResponse(message: string, status = 400): Response {
-  return jsonResponse({ error: message }, status);
+function errorResponse(message: string, status = 400, origin?: string | null): Response {
+  return jsonResponse({ error: message }, status, corsHeaders(origin ?? null));
 }
 
 function setCookie(name: string, value: string, maxAge: number): string {
@@ -203,15 +203,16 @@ async function getSessionUser(request: Request, db: D1Database): Promise<User | 
 
 // Route handlers
 async function handleRegister(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
   const body = await request.json() as { email: string; name: string; password: string };
   const { email, name, password } = body;
 
   if (!email || !name || !password) {
-    return errorResponse('Email, name, and password are required');
+    return errorResponse('Email, name, and password are required', 400, origin);
   }
 
   if (password.length < 8) {
-    return errorResponse('Password must be at least 8 characters');
+    return errorResponse('Password must be at least 8 characters', 400, origin);
   }
 
   const normalizedEmail = email.toLowerCase().trim();
@@ -219,7 +220,7 @@ async function handleRegister(request: Request, db: D1Database): Promise<Respons
   // Check if user exists
   const existing = await db.prepare('SELECT id FROM users WHERE email = ?').bind(normalizedEmail).first();
   if (existing) {
-    return errorResponse('An account with this email already exists');
+    return errorResponse('An account with this email already exists', 400, origin);
   }
 
   // Hash password
@@ -241,7 +242,6 @@ async function handleRegister(request: Request, db: D1Database): Promise<Respons
   // Add sample recipes for new user
   await addSampleRecipes(db, userId);
 
-  const origin = request.headers.get('Origin');
   return jsonResponse(
     { user: { id: userId, email: normalizedEmail, name: name.trim() } },
     200,
@@ -253,23 +253,24 @@ async function handleRegister(request: Request, db: D1Database): Promise<Respons
 }
 
 async function handleLogin(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
   const body = await request.json() as { email: string; password: string };
   const { email, password } = body;
 
   if (!email || !password) {
-    return errorResponse('Email and password are required');
+    return errorResponse('Email and password are required', 400, origin);
   }
 
   const normalizedEmail = email.toLowerCase().trim();
 
   const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(normalizedEmail).first<User>();
   if (!user) {
-    return errorResponse('Invalid email or password', 401);
+    return errorResponse('Invalid email or password', 401, origin);
   }
 
   const isValid = await verifyPassword(password, user.password_hash, user.password_salt);
   if (!isValid) {
-    return errorResponse('Invalid email or password', 401);
+    return errorResponse('Invalid email or password', 401, origin);
   }
 
   // Create session
@@ -279,7 +280,6 @@ async function handleLogin(request: Request, db: D1Database): Promise<Response> 
     'INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
   ).bind(sessionId, user.id, Date.now(), expiresAt).run();
 
-  const origin = request.headers.get('Origin');
   return jsonResponse(
     { user: { id: user.id, email: user.email, name: user.name } },
     200,
@@ -328,7 +328,7 @@ async function handleGetRecipes(request: Request, db: D1Database): Promise<Respo
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const recipes = await db.prepare(
@@ -358,7 +358,7 @@ async function handleCreateRecipe(request: Request, db: D1Database): Promise<Res
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const body = await request.json() as {
@@ -402,7 +402,7 @@ async function handleDeleteRecipe(request: Request, db: D1Database, recipeId: st
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   await db.prepare('DELETE FROM recipes WHERE id = ? AND user_id = ?').bind(recipeId, user.id).run();
@@ -416,7 +416,7 @@ async function handleGetCookbooks(request: Request, db: D1Database): Promise<Res
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   // Get owned cookbooks with recipe count
@@ -463,13 +463,13 @@ async function handleCreateCookbook(request: Request, db: D1Database): Promise<R
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const body = await request.json() as { name: string; description?: string };
 
   if (!body.name?.trim()) {
-    return errorResponse('Cookbook name is required');
+    return errorResponse('Cookbook name is required', 400, origin);
   }
 
   const cookbookId = generateId();
@@ -488,14 +488,14 @@ async function handleGetCookbook(request: Request, db: D1Database, cookbookId: s
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   // Check if user owns or has access to cookbook
   const cookbook = await db.prepare('SELECT * FROM cookbooks WHERE id = ?').bind(cookbookId).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found', 404);
+    return errorResponse('Cookbook not found', 404, origin);
   }
 
   const isOwner = cookbook.user_id === user.id;
@@ -509,7 +509,7 @@ async function handleGetCookbook(request: Request, db: D1Database, cookbookId: s
   }
 
   if (!hasAccess) {
-    return errorResponse('Access denied', 403);
+    return errorResponse('Access denied', 403, origin);
   }
 
   // Get owner info if shared
@@ -565,7 +565,7 @@ async function handleUpdateCookbook(request: Request, db: D1Database, cookbookId
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const cookbook = await db.prepare(
@@ -573,7 +573,7 @@ async function handleUpdateCookbook(request: Request, db: D1Database, cookbookId
   ).bind(cookbookId, user.id).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404);
+    return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
   const body = await request.json() as { name?: string; description?: string };
@@ -593,7 +593,7 @@ async function handleDeleteCookbook(request: Request, db: D1Database, cookbookId
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   await db.prepare('DELETE FROM cookbooks WHERE id = ? AND user_id = ?').bind(cookbookId, user.id).run();
@@ -606,7 +606,7 @@ async function handleAddRecipeToCookbook(request: Request, db: D1Database, cookb
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const cookbook = await db.prepare(
@@ -614,13 +614,13 @@ async function handleAddRecipeToCookbook(request: Request, db: D1Database, cookb
   ).bind(cookbookId, user.id).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404);
+    return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
   const body = await request.json() as { recipeId: string };
 
   if (!body.recipeId) {
-    return errorResponse('Recipe ID is required');
+    return errorResponse('Recipe ID is required', 400, origin);
   }
 
   // Verify recipe exists and belongs to user
@@ -629,7 +629,7 @@ async function handleAddRecipeToCookbook(request: Request, db: D1Database, cookb
   ).bind(body.recipeId, user.id).first();
 
   if (!recipe) {
-    return errorResponse('Recipe not found', 404);
+    return errorResponse('Recipe not found', 404, origin);
   }
 
   // Add to cookbook (ignore if already exists)
@@ -649,7 +649,7 @@ async function handleRemoveRecipeFromCookbook(request: Request, db: D1Database, 
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const cookbook = await db.prepare(
@@ -657,7 +657,7 @@ async function handleRemoveRecipeFromCookbook(request: Request, db: D1Database, 
   ).bind(cookbookId, user.id).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404);
+    return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
   await db.prepare('DELETE FROM cookbook_recipes WHERE cookbook_id = ? AND recipe_id = ?').bind(cookbookId, recipeId).run();
@@ -673,7 +673,7 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const cookbook = await db.prepare(
@@ -681,13 +681,13 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
   ).bind(cookbookId, user.id).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404);
+    return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
   const body = await request.json() as { email: string };
 
   if (!body.email?.trim()) {
-    return errorResponse('Email is required');
+    return errorResponse('Email is required', 400, origin);
   }
 
   const targetUser = await db.prepare(
@@ -695,11 +695,11 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
   ).bind(body.email.toLowerCase().trim()).first<{ id: string; name: string }>();
 
   if (!targetUser) {
-    return errorResponse('No user found with that email');
+    return errorResponse('No user found with that email', 404, origin);
   }
 
   if (targetUser.id === user.id) {
-    return errorResponse('Cannot share with yourself');
+    return errorResponse('Cannot share with yourself', 400, origin);
   }
 
   // Check if already shared
@@ -708,7 +708,7 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
   ).bind(cookbookId, targetUser.id).first();
 
   if (existing) {
-    return errorResponse('Cookbook is already shared with this user');
+    return errorResponse('Cookbook is already shared with this user', 400, origin);
   }
 
   const shareId = generateId();
@@ -725,7 +725,7 @@ async function handleRemoveShare(request: Request, db: D1Database, cookbookId: s
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const cookbook = await db.prepare(
@@ -733,7 +733,7 @@ async function handleRemoveShare(request: Request, db: D1Database, cookbookId: s
   ).bind(cookbookId, user.id).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404);
+    return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
   await db.prepare('DELETE FROM cookbook_shares WHERE cookbook_id = ? AND shared_with_user_id = ?').bind(cookbookId, userId).run();
@@ -746,7 +746,7 @@ async function handleGetShares(request: Request, db: D1Database, cookbookId: str
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const cookbook = await db.prepare(
@@ -754,7 +754,7 @@ async function handleGetShares(request: Request, db: D1Database, cookbookId: str
   ).bind(cookbookId, user.id).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404);
+    return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
   const shares = await db.prepare(`
@@ -794,7 +794,7 @@ async function handleCreateShareLink(request: Request, db: D1Database, cookbookI
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const cookbook = await db.prepare(
@@ -802,7 +802,7 @@ async function handleCreateShareLink(request: Request, db: D1Database, cookbookI
   ).bind(cookbookId, user.id).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404);
+    return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
   const linkId = generateId();
@@ -825,7 +825,7 @@ async function handleRevokeShareLink(request: Request, db: D1Database, cookbookI
   const origin = request.headers.get('Origin');
 
   if (!user) {
-    return errorResponse('Unauthorized', 401);
+    return errorResponse('Unauthorized', 401, origin);
   }
 
   const cookbook = await db.prepare(
@@ -833,7 +833,7 @@ async function handleRevokeShareLink(request: Request, db: D1Database, cookbookI
   ).bind(cookbookId, user.id).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404);
+    return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
   await db.prepare('UPDATE cookbook_share_links SET is_active = 0 WHERE id = ? AND cookbook_id = ?').bind(linkId, cookbookId).run();
@@ -853,7 +853,7 @@ async function handleGetSharedCookbook(request: Request, db: D1Database, token: 
   `).bind(token).first<{ cookbook_id: string; name: string; description: string | null; owner_name: string }>();
 
   if (!link) {
-    return errorResponse('Share link not found or has been revoked', 404);
+    return errorResponse('Share link not found or has been revoked', 404, origin);
   }
 
   const recipes = await db.prepare(`
@@ -1050,10 +1050,10 @@ export default {
         return handleGetSharedCookbook(request, env.DB, sharedMatch[1]);
       }
 
-      return errorResponse('Not found', 404);
+      return errorResponse('Not found', 404, origin);
     } catch (error) {
       console.error('Error:', error);
-      return errorResponse('Internal server error', 500);
+      return errorResponse('Internal server error', 500, origin);
     }
   },
 };
