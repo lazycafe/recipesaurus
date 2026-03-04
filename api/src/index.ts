@@ -624,12 +624,28 @@ async function handleAddRecipeToCookbook(request: Request, db: D1Database, cookb
     return errorResponse('Unauthorized', 401, origin);
   }
 
+  // Check if user owns the cookbook
   const cookbook = await db.prepare(
-    'SELECT * FROM cookbooks WHERE id = ? AND user_id = ?'
-  ).bind(cookbookId, user.id).first<Cookbook>();
+    'SELECT * FROM cookbooks WHERE id = ?'
+  ).bind(cookbookId).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404, origin);
+    return errorResponse('Cookbook not found', 404, origin);
+  }
+
+  // Check if user owns or has shared access to the cookbook
+  const isOwner = cookbook.user_id === user.id;
+  let hasAccess = isOwner;
+
+  if (!isOwner) {
+    const share = await db.prepare(
+      'SELECT id FROM cookbook_shares WHERE cookbook_id = ? AND shared_with_user_id = ?'
+    ).bind(cookbookId, user.id).first();
+    hasAccess = !!share;
+  }
+
+  if (!hasAccess) {
+    return errorResponse('Access denied', 403, origin);
   }
 
   const body = await request.json() as { recipeId: string };

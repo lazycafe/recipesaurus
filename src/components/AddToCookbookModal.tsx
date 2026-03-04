@@ -10,9 +10,12 @@ interface AddToCookbookModalProps {
 }
 
 export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToCookbookModalProps) {
-  const { ownedCookbooks, addRecipeToCookbook } = useCookbooks();
+  const { ownedCookbooks, sharedCookbooks, addRecipeToCookbook } = useCookbooks();
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [addedTo, setAddedTo] = useState<Set<string>>(new Set());
+
+  // Combine owned and shared cookbooks
+  const allCookbooks = [...ownedCookbooks, ...sharedCookbooks];
 
   const handleAddToCookbook = async (cookbookId: string) => {
     setAddingTo(cookbookId);
@@ -33,9 +36,9 @@ export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToC
         <h2>Add to Cookbook</h2>
         <p className="modal-subtitle">Add "{recipe.title}" to a cookbook</p>
 
-        {ownedCookbooks.length > 0 ? (
+        {allCookbooks.length > 0 ? (
           <div className="cookbook-checkbox-list">
-            {ownedCookbooks.map(cookbook => {
+            {allCookbooks.map(cookbook => {
               const isAdding = addingTo === cookbook.id;
               const isAdded = addedTo.has(cookbook.id);
 
@@ -53,6 +56,7 @@ export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToC
                     <span className="cookbook-checkbox-name">{cookbook.name}</span>
                     <span className="cookbook-checkbox-count">
                       {cookbook.recipeCount} recipe{cookbook.recipeCount !== 1 ? 's' : ''}
+                      {!cookbook.isOwner && cookbook.ownerName && ` · Shared by ${cookbook.ownerName}`}
                     </span>
                   </div>
                   <div className="cookbook-checkbox-status">
