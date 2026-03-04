@@ -5,7 +5,7 @@ import { DinoMascot } from './DinoMascot';
 interface RecipeCardProps {
   recipe: Recipe;
   onClick: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   onAddToCookbook?: () => void;
 }
 
@@ -13,7 +13,7 @@ export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook }: Recip
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Delete this recipe?')) {
-      onDelete();
+      onDelete?.();
     }
   };
 
@@ -24,16 +24,20 @@ export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook }: Recip
 
   return (
     <article className="recipe-card" onClick={onClick}>
-      <div className="card-actions">
-        {onAddToCookbook && (
-          <button className="card-action" onClick={handleAddToCookbook} aria-label="Add to cookbook">
-            <BookPlus size={16} strokeWidth={2} />
-          </button>
-        )}
-        <button className="card-action card-delete" onClick={handleDelete} aria-label="Delete recipe">
-          <X size={16} strokeWidth={2} />
-        </button>
-      </div>
+      {(onAddToCookbook || onDelete) && (
+        <div className="card-actions">
+          {onAddToCookbook && (
+            <button className="card-action" onClick={handleAddToCookbook} aria-label="Add to cookbook">
+              <BookPlus size={16} strokeWidth={2} />
+            </button>
+          )}
+          {onDelete && (
+            <button className="card-action card-delete" onClick={handleDelete} aria-label="Delete recipe">
+              <X size={16} strokeWidth={2} />
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="card-image">
         {recipe.imageUrl ? (

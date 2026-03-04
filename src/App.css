@@ -2404,6 +2404,57 @@ img {
   margin-top: -4px;
 }
 
+/* Confirm Modal */
+.confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(45, 41, 38, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: modalOverlayIn var(--transition-fast) ease-out;
+}
+
+.confirm-modal {
+  background: var(--color-background);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  max-width: 400px;
+  width: calc(100% - var(--space-8));
+  box-shadow: var(--shadow-xl);
+  animation: modalContentIn var(--transition-base) ease-out;
+}
+
+.confirm-modal h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  color: var(--color-text);
+  margin-bottom: var(--space-2);
+}
+
+.confirm-modal p {
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-6);
+  line-height: 1.5;
+}
+
+.confirm-modal p strong {
+  color: var(--color-text);
+}
+
+.confirm-modal-actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+.confirm-modal-actions .btn-danger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .loading-state {
   display: flex;
   align-items: center;

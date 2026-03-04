@@ -48,6 +48,7 @@ export function CookbookDetail({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<CookbookRecipe | null>(null);
+  const [recipeToRemove, setRecipeToRemove] = useState<CookbookRecipe | null>(null);
 
   useEffect(() => {
     async function fetchCookbook() {
@@ -100,10 +101,15 @@ export function CookbookDetail({
     setSelectedTags([]);
   };
 
-  const handleRemoveRecipe = (recipeId: string) => {
-    if (confirm('Remove this recipe from the cookbook?')) {
-      setRecipes(prev => prev.filter(r => r.id !== recipeId));
-      onRemoveRecipe(recipeId);
+  const handleRemoveRecipe = (recipe: CookbookRecipe) => {
+    setRecipeToRemove(recipe);
+  };
+
+  const confirmRemoveRecipe = () => {
+    if (recipeToRemove) {
+      setRecipes(prev => prev.filter(r => r.id !== recipeToRemove.id));
+      onRemoveRecipe(recipeToRemove.id);
+      setRecipeToRemove(null);
     }
   };
 
@@ -297,7 +303,6 @@ export function CookbookDetail({
                       <RecipeCard
                         recipe={recipe}
                         onClick={() => setSelectedRecipe(recipe)}
-                        onDelete={() => {}}
                       />
                       {recipe.addedByUserName && (
                         <div className="recipe-added-by">
@@ -308,7 +313,7 @@ export function CookbookDetail({
                       {cookbook.isOwner && (
                         <button
                           className="remove-from-cookbook"
-                          onClick={() => handleRemoveRecipe(recipe.id)}
+                          onClick={() => handleRemoveRecipe(recipe)}
                           title="Remove from cookbook"
                         >
                           <Trash2 size={14} />
@@ -337,6 +342,24 @@ export function CookbookDetail({
             </div>
           )}
         </div>
+
+        {recipeToRemove && (
+          <div className="confirm-modal-overlay" onClick={() => setRecipeToRemove(null)}>
+            <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+              <h3>Remove Recipe</h3>
+              <p>Remove <strong>{recipeToRemove.title}</strong> from this cookbook?</p>
+              <div className="confirm-modal-actions">
+                <button className="btn-secondary" onClick={() => setRecipeToRemove(null)}>
+                  Cancel
+                </button>
+                <button className="btn-danger" onClick={confirmRemoveRecipe}>
+                  <Trash2 size={16} />
+                  Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
