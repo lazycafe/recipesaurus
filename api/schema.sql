@@ -50,10 +50,12 @@ CREATE TABLE IF NOT EXISTS cookbooks (
 CREATE TABLE IF NOT EXISTS cookbook_recipes (
   cookbook_id TEXT NOT NULL,
   recipe_id TEXT NOT NULL,
+  added_by_user_id TEXT NOT NULL,
   added_at INTEGER NOT NULL,
   PRIMARY KEY (cookbook_id, recipe_id),
   FOREIGN KEY (cookbook_id) REFERENCES cookbooks(id) ON DELETE CASCADE,
-  FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
+  FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE,
+  FOREIGN KEY (added_by_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Email-based sharing (requires account)

@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RecipeProvider, useRecipes } from './context/RecipeContext';
 import { CookbookProvider, useCookbooks } from './context/CookbookContext';
@@ -49,19 +50,20 @@ function LoadingScreen() {
   );
 }
 
-function RecipeApp() {
-  const { recipes, isLoading, addRecipe, deleteRecipe, getAllTags } = useRecipes();
-  const { createCookbook, removeRecipeFromCookbook } = useCookbooks();
-  const [currentView, setCurrentView] = useState<'recipes' | 'cookbooks'>('recipes');
+function RecipesView({
+  onSelectRecipe,
+  onAddRecipe,
+  onAddToCookbook,
+  onDeleteRecipe,
+}: {
+  onSelectRecipe: (recipe: Recipe) => void;
+  onAddRecipe: () => void;
+  onAddToCookbook: (recipe: Recipe) => void;
+  onDeleteRecipe: (id: string) => void;
+}) {
+  const { recipes, isLoading, getAllTags } = useRecipes();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showCookbookModal, setShowCookbookModal] = useState(false);
-  const [selectedCookbook, setSelectedCookbook] = useState<Cookbook | null>(null);
-  const [editingCookbook, setEditingCookbook] = useState<Cookbook | null>(null);
-  const [sharingCookbook, setSharingCookbook] = useState<Cookbook | null>(null);
-  const [addToCookbookRecipe, setAddToCookbookRecipe] = useState<Recipe | null>(null);
 
   const allTags = getAllTags();
 
@@ -93,6 +95,82 @@ function RecipeApp() {
     setSearchQuery('');
     setSelectedTags([]);
   };
+
+  const hasFilters = searchQuery.length > 0 || selectedTags.length > 0;
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  return (
+    <>
+      <SearchFilter
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        selectedTags={selectedTags}
+        onTagToggle={handleTagToggle}
+        allTags={allTags}
+        onClearFilters={handleClearFilters}
+      />
+
+      {filteredRecipes.length > 0 ? (
+        <>
+          <p className="results-count">
+            {filteredRecipes.length} recipe{filteredRecipes.length !== 1 ? 's' : ''}
+            {hasFilters && ` of ${recipes.length}`}
+          </p>
+          <div className="recipe-grid">
+            {filteredRecipes.map(recipe => (
+              <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                onClick={() => onSelectRecipe(recipe)}
+                onDelete={() => onDeleteRecipe(recipe.id)}
+                onAddToCookbook={() => onAddToCookbook(recipe)}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <EmptyState
+          hasFilters={hasFilters}
+          onAddRecipe={onAddRecipe}
+          onClearFilters={handleClearFilters}
+        />
+      )}
+    </>
+  );
+}
+
+function CookbooksView({
+  onCreateCookbook,
+  onSelectCookbook,
+}: {
+  onCreateCookbook: () => void;
+  onSelectCookbook: (cookbook: Cookbook) => void;
+}) {
+  return (
+    <CookbookList
+      onCreateCookbook={onCreateCookbook}
+      onSelectCookbook={onSelectCookbook}
+    />
+  );
+}
+
+function RecipeApp() {
+  const { addRecipe, deleteRecipe } = useRecipes();
+  const { createCookbook, updateCookbook, removeRecipeFromCookbook } = useCookbooks();
+  const location = useLocation();
+
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showCookbookModal, setShowCookbookModal] = useState(false);
+  const [selectedCookbook, setSelectedCookbook] = useState<Cookbook | null>(null);
+  const [editingCookbook, setEditingCookbook] = useState<Cookbook | null>(null);
+  const [sharingCookbook, setSharingCookbook] = useState<Cookbook | null>(null);
+  const [addToCookbookRecipe, setAddToCookbookRecipe] = useState<Recipe | null>(null);
+
+  const currentView = location.pathname === '/cookbooks' ? 'cookbooks' : 'recipes';
 
   const handleAddRecipe = async (formData: RecipeFormData) => {
     try {
@@ -147,70 +225,50 @@ function RecipeApp() {
     }
   };
 
-  const handleCreateCookbook = async (name: string, description?: string) => {
-    await createCookbook(name, description);
+  const handleSaveCookbook = async (name: string, description?: string) => {
+    if (editingCookbook) {
+      await updateCookbook(editingCookbook.id, { name, description });
+    } else {
+      await createCookbook(name, description);
+    }
   };
-
-  const hasFilters = searchQuery.length > 0 || selectedTags.length > 0;
-
-  if (isLoading) {
-    return <LoadingScreen />;
-  }
 
   return (
     <>
       <Header
         currentView={currentView}
-        onViewChange={setCurrentView}
         onAddRecipe={() => setShowAddModal(true)}
         onAddCookbook={() => setShowCookbookModal(true)}
       />
 
       <main className="main">
         <div className="container">
-          {currentView === 'recipes' ? (
-            <>
-              <SearchFilter
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                selectedTags={selectedTags}
-                onTagToggle={handleTagToggle}
-                allTags={allTags}
-                onClearFilters={handleClearFilters}
-              />
-
-              {filteredRecipes.length > 0 ? (
-                <>
-                  <p className="results-count">
-                    {filteredRecipes.length} recipe{filteredRecipes.length !== 1 ? 's' : ''}
-                    {hasFilters && ` of ${recipes.length}`}
-                  </p>
-                  <div className="recipe-grid">
-                    {filteredRecipes.map(recipe => (
-                      <RecipeCard
-                        key={recipe.id}
-                        recipe={recipe}
-                        onClick={() => setSelectedRecipe(recipe)}
-                        onDelete={() => handleDeleteRecipe(recipe.id)}
-                        onAddToCookbook={() => setAddToCookbookRecipe(recipe)}
-                      />
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <EmptyState
-                  hasFilters={hasFilters}
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <RecipesView
+                  onSelectRecipe={setSelectedRecipe}
                   onAddRecipe={() => setShowAddModal(true)}
-                  onClearFilters={handleClearFilters}
+                  onAddToCookbook={setAddToCookbookRecipe}
+                  onDeleteRecipe={handleDeleteRecipe}
                 />
-              )}
-            </>
-          ) : (
-            <CookbookList
-              onCreateCookbook={() => setShowCookbookModal(true)}
-              onSelectCookbook={setSelectedCookbook}
+              }
             />
-          )}
+            <Route
+              path="/recipes"
+              element={<Navigate to="/" replace />}
+            />
+            <Route
+              path="/cookbooks"
+              element={
+                <CookbooksView
+                  onCreateCookbook={() => setShowCookbookModal(true)}
+                  onSelectCookbook={setSelectedCookbook}
+                />
+              }
+            />
+          </Routes>
         </div>
       </main>
 
@@ -241,7 +299,7 @@ function RecipeApp() {
             setShowCookbookModal(false);
             setEditingCookbook(null);
           }}
-          onSubmit={handleCreateCookbook}
+          onSubmit={handleSaveCookbook}
         />
       )}
 
@@ -251,10 +309,13 @@ function RecipeApp() {
           onClose={() => setSelectedCookbook(null)}
           onEdit={() => {
             setEditingCookbook(selectedCookbook);
+            setSelectedCookbook(null);
             setShowCookbookModal(true);
           }}
-          onShare={() => setSharingCookbook(selectedCookbook)}
-          onViewRecipe={setSelectedRecipe}
+          onShare={() => {
+            setSharingCookbook(selectedCookbook);
+            setSelectedCookbook(null);
+          }}
           onRemoveRecipe={(recipeId) => removeRecipeFromCookbook(selectedCookbook.id, recipeId)}
         />
       )}
@@ -270,7 +331,10 @@ function RecipeApp() {
         <AddToCookbookModal
           recipe={addToCookbookRecipe}
           onClose={() => setAddToCookbookRecipe(null)}
-          onCreateCookbook={() => setShowCookbookModal(true)}
+          onCreateCookbook={() => {
+            setAddToCookbookRecipe(null);
+            setShowCookbookModal(true);
+          }}
         />
       )}
     </>
@@ -280,21 +344,6 @@ function RecipeApp() {
 function AppContent() {
   const { user, isLoading } = useAuth();
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
-  const [sharedToken, setSharedToken] = useState<string | null>(null);
-
-  // Check for shared cookbook URL on mount
-  useEffect(() => {
-    const path = window.location.pathname;
-    const match = path.match(/^\/shared\/([a-f0-9]+)$/);
-    if (match) {
-      setSharedToken(match[1]);
-    }
-  }, []);
-
-  // Handle shared cookbook view
-  if (sharedToken) {
-    return <SharedCookbookView token={sharedToken} />;
-  }
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -326,11 +375,27 @@ function AppContent() {
   );
 }
 
+function SharedCookbookRoute() {
+  return (
+    <Routes>
+      <Route path="/shared/:token" element={<SharedCookbookWrapper />} />
+    </Routes>
+  );
+}
+
+function SharedCookbookWrapper() {
+  const token = window.location.pathname.split('/shared/')[1];
+  if (!token) return <Navigate to="/" replace />;
+  return <SharedCookbookView token={token} />;
+}
+
 function App() {
+  const isSharedRoute = window.location.pathname.startsWith('/shared/');
+
   return (
     <AuthProvider>
       <div className="app">
-        <AppContent />
+        {isSharedRoute ? <SharedCookbookRoute /> : <AppContent />}
       </div>
     </AuthProvider>
   );

@@ -519,13 +519,14 @@ async function handleGetCookbook(request: Request, db: D1Database, cookbookId: s
     ownerName = owner?.name;
   }
 
-  // Get recipes in cookbook
+  // Get recipes in cookbook with who added them
   const recipes = await db.prepare(`
-    SELECT r.* FROM recipes r
+    SELECT r.*, cr.added_by_user_id, u.name as added_by_user_name FROM recipes r
     JOIN cookbook_recipes cr ON r.id = cr.recipe_id
+    LEFT JOIN users u ON cr.added_by_user_id = u.id
     WHERE cr.cookbook_id = ?
     ORDER BY cr.added_at DESC
-  `).bind(cookbookId).all<Recipe>();
+  `).bind(cookbookId).all<Recipe & { added_by_user_id: string; added_by_user_name: string | null }>();
 
   const formattedRecipes = recipes.results.map(r => ({
     id: r.id,
@@ -540,6 +541,8 @@ async function handleGetCookbook(request: Request, db: D1Database, cookbookId: s
     cookTime: r.cook_time,
     servings: r.servings,
     createdAt: r.created_at,
+    addedByUserId: r.added_by_user_id,
+    addedByUserName: r.added_by_user_name,
   }));
 
   return jsonResponse({
@@ -631,9 +634,9 @@ async function handleAddRecipeToCookbook(request: Request, db: D1Database, cookb
 
   // Add to cookbook (ignore if already exists)
   await db.prepare(`
-    INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_at)
-    VALUES (?, ?, ?)
-  `).bind(cookbookId, body.recipeId, Date.now()).run();
+    INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at)
+    VALUES (?, ?, ?, ?)
+  `).bind(cookbookId, body.recipeId, user.id, Date.now()).run();
 
   // Update cookbook timestamp
   await db.prepare('UPDATE cookbooks SET updated_at = ? WHERE id = ?').bind(Date.now(), cookbookId).run();

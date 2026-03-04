@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Book } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 
 interface CookbookModalProps {
@@ -39,14 +39,17 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
+      <div className="modal-content modal-form" onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>
           <X size={20} strokeWidth={2} />
         </button>
 
-        <h2>{isEditing ? 'Edit Cookbook' : 'Create Cookbook'}</h2>
+        <div className="modal-header">
+          <Book size={28} strokeWidth={1.5} className="modal-icon" />
+          <h2>{isEditing ? 'Edit Cookbook' : 'Create Cookbook'}</h2>
+        </div>
 
-        <form className="modal-form" onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="form">
           {error && <div className="form-error">{error}</div>}
 
           <div className="form-group">

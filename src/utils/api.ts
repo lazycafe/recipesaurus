@@ -79,6 +79,8 @@ export interface RecipeResponse {
   cookTime?: string;
   servings?: string;
   createdAt: number;
+  addedByUserId?: string;
+  addedByUserName?: string | null;
 }
 
 export interface CreateRecipeData {

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, Share2, Pencil, Loader2, User, Trash2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { X, Share2, Pencil, Loader2, User, Trash2, Search, ArrowLeft, Check } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { Recipe } from '../types/Recipe';
 import { cookbooksApi, RecipeResponse } from '../utils/api';
@@ -11,11 +11,14 @@ interface CookbookDetailProps {
   onClose: () => void;
   onEdit: () => void;
   onShare: () => void;
-  onViewRecipe: (recipe: Recipe) => void;
   onRemoveRecipe: (recipeId: string) => void;
 }
 
-function mapRecipeResponse(r: RecipeResponse): Recipe {
+interface CookbookRecipe extends Recipe {
+  addedByUserName?: string | null;
+}
+
+function mapRecipeResponse(r: RecipeResponse): CookbookRecipe {
   return {
     id: r.id,
     title: r.title,
@@ -29,6 +32,7 @@ function mapRecipeResponse(r: RecipeResponse): Recipe {
     cookTime: r.cookTime,
     servings: r.servings,
     createdAt: r.createdAt,
+    addedByUserName: r.addedByUserName,
   };
 }
 
@@ -37,11 +41,13 @@ export function CookbookDetail({
   onClose,
   onEdit,
   onShare,
-  onViewRecipe,
   onRemoveRecipe,
 }: CookbookDetailProps) {
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<CookbookRecipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedRecipe, setSelectedRecipe] = useState<CookbookRecipe | null>(null);
 
   useEffect(() => {
     async function fetchCookbook() {
@@ -55,12 +61,152 @@ export function CookbookDetail({
     fetchCookbook();
   }, [cookbook.id]);
 
+  // Get all unique tags from recipes in this cookbook
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    recipes.forEach(recipe => {
+      recipe.tags.forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [recipes]);
+
+  // Filter recipes based on search and tags
+  const filteredRecipes = useMemo(() => {
+    return recipes.filter(recipe => {
+      const searchLower = searchQuery.toLowerCase();
+      const matchesSearch =
+        !searchQuery ||
+        recipe.title.toLowerCase().includes(searchLower) ||
+        recipe.description.toLowerCase().includes(searchLower) ||
+        recipe.ingredients.some(i => i.toLowerCase().includes(searchLower)) ||
+        recipe.tags.some(t => t.toLowerCase().includes(searchLower));
+
+      const matchesTags =
+        selectedTags.length === 0 ||
+        selectedTags.every(tag => recipe.tags.includes(tag));
+
+      return matchesSearch && matchesTags;
+    });
+  }, [recipes, searchQuery, selectedTags]);
+
+  const handleTagToggle = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setSelectedTags([]);
+  };
+
   const handleRemoveRecipe = (recipeId: string) => {
     if (confirm('Remove this recipe from the cookbook?')) {
       setRecipes(prev => prev.filter(r => r.id !== recipeId));
       onRemoveRecipe(recipeId);
     }
   };
+
+  const hasFilters = searchQuery.length > 0 || selectedTags.length > 0;
+
+  // If a recipe is selected, show the recipe detail view
+  if (selectedRecipe) {
+    return (
+      <div className="modal-overlay cookbook-detail-overlay" onClick={() => setSelectedRecipe(null)}>
+        <div className="cookbook-detail cookbook-recipe-view" onClick={e => e.stopPropagation()}>
+          <div className="cookbook-recipe-header">
+            <button className="btn-back" onClick={() => setSelectedRecipe(null)}>
+              <ArrowLeft size={18} />
+              <span>Back to {cookbook.name}</span>
+            </button>
+            <button className="modal-close" onClick={onClose}>
+              <X size={20} strokeWidth={2} />
+            </button>
+          </div>
+
+          <div className="cookbook-recipe-content">
+            <div className="detail-header">
+              <div className="detail-image">
+                {selectedRecipe.imageUrl ? (
+                  <img src={selectedRecipe.imageUrl} alt={selectedRecipe.title} />
+                ) : (
+                  <div className="detail-image-placeholder">
+                    <DinoMascot size={80} />
+                  </div>
+                )}
+              </div>
+              <div className="detail-info">
+                <h2 className="detail-title">{selectedRecipe.title}</h2>
+                {selectedRecipe.description && (
+                  <p className="detail-description">{selectedRecipe.description}</p>
+                )}
+
+                {(selectedRecipe.prepTime || selectedRecipe.cookTime || selectedRecipe.servings) && (
+                  <div className="detail-meta">
+                    {selectedRecipe.prepTime && (
+                      <div className="meta-block">
+                        <div>
+                          <span className="meta-label">Prep</span>
+                          <span className="meta-value">{selectedRecipe.prepTime}</span>
+                        </div>
+                      </div>
+                    )}
+                    {selectedRecipe.cookTime && (
+                      <div className="meta-block">
+                        <div>
+                          <span className="meta-label">Cook</span>
+                          <span className="meta-value">{selectedRecipe.cookTime}</span>
+                        </div>
+                      </div>
+                    )}
+                    {selectedRecipe.servings && (
+                      <div className="meta-block">
+                        <div>
+                          <span className="meta-label">Serves</span>
+                          <span className="meta-value">{selectedRecipe.servings}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {selectedRecipe.tags.length > 0 && (
+                  <div className="detail-tags">
+                    {selectedRecipe.tags.map(tag => (
+                      <span key={tag} className="tag">{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="detail-body">
+              <div className="detail-section">
+                <h3>Ingredients</h3>
+                <ul className="ingredients-list">
+                  {selectedRecipe.ingredients.map((ingredient, idx) => (
+                    <li key={idx}>
+                      <input type="checkbox" id={`ing-${idx}`} />
+                      <label htmlFor={`ing-${idx}`}>{ingredient}</label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="detail-section">
+                <h3>Instructions</h3>
+                <ol className="instructions-list">
+                  {selectedRecipe.instructions.map((instruction, idx) => (
+                    <li key={idx}>{instruction}</li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal-overlay cookbook-detail-overlay" onClick={onClose}>
@@ -104,29 +250,84 @@ export function CookbookDetail({
             </div>
           ) : recipes.length > 0 ? (
             <>
-              <p className="results-count">
-                {recipes.length} recipe{recipes.length !== 1 ? 's' : ''}
-              </p>
-              <div className="recipe-grid">
-                {recipes.map(recipe => (
-                  <div key={recipe.id} className="cookbook-recipe-card">
-                    <RecipeCard
-                      recipe={recipe}
-                      onClick={() => onViewRecipe(recipe)}
-                      onDelete={() => {}}
-                    />
-                    {cookbook.isOwner && (
+              {/* Search and Filter */}
+              <div className="cookbook-search-filter">
+                <div className="cookbook-search-bar">
+                  <Search size={18} strokeWidth={2} className="search-icon" />
+                  <input
+                    type="text"
+                    placeholder="Search in cookbook..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    className="search-input"
+                  />
+                  {hasFilters && (
+                    <button className="btn-clear" onClick={handleClearFilters}>
+                      <X size={16} strokeWidth={2} />
+                      <span>Clear</span>
+                    </button>
+                  )}
+                </div>
+
+                {allTags.length > 0 && (
+                  <div className="cookbook-filter-tags">
+                    {allTags.map(tag => (
                       <button
-                        className="remove-from-cookbook"
-                        onClick={() => handleRemoveRecipe(recipe.id)}
-                        title="Remove from cookbook"
+                        key={tag}
+                        className={`filter-tag ${selectedTags.includes(tag) ? 'active' : ''}`}
+                        onClick={() => handleTagToggle(tag)}
                       >
-                        <Trash2 size={14} />
+                        {selectedTags.includes(tag) && <Check size={12} strokeWidth={3} />}
+                        <span>{tag}</span>
                       </button>
-                    )}
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
+
+              <p className="results-count">
+                {filteredRecipes.length} recipe{filteredRecipes.length !== 1 ? 's' : ''}
+                {hasFilters && ` of ${recipes.length}`}
+              </p>
+
+              {filteredRecipes.length > 0 ? (
+                <div className="recipe-grid">
+                  {filteredRecipes.map(recipe => (
+                    <div key={recipe.id} className="cookbook-recipe-card">
+                      <RecipeCard
+                        recipe={recipe}
+                        onClick={() => setSelectedRecipe(recipe)}
+                        onDelete={() => {}}
+                      />
+                      {recipe.addedByUserName && (
+                        <div className="recipe-added-by">
+                          <User size={12} />
+                          <span>Added by {recipe.addedByUserName}</span>
+                        </div>
+                      )}
+                      {cookbook.isOwner && (
+                        <button
+                          className="remove-from-cookbook"
+                          onClick={() => handleRemoveRecipe(recipe.id)}
+                          title="Remove from cookbook"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <DinoMascot size={80} />
+                  <h3>No matches found</h3>
+                  <p>Try adjusting your search or filters</p>
+                  <button className="btn-secondary" onClick={handleClearFilters}>
+                    <Search size={16} strokeWidth={2} />
+                    <span>Clear Filters</span>
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <div className="empty-state">

@@ -1,44 +1,45 @@
 import { Plus, LogOut, User, Book, ChefHat } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import { DinoMascot } from './DinoMascot';
 import { useAuth } from '../context/AuthContext';
 
 interface HeaderProps {
   currentView: 'recipes' | 'cookbooks';
-  onViewChange: (view: 'recipes' | 'cookbooks') => void;
   onAddRecipe: () => void;
   onAddCookbook: () => void;
 }
 
-export function Header({ currentView, onViewChange, onAddRecipe, onAddCookbook }: HeaderProps) {
+export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps) {
   const { user, logout } = useAuth();
 
   return (
     <>
       <header className="header">
         <div className="header-content">
-          <div className="logo-section">
+          <NavLink to="/" className="logo-section">
             <DinoMascot size={48} className="logo-icon" />
             <div className="logo-text">
               <h1>Recipesaurus</h1>
             </div>
-          </div>
+          </NavLink>
 
           {user && (
             <nav className="header-nav desktop-only">
-              <button
-                className={`nav-tab ${currentView === 'recipes' ? 'active' : ''}`}
-                onClick={() => onViewChange('recipes')}
+              <NavLink
+                to="/"
+                className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+                end
               >
                 <ChefHat size={18} />
                 Recipes
-              </button>
-              <button
-                className={`nav-tab ${currentView === 'cookbooks' ? 'active' : ''}`}
-                onClick={() => onViewChange('cookbooks')}
+              </NavLink>
+              <NavLink
+                to="/cookbooks"
+                className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
               >
                 <Book size={18} />
                 Cookbooks
-              </button>
+              </NavLink>
             </nav>
           )}
 
@@ -75,20 +76,21 @@ export function Header({ currentView, onViewChange, onAddRecipe, onAddCookbook }
 
       {user && (
         <nav className="mobile-nav">
-          <button
-            className={`mobile-nav-item ${currentView === 'recipes' ? 'active' : ''}`}
-            onClick={() => onViewChange('recipes')}
+          <NavLink
+            to="/"
+            className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+            end
           >
             <ChefHat size={22} />
             <span>Recipes</span>
-          </button>
-          <button
-            className={`mobile-nav-item ${currentView === 'cookbooks' ? 'active' : ''}`}
-            onClick={() => onViewChange('cookbooks')}
+          </NavLink>
+          <NavLink
+            to="/cookbooks"
+            className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
           >
             <Book size={22} />
             <span>Cookbooks</span>
-          </button>
+          </NavLink>
         </nav>
       )}
     </>
