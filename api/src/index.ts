@@ -184,14 +184,22 @@ function corsHeaders(origin: string | null): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': allowOrigin!,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Credentials': 'true',
   };
 }
 
 // Auth middleware
 async function getSessionUser(request: Request, db: D1Database): Promise<User | null> {
-  const sessionId = getCookie(request, 'session');
+  // Check Authorization header first (for cross-origin requests where cookies are blocked)
+  const authHeader = request.headers.get('Authorization');
+  let sessionId = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  // Fall back to cookie
+  if (!sessionId) {
+    sessionId = getCookie(request, 'session');
+  }
+
   if (!sessionId) return null;
 
   const session = await db.prepare(
@@ -245,7 +253,7 @@ async function handleRegister(request: Request, db: D1Database): Promise<Respons
   await addSampleRecipes(db, userId);
 
   return jsonResponse(
-    { user: { id: userId, email: normalizedEmail, name: name.trim() } },
+    { user: { id: userId, email: normalizedEmail, name: name.trim() }, token: sessionId },
     200,
     {
       ...corsHeaders(origin),
@@ -283,7 +291,7 @@ async function handleLogin(request: Request, db: D1Database): Promise<Response> 
   ).bind(sessionId, user.id, Date.now(), expiresAt).run();
 
   return jsonResponse(
-    { user: { id: user.id, email: user.email, name: user.name } },
+    { user: { id: user.id, email: user.email, name: user.name }, token: sessionId },
     200,
     {
       ...corsHeaders(origin),
@@ -293,7 +301,12 @@ async function handleLogin(request: Request, db: D1Database): Promise<Response> 
 }
 
 async function handleLogout(request: Request, db: D1Database): Promise<Response> {
-  const sessionId = getCookie(request, 'session');
+  // Check Authorization header first
+  const authHeader = request.headers.get('Authorization');
+  let sessionId = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!sessionId) {
+    sessionId = getCookie(request, 'session');
+  }
   if (sessionId) {
     await db.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId).run();
   }

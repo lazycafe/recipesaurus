@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi } from '../utils/api';
+import { authApi, setStoredToken, clearStoredToken } from '../utils/api';
 
 interface User {
   id: string;
@@ -46,6 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (data?.user) {
+      if (data.token) {
+        setStoredToken(data.token);
+      }
       setUser(data.user);
       return { success: true };
     }
@@ -69,6 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (data?.user) {
+      if (data.token) {
+        setStoredToken(data.token);
+      }
       setUser(data.user);
       return { success: true };
     }
@@ -78,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await authApi.logout();
+    clearStoredToken();
     setUser(null);
   };
 

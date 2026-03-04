@@ -1,4 +1,18 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'https://recipesaurus-api.andreay226.workers.dev';
+const TOKEN_KEY = 'recipesaurus_token';
+
+// Token management
+export function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setStoredToken(token: string): void {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearStoredToken(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
 
 interface ApiResponse<T> {
   data?: T;
@@ -10,13 +24,20 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
+    const token = getStoredToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     });
 
     const data = await response.json();
@@ -40,14 +61,14 @@ export interface UserResponse {
 }
 
 export const authApi = {
-  async register(email: string, name: string, password: string): Promise<ApiResponse<{ user: UserResponse }>> {
+  async register(email: string, name: string, password: string): Promise<ApiResponse<{ user: UserResponse; token?: string }>> {
     return request('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, name, password }),
     });
   },
 
-  async login(email: string, password: string): Promise<ApiResponse<{ user: UserResponse }>> {
+  async login(email: string, password: string): Promise<ApiResponse<{ user: UserResponse; token?: string }>> {
     return request('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
