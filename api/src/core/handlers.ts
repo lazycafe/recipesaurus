@@ -643,14 +643,17 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401 };
     }
 
-    const existing = await this.db.get<{ id: string }>(
-      'SELECT id FROM cookbooks WHERE id = ? AND user_id = ?',
+    const existing = await this.db.get<{ id: string; cover_image: string | null }>(
+      'SELECT id, cover_image FROM cookbooks WHERE id = ? AND user_id = ?',
       cookbookId,
       user.id
     );
     if (!existing) {
       return { error: 'Cookbook not found', status: 404 };
     }
+
+    // Only update cover_image if explicitly provided, otherwise preserve existing
+    const newCoverImage = data.coverImage !== undefined ? (data.coverImage || null) : existing.cover_image;
 
     await this.db.run(
       `UPDATE cookbooks SET
@@ -661,7 +664,7 @@ export class CoreHandlers {
       WHERE id = ? AND user_id = ?`,
       data.name || null,
       data.description || null,
-      data.coverImage ?? null,
+      newCoverImage,
       Date.now(),
       cookbookId,
       user.id
