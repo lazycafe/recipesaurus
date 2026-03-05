@@ -124,7 +124,7 @@ function formatDuration(duration: string): string {
 
 export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProps) {
   const isEditing = !!recipe;
-  const [activeTab, setActiveTab] = useState<TabType>('manual');
+  const [activeTab, setActiveTab] = useState<TabType>('url');
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(recipe?.imageUrl || null);
