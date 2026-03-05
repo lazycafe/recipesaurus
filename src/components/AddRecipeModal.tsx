@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
-import { X, PenLine, Link, Plus, Loader2, Upload, Image } from 'lucide-react';
+import { X, PenLine, Link, Loader2, Upload, Image } from 'lucide-react';
 import { Recipe, RecipeFormData } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
 import { ConfirmModal } from './ConfirmModal';
+import { TagInput } from './TagInput';
 
 interface AddRecipeModalProps {
   recipe?: Recipe;
@@ -275,15 +276,18 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
   const suggestedTags = [
     'breakfast', 'lunch', 'dinner', 'dessert',
     'vegetarian', 'vegan', 'gluten-free',
-    'quick', 'healthy'
+    'quick', 'healthy', 'appetizer', 'soup',
+    'salad', 'side-dish', 'snack', 'beverage'
   ];
 
-  const addSuggestedTag = (tag: string) => {
-    const currentTags = formData.tags.split(',').map(t => t.trim()).filter(Boolean);
-    if (!currentTags.includes(tag)) {
-      const newTags = [...currentTags, tag].join(', ');
-      handleInputChange('tags', newTags);
-    }
+  // Convert comma-separated string to array
+  const tagsArray = formData.tags
+    .split(',')
+    .map(t => t.trim().toLowerCase())
+    .filter(Boolean);
+
+  const handleTagsChange = (newTags: string[]) => {
+    handleInputChange('tags', newTags.join(', '));
   };
 
   return (
@@ -400,27 +404,14 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
             </div>
 
             <div className="form-group">
-              <label htmlFor="tags">Tags</label>
-              <input
-                type="text"
-                id="tags"
-                value={formData.tags}
-                onChange={e => handleInputChange('tags', e.target.value)}
-                placeholder="Comma separated"
+              <label>Tags</label>
+              <TagInput
+                tags={tagsArray}
+                onChange={handleTagsChange}
+                suggestedTags={suggestedTags}
+                placeholder="Type and press Enter to add..."
+                disabled={isLoading}
               />
-              <div className="suggested-tags">
-                {suggestedTags.map(tag => (
-                  <button
-                    key={tag}
-                    type="button"
-                    className="suggested-tag"
-                    onClick={() => addSuggestedTag(tag)}
-                  >
-                    <Plus size={12} strokeWidth={2.5} />
-                    <span>{tag}</span>
-                  </button>
-                ))}
-              </div>
             </div>
 
             <div className="form-group">

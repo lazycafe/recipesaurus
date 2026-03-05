@@ -1,6 +1,6 @@
 /*
- * Recipesaurus - Warm Kitchen Whimsy
- * A playful, organic aesthetic with terracotta warmth
+ * Recipesaurus - Fresh & Calm Kitchen
+ * A soothing palette inspired by fresh herbs and produce
  */
 
 /* ========================================
@@ -8,29 +8,29 @@
    ======================================== */
 
 :root {
-  /* Warm Earth Palette */
-  --color-terracotta: #c4553d;
-  --color-terracotta-dark: #a84530;
-  --color-terracotta-light: #f8ebe8;
-  --color-cream: #faf6f1;
-  --color-cream-dark: #f0e8dd;
-  --color-olive: #6b7f59;
-  --color-olive-dark: #566849;
-  --color-olive-light: #e8eddf;
-  --color-mustard: #d4a03d;
-  --color-mustard-light: #fdf6e3;
-  --color-charcoal: #2d2926;
-  --color-brown: #5c4d42;
-  --color-taupe: #8b7d72;
-  --color-sand: #c4b8a8;
+  /* Fresh Garden Palette */
+  --color-terracotta: #7a9e7e;
+  --color-terracotta-dark: #5f8463;
+  --color-terracotta-light: #e8f2e9;
+  --color-cream: #f8faf7;
+  --color-cream-dark: #e8efe6;
+  --color-olive: #6b8f72;
+  --color-olive-dark: #4a7052;
+  --color-olive-light: #e5f0e7;
+  --color-mustard: #c9a962;
+  --color-mustard-light: #faf6e8;
+  --color-charcoal: #2a3a2e;
+  --color-brown: #4a5a4e;
+  --color-taupe: #7a8a7e;
+  --color-sand: #b8c4b8;
 
   /* Semantic */
-  --color-background: #fffcf8;
+  --color-background: #fafcfa;
   --color-surface: var(--color-cream);
-  --color-border: #e8ddd0;
+  --color-border: #dce8dc;
   --color-text: var(--color-charcoal);
   --color-text-muted: var(--color-taupe);
-  --color-danger: #c44b4b;
+  --color-danger: #c45a5a;
   --color-danger-light: #fceaea;
 
   /* Typography */
@@ -1281,6 +1281,106 @@ img {
   border-color: var(--color-olive);
   color: var(--color-olive);
   background: var(--color-olive-light);
+}
+
+/* Tag Input Component */
+.tag-input-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tag-input-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-background);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: text;
+  transition: border-color var(--transition-fast);
+}
+
+.tag-input-field:focus-within {
+  border-color: var(--color-terracotta);
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  padding-right: var(--space-1);
+  background: var(--color-terracotta);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.tag-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.tag-chip-remove:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.tag-input {
+  flex: 1;
+  min-width: 100px;
+  padding: var(--space-1) 0;
+  border: none;
+  background: transparent;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  outline: none;
+}
+
+.tag-input::placeholder {
+  color: var(--color-taupe);
+}
+
+.tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tag-suggestion {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-taupe);
+  border: 1.5px dashed var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tag-suggestion:hover {
+  border-color: var(--color-terracotta);
+  border-style: solid;
+  color: var(--color-terracotta);
+  background: var(--color-terracotta-light);
 }
 
 .url-notice {
