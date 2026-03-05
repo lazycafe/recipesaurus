@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CookbookCard } from './CookbookCard';
 import type { Cookbook } from '../types/Cookbook';
@@ -13,10 +13,6 @@ describe('CookbookCard', () => {
     updatedAt: Date.now(),
     isOwner: true,
   };
-
-  beforeEach(() => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-  });
 
   it('renders cookbook name', () => {
     render(<CookbookCard cookbook={mockCookbook} onClick={() => {}} />);
@@ -84,11 +80,14 @@ describe('CookbookCard', () => {
     );
 
     fireEvent.click(screen.getByLabelText('Delete cookbook'));
+    // Confirm modal should appear
+    expect(screen.getByText('Delete Cookbook')).toBeDefined();
+    // Click the confirm button
+    fireEvent.click(screen.getByText('Delete'));
     expect(onDelete).toHaveBeenCalledOnce();
   });
 
   it('does not call onDelete when cancelled', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     const onDelete = vi.fn();
     render(
       <CookbookCard
@@ -99,6 +98,10 @@ describe('CookbookCard', () => {
     );
 
     fireEvent.click(screen.getByLabelText('Delete cookbook'));
+    // Confirm modal should appear
+    expect(screen.getByText('Delete Cookbook')).toBeDefined();
+    // Click the cancel button
+    fireEvent.click(screen.getByText('Cancel'));
     expect(onDelete).not.toHaveBeenCalled();
   });
 

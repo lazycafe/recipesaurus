@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Loader2, Mail, Link, Copy, Check, Trash2 } from 'lucide-react';
 import { Cookbook, CookbookShare, CookbookShareLink } from '../types/Cookbook';
 import { cookbooksApi } from '../utils/api';
+import { ConfirmModal } from './ConfirmModal';
 
 interface ShareCookbookModalProps {
   cookbook: Cookbook;
@@ -18,6 +19,8 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+  const [removeShareUserId, setRemoveShareUserId] = useState<string | null>(null);
+  const [revokeLinkId, setRevokeLinkId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchShares();
@@ -55,12 +58,16 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
   };
 
   const handleRemoveShare = async (userId: string) => {
-    if (!confirm('Remove access for this user?')) return;
+    setRemoveShareUserId(userId);
+  };
 
-    const { error: apiError } = await cookbooksApi.removeShare(cookbook.id, userId);
+  const confirmRemoveShare = async () => {
+    if (!removeShareUserId) return;
+    const { error: apiError } = await cookbooksApi.removeShare(cookbook.id, removeShareUserId);
     if (!apiError) {
-      setShares(prev => prev.filter(s => s.userId !== userId));
+      setShares(prev => prev.filter(s => s.userId !== removeShareUserId));
     }
+    setRemoveShareUserId(null);
   };
 
   const handleCreateLink = async () => {
@@ -75,12 +82,16 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
   };
 
   const handleRevokeLink = async (linkId: string) => {
-    if (!confirm('Revoke this share link?')) return;
+    setRevokeLinkId(linkId);
+  };
 
-    const { error: apiError } = await cookbooksApi.revokeShareLink(cookbook.id, linkId);
+  const confirmRevokeLink = async () => {
+    if (!revokeLinkId) return;
+    const { error: apiError } = await cookbooksApi.revokeShareLink(cookbook.id, revokeLinkId);
     if (!apiError) {
-      setLinks(prev => prev.filter(l => l.id !== linkId));
+      setLinks(prev => prev.filter(l => l.id !== revokeLinkId));
     }
+    setRevokeLinkId(null);
   };
 
   const copyToClipboard = async (token: string, linkId: string) => {
@@ -217,6 +228,26 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
               </div>
             )}
           </div>
+        )}
+
+        {removeShareUserId && (
+          <ConfirmModal
+            title="Remove Access"
+            message="Are you sure you want to remove access for this user?"
+            confirmText="Remove"
+            onConfirm={confirmRemoveShare}
+            onCancel={() => setRemoveShareUserId(null)}
+          />
+        )}
+
+        {revokeLinkId && (
+          <ConfirmModal
+            title="Revoke Link"
+            message="Are you sure you want to revoke this share link? Anyone with this link will no longer be able to access the cookbook."
+            confirmText="Revoke"
+            onConfirm={confirmRevokeLink}
+            onCancel={() => setRevokeLinkId(null)}
+          />
         )}
       </div>
     </div>

@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
+import { ConfirmModal } from './ConfirmModal';
 
 interface RecipeDetailProps {
   recipe: Recipe;
@@ -10,11 +12,16 @@ interface RecipeDetailProps {
 }
 
 export function RecipeDetail({ recipe, onClose, onDelete, onEdit }: RecipeDetailProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const handleDelete = () => {
-    if (confirm('Delete this recipe?')) {
-      onDelete();
-      onClose();
-    }
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    setShowDeleteConfirm(false);
+    onDelete();
+    onClose();
   };
 
   return (
@@ -119,6 +126,16 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit }: RecipeDetail
             <span>Delete</span>
           </button>
         </div>
+
+        {showDeleteConfirm && (
+          <ConfirmModal
+            title="Delete Recipe"
+            message={`Are you sure you want to delete "${recipe.title}"?`}
+            confirmText="Delete"
+            onConfirm={confirmDelete}
+            onCancel={() => setShowDeleteConfirm(false)}
+          />
+        )}
       </div>
     </div>
   );

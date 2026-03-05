@@ -143,16 +143,18 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
     sourceUrl: recipe?.sourceUrl || '',
   });
   const [importError, setImportError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleInputChange = (field: keyof RecipeFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    setFormError(null);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image must be less than 5MB');
+        setFormError('Image must be less than 5MB');
         return;
       }
 
@@ -177,15 +179,15 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title.trim()) {
-      alert('Please enter a recipe title');
+      setFormError('Please enter a recipe title');
       return;
     }
     if (!formData.ingredients.trim()) {
-      alert('Please enter at least one ingredient');
+      setFormError('Please enter at least one ingredient');
       return;
     }
     if (!formData.instructions.trim()) {
-      alert('Please enter at least one instruction');
+      setFormError('Please enter at least one instruction');
       return;
     }
     onSubmit(formData);
@@ -195,7 +197,7 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim()) {
-      alert('Please enter a URL');
+      setImportError('Please enter a URL');
       return;
     }
     setIsLoading(true);
@@ -292,6 +294,8 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
 
         {activeTab === 'manual' ? (
           <form onSubmit={handleManualSubmit} className="form">
+            {formError && <div className="form-error">{formError}</div>}
+
             <div className="form-group">
               <label htmlFor="title">Title</label>
               <input

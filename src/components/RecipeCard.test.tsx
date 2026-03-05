@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { RecipeCard } from './RecipeCard';
 import type { Recipe } from '../types/Recipe';
@@ -13,10 +13,6 @@ describe('RecipeCard', () => {
     tags: ['dinner', 'quick'],
     createdAt: Date.now(),
   };
-
-  beforeEach(() => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-  });
 
   it('renders recipe title and description', () => {
     render(<RecipeCard recipe={mockRecipe} onClick={() => {}} />);
@@ -77,11 +73,14 @@ describe('RecipeCard', () => {
     );
 
     fireEvent.click(screen.getByLabelText('Delete recipe'));
+    // Confirm modal should appear
+    expect(screen.getByText('Delete Recipe')).toBeDefined();
+    // Click the confirm button
+    fireEvent.click(screen.getByText('Delete'));
     expect(onDelete).toHaveBeenCalledOnce();
   });
 
   it('does not call onDelete when cancelled', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
     const onDelete = vi.fn();
     render(
       <RecipeCard
@@ -92,6 +91,10 @@ describe('RecipeCard', () => {
     );
 
     fireEvent.click(screen.getByLabelText('Delete recipe'));
+    // Confirm modal should appear
+    expect(screen.getByText('Delete Recipe')).toBeDefined();
+    // Click the cancel button
+    fireEvent.click(screen.getByText('Cancel'));
     expect(onDelete).not.toHaveBeenCalled();
   });
 
