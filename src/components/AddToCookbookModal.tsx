@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Loader2, Plus, Check, Book } from 'lucide-react';
 import { useCookbooks } from '../context/CookbookContext';
+import { useClient } from '../client/ClientContext';
 import { Recipe } from '../types/Recipe';
 import { ModalOverlay } from './ModalOverlay';
 
@@ -11,9 +12,25 @@ interface AddToCookbookModalProps {
 }
 
 export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToCookbookModalProps) {
+  const client = useClient();
   const { ownedCookbooks, sharedCookbooks, addRecipeToCookbook } = useCookbooks();
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [addedTo, setAddedTo] = useState<Set<string>>(new Set());
+  const [existingCookbookIds, setExistingCookbookIds] = useState<Set<string>>(new Set());
+  const [isLoadingExisting, setIsLoadingExisting] = useState(true);
+
+  // Fetch cookbooks that already contain this recipe
+  useEffect(() => {
+    async function fetchExistingCookbooks() {
+      setIsLoadingExisting(true);
+      const { data } = await client.recipes.getCookbooksForRecipe(recipe.id);
+      if (data) {
+        setExistingCookbookIds(new Set(data.cookbookIds));
+      }
+      setIsLoadingExisting(false);
+    }
+    fetchExistingCookbooks();
+  }, [client, recipe.id]);
 
   // Combine owned and shared cookbooks
   const allCookbooks = [...ownedCookbooks, ...sharedCookbooks];
@@ -37,18 +54,23 @@ export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToC
         <h2>Add to Cookbook</h2>
         <p className="modal-subtitle">Add "{recipe.title}" to a cookbook</p>
 
-        {allCookbooks.length > 0 ? (
+        {isLoadingExisting ? (
+          <div className="cookbook-checkbox-loading">
+            <Loader2 size={24} className="spin" />
+          </div>
+        ) : allCookbooks.length > 0 ? (
           <div className="cookbook-checkbox-list">
             {allCookbooks.map(cookbook => {
               const isAdding = addingTo === cookbook.id;
               const isAdded = addedTo.has(cookbook.id);
+              const alreadyInCookbook = existingCookbookIds.has(cookbook.id);
 
               return (
                 <button
                   key={cookbook.id}
-                  className={`cookbook-checkbox-item ${isAdded ? 'added' : ''}`}
-                  onClick={() => !isAdded && handleAddToCookbook(cookbook.id)}
-                  disabled={isAdding || isAdded}
+                  className={`cookbook-checkbox-item ${isAdded || alreadyInCookbook ? 'added' : ''}`}
+                  onClick={() => !isAdded && !alreadyInCookbook && handleAddToCookbook(cookbook.id)}
+                  disabled={isAdding || isAdded || alreadyInCookbook}
                 >
                   <div className="cookbook-checkbox-icon">
                     <Book size={20} />
@@ -63,7 +85,7 @@ export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToC
                   <div className="cookbook-checkbox-status">
                     {isAdding ? (
                       <Loader2 size={18} className="spin" />
-                    ) : isAdded ? (
+                    ) : isAdded || alreadyInCookbook ? (
                       <Check size={18} />
                     ) : (
                       <Plus size={18} />

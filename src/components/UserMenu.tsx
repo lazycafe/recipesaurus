@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { User, LogOut, Check, X, Book, ChefHat, CheckCheck, Bell, Settings } from 'lucide-react';
+import { User, LogOut, Check, X, Book, ChefHat, CheckCheck, Bell, Settings, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useCookbooks } from '../context/CookbookContext';
@@ -8,7 +8,7 @@ import type { Notification } from '../client/types';
 
 export function UserMenu() {
   const { user, logout } = useAuth();
-  const { notifications, unreadCount, markAsRead, markAllAsRead, acceptInvite, declineInvite } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll, acceptInvite, declineInvite } = useNotifications();
   const { refreshCookbooks } = useCookbooks();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -90,12 +90,20 @@ export function UserMenu() {
           <div className="user-menu-notifications">
             <div className="user-menu-notifications-header">
               <h4>Notifications</h4>
-              {unreadCount > 0 && (
-                <button className="mark-all-read" onClick={markAllAsRead}>
-                  <CheckCheck size={14} />
-                  Mark all read
-                </button>
-              )}
+              <div className="notification-header-actions">
+                {unreadCount > 0 && (
+                  <button className="mark-all-read" onClick={markAllAsRead}>
+                    <CheckCheck size={14} />
+                    Mark all read
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button className="clear-all-notifications" onClick={clearAll}>
+                    <Trash2 size={14} />
+                    Clear all
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="user-menu-notifications-list">

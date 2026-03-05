@@ -108,6 +108,7 @@ export interface IClient {
     create(data: CreateRecipeData): Promise<ApiResponse<{ id: string }>>;
     update(id: string, data: UpdateRecipeData): Promise<ApiResponse<{ success: boolean }>>;
     delete(id: string): Promise<ApiResponse<{ success: boolean }>>;
+    getCookbooksForRecipe(recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>>;
   };
 
   cookbooks: {
@@ -130,6 +131,7 @@ export interface IClient {
     list(): Promise<ApiResponse<{ notifications: Notification[]; unreadCount: number }>>;
     markRead(notificationId: string): Promise<ApiResponse<{ success: boolean }>>;
     markAllRead(): Promise<ApiResponse<{ success: boolean }>>;
+    clearAll(): Promise<ApiResponse<{ success: boolean }>>;
   };
 
   invites: {

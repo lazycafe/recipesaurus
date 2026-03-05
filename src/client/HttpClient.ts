@@ -152,6 +152,10 @@ export class HttpClient implements IClient {
     delete: (id: string): Promise<ApiResponse<{ success: boolean }>> => {
       return this.transport.request('DELETE', `/api/recipes/${id}`);
     },
+
+    getCookbooksForRecipe: (recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>> => {
+      return this.transport.request('GET', `/api/recipes/${recipeId}/cookbooks`);
+    },
   };
 
   cookbooks = {
@@ -224,6 +228,10 @@ export class HttpClient implements IClient {
 
     markAllRead: (): Promise<ApiResponse<{ success: boolean }>> => {
       return this.transport.request('POST', '/api/notifications/read-all');
+    },
+
+    clearAll: (): Promise<ApiResponse<{ success: boolean }>> => {
+      return this.transport.request('DELETE', '/api/notifications/clear-all');
     },
   };
 

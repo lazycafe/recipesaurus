@@ -10,6 +10,7 @@ interface NotificationContextType {
   refresh: () => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
+  clearAll: () => Promise<void>;
   acceptInvite: (inviteId: string) => Promise<{ cookbookId: string; cookbookName: string } | null>;
   declineInvite: (inviteId: string) => Promise<boolean>;
 }
@@ -65,6 +66,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setUnreadCount(0);
   };
 
+  const clearAll = async () => {
+    await client.notifications.clearAll();
+    setNotifications([]);
+    setUnreadCount(0);
+  };
+
   const acceptInvite = async (inviteId: string) => {
     const { data, error } = await client.invites.accept(inviteId);
     if (error) {
@@ -102,6 +109,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         refresh,
         markAsRead,
         markAllAsRead,
+        clearAll,
         acceptInvite,
         declineInvite,
       }}

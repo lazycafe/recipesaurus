@@ -45,6 +45,7 @@ describe('UserMenu', () => {
       refresh: vi.fn(),
       markAsRead: vi.fn(),
       markAllAsRead: vi.fn(),
+      clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
     });
@@ -108,6 +109,7 @@ describe('UserMenu', () => {
       refresh: vi.fn(),
       markAsRead: vi.fn(),
       markAllAsRead: vi.fn(),
+      clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
     });

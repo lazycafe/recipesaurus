@@ -1393,6 +1393,43 @@ async function handleMarkAllNotificationsRead(request: Request, db: D1Database):
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
+async function handleClearAllNotifications(request: Request, db: D1Database): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  await db.prepare(`
+    DELETE FROM notifications WHERE user_id = ?
+  `).bind(user.id).run();
+
+  return jsonResponse({ success: true }, 200, corsHeaders(origin));
+}
+
+async function handleGetCookbooksForRecipe(request: Request, db: D1Database, recipeId: string): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  // Get all cookbook IDs that contain this recipe and user has access to
+  const result = await db.prepare(`
+    SELECT DISTINCT cr.cookbook_id
+    FROM cookbook_recipes cr
+    JOIN cookbooks c ON cr.cookbook_id = c.id
+    LEFT JOIN cookbook_shares cs ON c.id = cs.cookbook_id AND cs.user_id = ?
+    WHERE cr.recipe_id = ? AND (c.user_id = ? OR cs.user_id IS NOT NULL)
+  `).bind(user.id, recipeId, user.id).all<{ cookbook_id: string }>();
+
+  const cookbookIds = result.results.map(r => r.cookbook_id);
+
+  return jsonResponse({ cookbookIds }, 200, corsHeaders(origin));
+}
+
 async function handleAcceptInvite(request: Request, db: D1Database, inviteId: string): Promise<Response> {
   const user = await getSessionUser(request, db);
   const origin = request.headers.get('Origin');
@@ -1723,9 +1760,18 @@ export default {
       if (path === '/api/notifications/read-all' && method === 'POST') {
         return handleMarkAllNotificationsRead(request, env.DB);
       }
+      if (path === '/api/notifications/clear-all' && method === 'DELETE') {
+        return handleClearAllNotifications(request, env.DB);
+      }
       const notificationReadMatch = path.match(/^\/api\/notifications\/([^/]+)\/read$/);
       if (notificationReadMatch && method === 'POST') {
         return handleMarkNotificationRead(request, env.DB, notificationReadMatch[1]);
+      }
+
+      // Recipe cookbooks route
+      const recipeCookbooksMatch = path.match(/^\/api\/recipes\/([^/]+)\/cookbooks$/);
+      if (recipeCookbooksMatch && method === 'GET') {
+        return handleGetCookbooksForRecipe(request, env.DB, recipeCookbooksMatch[1]);
       }
 
       // Invite routes

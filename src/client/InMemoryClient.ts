@@ -157,6 +157,11 @@ export class InMemoryClient implements IClient {
       const result = await this.handlers.deleteRecipe(this.getContext(), id);
       return toApiResponse(result);
     },
+
+    getCookbooksForRecipe: async (_recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>> => {
+      // Stub implementation - in real implementation this would query cookbook_recipes table
+      return { data: { cookbookIds: [] } };
+    },
   };
 
   cookbooks = {
@@ -242,6 +247,10 @@ export class InMemoryClient implements IClient {
     },
 
     markAllRead: async (): Promise<ApiResponse<{ success: boolean }>> => {
+      return { data: { success: true } };
+    },
+
+    clearAll: async (): Promise<ApiResponse<{ success: boolean }>> => {
       return { data: { success: true } };
     },
   };
