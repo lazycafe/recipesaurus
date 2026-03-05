@@ -3029,12 +3029,12 @@ img {
 }
 
 .notification-actions .btn-accept {
-  background: var(--color-primary);
+  background: var(--color-olive);
   color: white;
 }
 
 .notification-actions .btn-accept:hover {
-  background: var(--color-terracotta);
+  background: var(--color-olive-dark);
 }
 
 .notification-actions .btn-decline {
