@@ -235,16 +235,15 @@ function getCookie(request: Request, name: string): string | null {
 // CORS headers
 function corsHeaders(origin: string | null): Record<string, string> {
   const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:4173',
     'https://recipesaurus.pages.dev',
     'https://recipesaurus-git-main.pages.dev',
     'https://recipesaurus.ai',
     'https://www.recipesaurus.ai',
   ];
 
-  // Allow any *.pages.dev subdomain for Cloudflare Pages previews
+  // Allow any localhost port for development, or *.pages.dev for Cloudflare Pages previews
   const isAllowed = origin && (
+    origin.startsWith('http://localhost:') ||
     allowedOrigins.includes(origin) ||
     origin.endsWith('.pages.dev')
   );
