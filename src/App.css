@@ -222,6 +222,7 @@ img {
   gap: var(--space-3);
   text-decoration: none;
   color: inherit;
+  margin-right: var(--space-4);
 }
 
 .logo-icon {
@@ -2566,6 +2567,7 @@ img {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  margin-bottom: var(--space-6);
 }
 
 .share-list h4 {
