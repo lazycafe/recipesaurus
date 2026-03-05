@@ -3188,6 +3188,7 @@ img {
 }
 
 .user-menu-notifications-header h4 {
+  font-family: var(--font-body);
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-charcoal);
