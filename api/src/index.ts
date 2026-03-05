@@ -1161,12 +1161,21 @@ async function handleRemoveShare(request: Request, db: D1Database, cookbookId: s
     return errorResponse('Unauthorized', 401, origin);
   }
 
+  // Check if user is the owner of the cookbook
   const cookbook = await db.prepare(
-    'SELECT * FROM cookbooks WHERE id = ? AND user_id = ?'
-  ).bind(cookbookId, user.id).first<Cookbook>();
+    'SELECT * FROM cookbooks WHERE id = ?'
+  ).bind(cookbookId).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404, origin);
+    return errorResponse('Cookbook not found', 404, origin);
+  }
+
+  const isOwner = cookbook.user_id === user.id;
+  const isRemovingSelf = userId === user.id;
+
+  // Allow if: owner removing anyone, or user removing themselves
+  if (!isOwner && !isRemovingSelf) {
+    return errorResponse('Access denied', 403, origin);
   }
 
   await db.prepare('DELETE FROM cookbook_shares WHERE cookbook_id = ? AND shared_with_user_id = ?').bind(cookbookId, userId).run();

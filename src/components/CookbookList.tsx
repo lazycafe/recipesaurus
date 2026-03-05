@@ -11,7 +11,7 @@ interface CookbookListProps {
 }
 
 export function CookbookList({ onCreateCookbook, onSelectCookbook }: CookbookListProps) {
-  const { ownedCookbooks, sharedCookbooks, deleteCookbook } = useCookbooks();
+  const { ownedCookbooks, sharedCookbooks, deleteCookbook, leaveCookbook } = useCookbooks();
   const [activeTab, setActiveTab] = useState<'owned' | 'shared'>('owned');
 
   const cookbooks = activeTab === 'owned' ? ownedCookbooks : sharedCookbooks;
@@ -56,6 +56,7 @@ export function CookbookList({ onCreateCookbook, onSelectCookbook }: CookbookLis
               cookbook={cookbook}
               onClick={() => onSelectCookbook(cookbook)}
               onDelete={cookbook.isOwner ? () => deleteCookbook(cookbook.id) : undefined}
+              onLeave={!cookbook.isOwner ? () => leaveCookbook(cookbook.id) : undefined}
             />
           ))}
         </div>

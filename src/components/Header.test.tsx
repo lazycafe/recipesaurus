@@ -64,6 +64,7 @@ describe('Header', () => {
       createCookbook: vi.fn(),
       updateCookbook: vi.fn(),
       deleteCookbook: vi.fn(),
+      leaveCookbook: vi.fn(),
       addRecipeToCookbook: vi.fn(),
       removeRecipeFromCookbook: vi.fn(),
       refreshCookbooks: vi.fn(),

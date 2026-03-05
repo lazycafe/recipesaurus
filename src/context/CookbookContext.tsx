@@ -10,6 +10,7 @@ interface CookbookContextType {
   createCookbook: (name: string, description?: string, coverImage?: string) => Promise<string | null>;
   updateCookbook: (id: string, data: { name?: string; description?: string; coverImage?: string }) => Promise<boolean>;
   deleteCookbook: (id: string) => Promise<boolean>;
+  leaveCookbook: (id: string) => Promise<boolean>;
   addRecipeToCookbook: (cookbookId: string, recipeId: string) => Promise<boolean>;
   removeRecipeFromCookbook: (cookbookId: string, recipeId: string) => Promise<boolean>;
   refreshCookbooks: () => Promise<void>;
@@ -86,7 +87,6 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
   const deleteCookbook = useCallback(async (id: string): Promise<boolean> => {
     // Optimistic update
     setOwnedCookbooks(prev => prev.filter(c => c.id !== id));
-    setSharedCookbooks(prev => prev.filter(c => c.id !== id));
 
     const { error } = await cookbooksApi.delete(id);
     if (error) {
@@ -94,10 +94,23 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
       await refreshCookbooks();
       return false;
     }
-    // Refresh to ensure consistency
-    await refreshCookbooks();
     return true;
   }, [refreshCookbooks]);
+
+  const leaveCookbook = useCallback(async (id: string): Promise<boolean> => {
+    if (!user) return false;
+
+    // Optimistic update
+    setSharedCookbooks(prev => prev.filter(c => c.id !== id));
+
+    const { error } = await cookbooksApi.removeShare(id, user.id);
+    if (error) {
+      console.error('Failed to leave cookbook:', error);
+      await refreshCookbooks();
+      return false;
+    }
+    return true;
+  }, [user, refreshCookbooks]);
 
   const addRecipeToCookbook = useCallback(async (cookbookId: string, recipeId: string): Promise<boolean> => {
     const { error } = await cookbooksApi.addRecipe(cookbookId, recipeId);
@@ -127,6 +140,7 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
       createCookbook,
       updateCookbook,
       deleteCookbook,
+      leaveCookbook,
       addRecipeToCookbook,
       removeRecipeFromCookbook,
       refreshCookbooks,

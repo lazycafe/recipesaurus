@@ -8,25 +8,32 @@ interface CookbookCardProps {
   cookbook: Cookbook;
   onClick: () => void;
   onDelete?: () => void;
+  onLeave?: () => void;
 }
 
-export function CookbookCard({ cookbook, onClick, onDelete }: CookbookCardProps) {
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+export function CookbookCard({ cookbook, onClick, onDelete, onLeave }: CookbookCardProps) {
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setShowDeleteConfirm(true);
+    setShowConfirm(true);
   };
 
-  const confirmDelete = () => {
-    setShowDeleteConfirm(false);
-    onDelete?.();
+  const confirmRemove = () => {
+    setShowConfirm(false);
+    if (cookbook.isOwner) {
+      onDelete?.();
+    } else {
+      onLeave?.();
+    }
   };
+
+  const canRemove = (cookbook.isOwner && onDelete) || (!cookbook.isOwner && onLeave);
 
   return (
     <article className="cookbook-card" onClick={onClick}>
-      {cookbook.isOwner && onDelete && (
-        <button className="card-delete" onClick={handleDelete} aria-label="Delete cookbook">
+      {canRemove && (
+        <button className="card-delete" onClick={handleRemove} aria-label={cookbook.isOwner ? "Delete cookbook" : "Leave cookbook"}>
           <X size={16} strokeWidth={2} />
         </button>
       )}
@@ -65,13 +72,17 @@ export function CookbookCard({ cookbook, onClick, onDelete }: CookbookCardProps)
         )}
       </div>
 
-      {showDeleteConfirm && (
+      {showConfirm && (
         <ConfirmModal
-          title="Delete Cookbook"
-          message={`Are you sure you want to delete "${cookbook.name}"? Your recipes will not be deleted.`}
-          confirmText="Delete"
-          onConfirm={confirmDelete}
-          onCancel={() => setShowDeleteConfirm(false)}
+          title={cookbook.isOwner ? "Delete Cookbook" : "Leave Cookbook"}
+          message={
+            cookbook.isOwner
+              ? `Are you sure you want to delete "${cookbook.name}"? Your recipes will not be deleted.`
+              : `Are you sure you want to leave "${cookbook.name}"? You'll no longer have access to this cookbook.`
+          }
+          confirmText={cookbook.isOwner ? "Delete" : "Leave"}
+          onConfirm={confirmRemove}
+          onCancel={() => setShowConfirm(false)}
         />
       )}
     </article>
