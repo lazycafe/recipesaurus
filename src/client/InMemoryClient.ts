@@ -49,6 +49,7 @@ export interface ICoreHandlers {
   createShareLink(ctx: RequestContext, cookbookId: string): Promise<ApiResult<CookbookShareLink>>;
   revokeShareLink(ctx: RequestContext, cookbookId: string, linkId: string): Promise<ApiResult<{ success: boolean }>>;
   getSharedCookbook(token: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
+  getCookbooksForRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ cookbookIds: string[] }>>;
 }
 
 // In-memory token storage for testing
@@ -158,9 +159,9 @@ export class InMemoryClient implements IClient {
       return toApiResponse(result);
     },
 
-    getCookbooksForRecipe: async (_recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>> => {
-      // Stub implementation - in real implementation this would query cookbook_recipes table
-      return { data: { cookbookIds: [] } };
+    getCookbooksForRecipe: async (recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>> => {
+      const result = await this.handlers.getCookbooksForRecipe(this.getContext(), recipeId);
+      return toApiResponse(result);
     },
   };
 

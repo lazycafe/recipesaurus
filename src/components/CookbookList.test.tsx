@@ -49,7 +49,7 @@ describe('CookbookList', () => {
     );
 
     expect(screen.getByText('No cookbooks yet')).toBeDefined();
-    expect(screen.getByText('Create Your First Cookbook')).toBeDefined();
+    expect(screen.getByText('New Cookbook')).toBeDefined();
   });
 
   it('calls onCreateCookbook when create button clicked', () => {
@@ -58,7 +58,7 @@ describe('CookbookList', () => {
       <CookbookList onCreateCookbook={onCreateCookbook} onSelectCookbook={() => {}} />
     );
 
-    fireEvent.click(screen.getByText('Create Your First Cookbook'));
+    fireEvent.click(screen.getByText('New Cookbook'));
     expect(onCreateCookbook).toHaveBeenCalledOnce();
   });
 
@@ -152,7 +152,7 @@ describe('CookbookList', () => {
     expect(onSelectCookbook).toHaveBeenCalledWith(mockCookbook);
   });
 
-  it('hides New Cookbook button in shared tab', () => {
+  it('shows tabs only when shared cookbooks exist', () => {
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
       ownedCookbooks: [mockCookbook],
       sharedCookbooks: [mockSharedCookbook],
@@ -170,12 +170,9 @@ describe('CookbookList', () => {
       <CookbookList onCreateCookbook={() => {}} onSelectCookbook={() => {}} />
     );
 
-    // Initially visible
-    expect(screen.getByText('New Cookbook')).toBeDefined();
-
-    // Switch to shared tab
-    fireEvent.click(screen.getByText('Shared with Me'));
-    expect(screen.queryByText('New Cookbook')).toBeNull();
+    // Both tabs should be visible
+    expect(screen.getByText('My Cookbooks')).toBeDefined();
+    expect(screen.getByText('Shared with Me')).toBeDefined();
   });
 
   it('hides shared tab when no shared cookbooks', () => {

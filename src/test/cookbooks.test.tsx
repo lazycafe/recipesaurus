@@ -135,6 +135,64 @@ describe('Cookbooks with React components', () => {
       expect(result.data!.recipes.length).toBe(1);
       expect(result.data!.recipes[0].title).toBe('Test Recipe');
     });
+
+    it('should get cookbooks containing a recipe', async () => {
+      await harness.seedUser('test@example.com', 'Password123', 'Test User');
+      const recipeId = await harness.seedRecipe({ title: 'Test Recipe' });
+      const cookbook1Id = await harness.seedCookbook({ name: 'Cookbook 1' });
+      const cookbook2Id = await harness.seedCookbook({ name: 'Cookbook 2' });
+      await harness.seedCookbook({ name: 'Cookbook 3' }); // Not added
+
+      const client = harness.getClient();
+      await client.cookbooks.addRecipe(cookbook1Id, recipeId);
+      await client.cookbooks.addRecipe(cookbook2Id, recipeId);
+
+      const result = await client.recipes.getCookbooksForRecipe(recipeId);
+      expect(result.data).toBeDefined();
+      expect(result.data!.cookbookIds.length).toBe(2);
+      expect(result.data!.cookbookIds).toContain(cookbook1Id);
+      expect(result.data!.cookbookIds).toContain(cookbook2Id);
+    });
+
+    it('should return empty array when recipe not in any cookbook', async () => {
+      await harness.seedUser('test@example.com', 'Password123', 'Test User');
+      const recipeId = await harness.seedRecipe({ title: 'Test Recipe' });
+      await harness.seedCookbook({ name: 'Empty Cookbook' });
+
+      const client = harness.getClient();
+      const result = await client.recipes.getCookbooksForRecipe(recipeId);
+      expect(result.data).toBeDefined();
+      expect(result.data!.cookbookIds.length).toBe(0);
+    });
+
+    it('should include shared cookbooks when getting cookbooks for recipe', async () => {
+      // Create owner with recipe and cookbook
+      const ownerClient = harness.createClient();
+      await ownerClient.auth.register('owner@example.com', 'Owner', 'Password123');
+      const recipeResult = await ownerClient.recipes.create({
+        title: 'Shared Recipe',
+        description: 'A shared recipe',
+        ingredients: ['ingredient'],
+        instructions: ['step'],
+        tags: [],
+      });
+      const recipeId = recipeResult.data!.id;
+      const cookbookResult = await ownerClient.cookbooks.create({ name: 'Shared Cookbook' });
+      const cookbookId = cookbookResult.data!.id;
+      await ownerClient.cookbooks.addRecipe(cookbookId, recipeId);
+
+      // Create shared user
+      const sharedClient = harness.createClient();
+      await sharedClient.auth.register('shared@example.com', 'Shared User', 'Password123');
+
+      // Share the cookbook
+      await ownerClient.cookbooks.shareByEmail(cookbookId, 'shared@example.com');
+
+      // Shared user should see the cookbook when querying for the recipe
+      const result = await sharedClient.recipes.getCookbooksForRecipe(recipeId);
+      expect(result.data).toBeDefined();
+      expect(result.data!.cookbookIds).toContain(cookbookId);
+    });
   });
 
   describe('Cookbook sharing', () => {

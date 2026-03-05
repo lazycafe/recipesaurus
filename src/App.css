@@ -3702,6 +3702,17 @@ img {
   border-color: var(--color-olive);
 }
 
+.cookbook-checkbox-item.added .cookbook-checkbox-icon {
+  background: var(--color-olive);
+  color: white;
+}
+
+.cookbook-checkbox-item.added .cookbook-checkbox-status {
+  background: var(--color-olive);
+  color: white;
+  border-radius: 50%;
+}
+
 .cookbook-checkbox-item:disabled {
   cursor: default;
 }

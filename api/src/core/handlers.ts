@@ -464,6 +464,27 @@ export class CoreHandlers {
     return { data: { success: true }, status: 200 };
   }
 
+  async getCookbooksForRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ cookbookIds: string[] }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    // Get all cookbook IDs that contain this recipe and user has access to (owned or shared)
+    const result = await this.db.all<{ cookbook_id: string }>(
+      `SELECT DISTINCT cr.cookbook_id
+       FROM cookbook_recipes cr
+       JOIN cookbooks c ON cr.cookbook_id = c.id
+       LEFT JOIN cookbook_shares cs ON c.id = cs.cookbook_id AND cs.shared_with_user_id = ?
+       WHERE cr.recipe_id = ? AND (c.user_id = ? OR cs.shared_with_user_id IS NOT NULL)`,
+      user.id,
+      recipeId,
+      user.id
+    );
+
+    return { data: { cookbookIds: result.results.map(r => r.cookbook_id) }, status: 200 };
+  }
+
   // Cookbook handlers
   async getCookbooks(ctx: RequestContext): Promise<ApiResult<{ owned: CookbookInfo[]; shared: CookbookInfo[] }>> {
     const user = await this.getSessionUser(ctx);

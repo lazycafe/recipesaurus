@@ -23,10 +23,10 @@ export function EmptyState({ hasFilters, onAddRecipe, onClearFilters }: EmptySta
       ) : (
         <>
           <h3>No recipes yet</h3>
-          <p>Start building your collection</p>
+          <p>Start building your collection.</p>
           <button className="btn-primary" onClick={onAddRecipe}>
             <Plus size={18} strokeWidth={2.5} />
-            <span>Add Recipe</span>
+            <span>New Recipe</span>
           </button>
         </>
       )}

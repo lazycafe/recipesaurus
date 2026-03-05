@@ -13,9 +13,10 @@ interface AddToCookbookModalProps {
 
 export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToCookbookModalProps) {
   const client = useClient();
-  const { ownedCookbooks, sharedCookbooks, addRecipeToCookbook } = useCookbooks();
-  const [addingTo, setAddingTo] = useState<string | null>(null);
+  const { ownedCookbooks, sharedCookbooks, addRecipeToCookbook, removeRecipeFromCookbook } = useCookbooks();
+  const [processingId, setProcessingId] = useState<string | null>(null);
   const [addedTo, setAddedTo] = useState<Set<string>>(new Set());
+  const [removedFrom, setRemovedFrom] = useState<Set<string>>(new Set());
   const [existingCookbookIds, setExistingCookbookIds] = useState<Set<string>>(new Set());
   const [isLoadingExisting, setIsLoadingExisting] = useState(true);
 
@@ -35,13 +36,41 @@ export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToC
   // Combine owned and shared cookbooks
   const allCookbooks = [...ownedCookbooks, ...sharedCookbooks];
 
-  const handleAddToCookbook = async (cookbookId: string) => {
-    setAddingTo(cookbookId);
-    const success = await addRecipeToCookbook(cookbookId, recipe.id);
-    if (success) {
-      setAddedTo(prev => new Set([...prev, cookbookId]));
+  // Check if recipe is currently in cookbook (considering adds and removes during this session)
+  const isInCookbook = (cookbookId: string) => {
+    if (removedFrom.has(cookbookId)) return false;
+    if (addedTo.has(cookbookId)) return true;
+    return existingCookbookIds.has(cookbookId);
+  };
+
+  const handleToggleCookbook = async (cookbookId: string) => {
+    setProcessingId(cookbookId);
+
+    if (isInCookbook(cookbookId)) {
+      // Remove from cookbook
+      const success = await removeRecipeFromCookbook(cookbookId, recipe.id);
+      if (success) {
+        setRemovedFrom(prev => new Set([...prev, cookbookId]));
+        setAddedTo(prev => {
+          const next = new Set(prev);
+          next.delete(cookbookId);
+          return next;
+        });
+      }
+    } else {
+      // Add to cookbook
+      const success = await addRecipeToCookbook(cookbookId, recipe.id);
+      if (success) {
+        setAddedTo(prev => new Set([...prev, cookbookId]));
+        setRemovedFrom(prev => {
+          const next = new Set(prev);
+          next.delete(cookbookId);
+          return next;
+        });
+      }
     }
-    setAddingTo(null);
+
+    setProcessingId(null);
   };
 
   return (
@@ -61,16 +90,15 @@ export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToC
         ) : allCookbooks.length > 0 ? (
           <div className="cookbook-checkbox-list">
             {allCookbooks.map(cookbook => {
-              const isAdding = addingTo === cookbook.id;
-              const isAdded = addedTo.has(cookbook.id);
-              const alreadyInCookbook = existingCookbookIds.has(cookbook.id);
+              const isProcessing = processingId === cookbook.id;
+              const inCookbook = isInCookbook(cookbook.id);
 
               return (
                 <button
                   key={cookbook.id}
-                  className={`cookbook-checkbox-item ${isAdded || alreadyInCookbook ? 'added' : ''}`}
-                  onClick={() => !isAdded && !alreadyInCookbook && handleAddToCookbook(cookbook.id)}
-                  disabled={isAdding || isAdded || alreadyInCookbook}
+                  className={`cookbook-checkbox-item ${inCookbook ? 'added' : ''}`}
+                  onClick={() => handleToggleCookbook(cookbook.id)}
+                  disabled={isProcessing}
                 >
                   <div className="cookbook-checkbox-icon">
                     <Book size={20} />
@@ -83,9 +111,9 @@ export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToC
                     </span>
                   </div>
                   <div className="cookbook-checkbox-status">
-                    {isAdding ? (
+                    {isProcessing ? (
                       <Loader2 size={18} className="spin" />
-                    ) : isAdded || alreadyInCookbook ? (
+                    ) : inCookbook ? (
                       <Check size={18} />
                     ) : (
                       <Plus size={18} />

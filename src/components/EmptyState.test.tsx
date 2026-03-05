@@ -13,8 +13,8 @@ describe('EmptyState', () => {
     );
 
     expect(screen.getByText('No recipes yet')).toBeDefined();
-    expect(screen.getByText('Start building your collection')).toBeDefined();
-    expect(screen.getByText('Add Recipe')).toBeDefined();
+    expect(screen.getByText('Start building your collection.')).toBeDefined();
+    expect(screen.getByText('New Recipe')).toBeDefined();
   });
 
   it('shows "No matches found" when has filters', () => {
@@ -31,7 +31,7 @@ describe('EmptyState', () => {
     expect(screen.getByText('Clear Filters')).toBeDefined();
   });
 
-  it('calls onAddRecipe when Add Recipe clicked', () => {
+  it('calls onAddRecipe when New Recipe clicked', () => {
     const onAddRecipe = vi.fn();
     render(
       <EmptyState
@@ -41,7 +41,7 @@ describe('EmptyState', () => {
       />
     );
 
-    fireEvent.click(screen.getByText('Add Recipe'));
+    fireEvent.click(screen.getByText('New Recipe'));
     expect(onAddRecipe).toHaveBeenCalledOnce();
   });
 

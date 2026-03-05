@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Share2, Pencil, Loader2, User, Trash2, Search, ArrowLeft, Check } from 'lucide-react';
+import { X, Share2, Pencil, Loader2, User, Trash2, Search, ArrowLeft, Check, LogOut } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { Recipe } from '../types/Recipe';
 import { cookbooksApi, RecipeResponse } from '../utils/api';
 import { RecipeCard } from './RecipeCard';
 import { DinoMascot } from './DinoMascot';
+import { ConfirmModal } from './ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { ModalOverlay } from './ModalOverlay';
 
@@ -14,6 +15,8 @@ interface CookbookDetailProps {
   onEdit: () => void;
   onShare: () => void;
   onRemoveRecipe: (recipeId: string) => void;
+  onDelete?: () => void;
+  onLeave?: () => void;
 }
 
 interface CookbookRecipe extends Recipe {
@@ -46,6 +49,8 @@ export function CookbookDetail({
   onEdit,
   onShare,
   onRemoveRecipe,
+  onDelete,
+  onLeave,
 }: CookbookDetailProps) {
   const { user } = useAuth();
   const [recipes, setRecipes] = useState<CookbookRecipe[]>([]);
@@ -54,6 +59,7 @@ export function CookbookDetail({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<CookbookRecipe | null>(null);
   const [recipeToRemove, setRecipeToRemove] = useState<CookbookRecipe | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Check if user can remove a recipe (owner can remove any, shared users can only remove their own)
   const canRemoveRecipe = (recipe: CookbookRecipe) => {
@@ -246,18 +252,31 @@ export function CookbookDetail({
             )}
           </div>
 
-          {cookbook.isOwner && (
-            <div className="cookbook-detail-actions">
-              <button className="btn-secondary" onClick={onEdit}>
-                <Pencil size={16} />
-                Edit
+          <div className="cookbook-detail-actions">
+            {cookbook.isOwner ? (
+              <>
+                <button className="btn-secondary" onClick={onEdit}>
+                  <Pencil size={16} />
+                  Edit
+                </button>
+                <button className="btn-primary" onClick={onShare}>
+                  <Share2 size={16} />
+                  Share
+                </button>
+                {onDelete && (
+                  <button className="btn-danger" onClick={() => setShowDeleteConfirm(true)}>
+                    <Trash2 size={16} />
+                    Delete
+                  </button>
+                )}
+              </>
+            ) : onLeave && (
+              <button className="btn-secondary" onClick={() => setShowDeleteConfirm(true)}>
+                <LogOut size={16} />
+                Leave
               </button>
-              <button className="btn-primary" onClick={onShare}>
-                <Share2 size={16} />
-                Share
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="cookbook-detail-content">
@@ -370,6 +389,28 @@ export function CookbookDetail({
               </div>
             </div>
           </ModalOverlay>
+        )}
+
+        {showDeleteConfirm && (
+          <ConfirmModal
+            title={cookbook.isOwner ? "Delete Cookbook" : "Leave Cookbook"}
+            message={
+              cookbook.isOwner
+                ? `Are you sure you want to delete "${cookbook.name}"? Your recipes will not be deleted.`
+                : `Are you sure you want to leave "${cookbook.name}"? You'll no longer have access to this cookbook.`
+            }
+            confirmText={cookbook.isOwner ? "Delete" : "Leave"}
+            onConfirm={() => {
+              setShowDeleteConfirm(false);
+              onClose();
+              if (cookbook.isOwner) {
+                onDelete?.();
+              } else {
+                onLeave?.();
+              }
+            }}
+            onCancel={() => setShowDeleteConfirm(false)}
+          />
         )}
       </div>
     </ModalOverlay>

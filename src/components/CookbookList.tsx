@@ -11,7 +11,7 @@ interface CookbookListProps {
 }
 
 export function CookbookList({ onCreateCookbook, onSelectCookbook }: CookbookListProps) {
-  const { ownedCookbooks, sharedCookbooks, deleteCookbook, leaveCookbook } = useCookbooks();
+  const { ownedCookbooks, sharedCookbooks } = useCookbooks();
   const [activeTab, setActiveTab] = useState<'owned' | 'shared'>('owned');
 
   const cookbooks = activeTab === 'owned' ? ownedCookbooks : sharedCookbooks;
@@ -19,17 +19,17 @@ export function CookbookList({ onCreateCookbook, onSelectCookbook }: CookbookLis
 
   return (
     <div className="cookbook-list">
-      <div className="cookbook-header">
-        <div className="cookbook-tabs">
-          <button
-            className={`cookbook-tab ${activeTab === 'owned' ? 'active' : ''}`}
-            onClick={() => setActiveTab('owned')}
-          >
-            <Book size={16} />
-            My Cookbooks
-            <span className="tab-count">{ownedCookbooks.length}</span>
-          </button>
-          {hasShared && (
+      {hasShared && (
+        <div className="cookbook-header">
+          <div className="cookbook-tabs">
+            <button
+              className={`cookbook-tab ${activeTab === 'owned' ? 'active' : ''}`}
+              onClick={() => setActiveTab('owned')}
+            >
+              <Book size={16} />
+              My Cookbooks
+              <span className="tab-count">{ownedCookbooks.length}</span>
+            </button>
             <button
               className={`cookbook-tab ${activeTab === 'shared' ? 'active' : ''}`}
               onClick={() => setActiveTab('shared')}
@@ -37,16 +37,9 @@ export function CookbookList({ onCreateCookbook, onSelectCookbook }: CookbookLis
               Shared with Me
               <span className="tab-count">{sharedCookbooks.length}</span>
             </button>
-          )}
+          </div>
         </div>
-
-        {activeTab === 'owned' && (
-          <button className="btn-primary" onClick={onCreateCookbook}>
-            <Plus size={18} strokeWidth={2} />
-            New Cookbook
-          </button>
-        )}
-      </div>
+      )}
 
       {cookbooks.length > 0 ? (
         <div className="cookbook-grid">
@@ -55,8 +48,6 @@ export function CookbookList({ onCreateCookbook, onSelectCookbook }: CookbookLis
               key={cookbook.id}
               cookbook={cookbook}
               onClick={() => onSelectCookbook(cookbook)}
-              onDelete={cookbook.isOwner ? () => deleteCookbook(cookbook.id) : undefined}
-              onLeave={!cookbook.isOwner ? () => leaveCookbook(cookbook.id) : undefined}
             />
           ))}
         </div>
@@ -70,13 +61,13 @@ export function CookbookList({ onCreateCookbook, onSelectCookbook }: CookbookLis
           </h2>
           <p>
             {activeTab === 'owned'
-              ? 'Create a cookbook to organize your favorite recipes.'
+              ? 'Organize your recipes into cookbooks.'
               : 'When someone shares a cookbook with you, it will appear here.'}
           </p>
           {activeTab === 'owned' && (
             <button className="btn-primary" onClick={onCreateCookbook}>
               <Plus size={18} strokeWidth={2} />
-              Create Your First Cookbook
+              New Cookbook
             </button>
           )}
         </div>
