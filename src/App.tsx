@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { ClientProvider } from './client/ClientContext';
+import { defaultClient } from './client/defaultClient';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RecipeProvider, useRecipes } from './context/RecipeContext';
 import { CookbookProvider, useCookbooks } from './context/CookbookContext';
@@ -21,6 +23,27 @@ import { Recipe, RecipeFormData } from './types/Recipe';
 import { Cookbook } from './types/Cookbook';
 import { Loader2 } from 'lucide-react';
 import './App.css';
+
+const parseFormData = (formData: RecipeFormData) => ({
+  title: formData.title.trim(),
+  description: formData.description.trim(),
+  ingredients: formData.ingredients
+    .split('\n')
+    .map(i => i.trim())
+    .filter(Boolean),
+  instructions: formData.instructions
+    .split('\n')
+    .map(i => i.trim())
+    .filter(Boolean),
+  tags: formData.tags
+    .split(',')
+    .map(t => t.trim().toLowerCase())
+    .filter(Boolean),
+  imageUrl: formData.imageUrl.trim() || undefined,
+  prepTime: formData.prepTime.trim() || undefined,
+  cookTime: formData.cookTime.trim() || undefined,
+  servings: formData.servings.trim() || undefined,
+});
 
 function LandingPage({ onLogin, onRegister }: { onLogin: () => void; onRegister: () => void }) {
   return (
@@ -158,11 +181,12 @@ function CookbooksView({
 }
 
 function RecipeApp() {
-  const { addRecipe, deleteRecipe } = useRecipes();
+  const { addRecipe, updateRecipe, deleteRecipe } = useRecipes();
   const { createCookbook, updateCookbook, removeRecipeFromCookbook } = useCookbooks();
   const location = useLocation();
 
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCookbookModal, setShowCookbookModal] = useState(false);
   const [selectedCookbook, setSelectedCookbook] = useState<Cookbook | null>(null);
@@ -174,28 +198,19 @@ function RecipeApp() {
 
   const handleAddRecipe = async (formData: RecipeFormData) => {
     try {
-      await addRecipe({
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        ingredients: formData.ingredients
-          .split('\n')
-          .map(i => i.trim())
-          .filter(Boolean),
-        instructions: formData.instructions
-          .split('\n')
-          .map(i => i.trim())
-          .filter(Boolean),
-        tags: formData.tags
-          .split(',')
-          .map(t => t.trim().toLowerCase())
-          .filter(Boolean),
-        imageUrl: formData.imageUrl.trim() || undefined,
-        prepTime: formData.prepTime.trim() || undefined,
-        cookTime: formData.cookTime.trim() || undefined,
-        servings: formData.servings.trim() || undefined,
-      });
+      await addRecipe(parseFormData(formData));
     } catch (error) {
       console.error('Failed to add recipe:', error);
+    }
+  };
+
+  const handleUpdateRecipe = async (formData: RecipeFormData) => {
+    if (!editingRecipe) return;
+    try {
+      await updateRecipe(editingRecipe.id, parseFormData(formData));
+      setEditingRecipe(null);
+    } catch (error) {
+      console.error('Failed to update recipe:', error);
     }
   };
 
@@ -225,11 +240,11 @@ function RecipeApp() {
     }
   };
 
-  const handleSaveCookbook = async (name: string, description?: string) => {
+  const handleSaveCookbook = async (name: string, description?: string, coverImage?: string) => {
     if (editingCookbook) {
-      await updateCookbook(editingCookbook.id, { name, description });
+      await updateCookbook(editingCookbook.id, { name, description, coverImage });
     } else {
-      await createCookbook(name, description);
+      await createCookbook(name, description, coverImage);
     }
   };
 
@@ -281,6 +296,10 @@ function RecipeApp() {
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
           onDelete={() => handleDeleteRecipe(selectedRecipe.id)}
+          onEdit={() => {
+            setEditingRecipe(selectedRecipe);
+            setSelectedRecipe(null);
+          }}
         />
       )}
 
@@ -289,6 +308,15 @@ function RecipeApp() {
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddRecipe}
           onUrlSubmit={handleUrlImport}
+        />
+      )}
+
+      {editingRecipe && (
+        <AddRecipeModal
+          recipe={editingRecipe}
+          onClose={() => setEditingRecipe(null)}
+          onSubmit={handleUpdateRecipe}
+          onUrlSubmit={() => {}}
         />
       )}
 
@@ -393,11 +421,13 @@ function App() {
   const isSharedRoute = window.location.pathname.startsWith('/shared/');
 
   return (
-    <AuthProvider>
-      <div className="app">
-        {isSharedRoute ? <SharedCookbookRoute /> : <AppContent />}
-      </div>
-    </AuthProvider>
+    <ClientProvider client={defaultClient}>
+      <AuthProvider>
+        <div className="app">
+          {isSharedRoute ? <SharedCookbookRoute /> : <AppContent />}
+        </div>
+      </AuthProvider>
+    </ClientProvider>
   );
 }
 

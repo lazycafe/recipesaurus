@@ -129,6 +129,13 @@ export const recipesApi = {
     });
   },
 
+  async update(id: string, recipe: Partial<CreateRecipeData>): Promise<ApiResponse<{ success: boolean }>> {
+    return request(`/api/recipes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(recipe),
+    });
+  },
+
   async delete(id: string): Promise<ApiResponse<{ success: boolean }>> {
     return request(`/api/recipes/${id}`, {
       method: 'DELETE',
@@ -141,6 +148,7 @@ export interface CookbookResponse {
   id: string;
   name: string;
   description?: string;
+  coverImage?: string | null;
   recipeCount: number;
   createdAt: number;
   updatedAt: number;
@@ -172,14 +180,14 @@ export const cookbooksApi = {
     return request(`/api/cookbooks/${id}`);
   },
 
-  async create(data: { name: string; description?: string }): Promise<ApiResponse<{ id: string }>> {
+  async create(data: { name: string; description?: string; coverImage?: string }): Promise<ApiResponse<{ id: string }>> {
     return request('/api/cookbooks', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async update(id: string, data: { name?: string; description?: string }): Promise<ApiResponse<{ success: boolean }>> {
+  async update(id: string, data: { name?: string; description?: string; coverImage?: string }): Promise<ApiResponse<{ success: boolean }>> {
     return request(`/api/cookbooks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

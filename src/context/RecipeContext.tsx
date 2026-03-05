@@ -7,6 +7,7 @@ interface RecipeContextType {
   recipes: Recipe[];
   isLoading: boolean;
   addRecipe: (recipe: Omit<Recipe, 'id' | 'createdAt'>) => Promise<void>;
+  updateRecipe: (id: string, recipe: Partial<Omit<Recipe, 'id' | 'createdAt'>>) => Promise<void>;
   deleteRecipe: (id: string) => Promise<void>;
   getAllTags: () => string[];
   refreshRecipes: () => Promise<void>;
@@ -88,6 +89,30 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateRecipe = async (id: string, recipeData: Partial<Omit<Recipe, 'id' | 'createdAt'>>) => {
+    // Optimistic update
+    setRecipes(prev => prev.map(r => r.id === id ? { ...r, ...recipeData } : r));
+
+    const { error } = await recipesApi.update(id, {
+      title: recipeData.title,
+      description: recipeData.description,
+      ingredients: recipeData.ingredients,
+      instructions: recipeData.instructions,
+      tags: recipeData.tags,
+      imageUrl: recipeData.imageUrl,
+      sourceUrl: recipeData.sourceUrl,
+      prepTime: recipeData.prepTime,
+      cookTime: recipeData.cookTime,
+      servings: recipeData.servings,
+    });
+
+    if (error) {
+      console.error('Failed to update recipe:', error);
+      await refreshRecipes();
+      throw new Error(error);
+    }
+  };
+
   const deleteRecipe = async (id: string) => {
     // Optimistic update
     setRecipes(prev => prev.filter(r => r.id !== id));
@@ -110,7 +135,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
 
   return (
     <RecipeContext.Provider
-      value={{ recipes, isLoading, addRecipe, deleteRecipe, getAllTags, refreshRecipes }}
+      value={{ recipes, isLoading, addRecipe, updateRecipe, deleteRecipe, getAllTags, refreshRecipes }}
     >
       {children}
     </RecipeContext.Provider>

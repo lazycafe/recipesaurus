@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { X, Loader2, Book } from 'lucide-react';
+import { X, Loader2, Book, Image } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
+import { DinoMascot } from './DinoMascot';
 
 interface CookbookModalProps {
   cookbook?: Cookbook;
   onClose: () => void;
-  onSubmit: (name: string, description?: string) => Promise<void>;
+  onSubmit: (name: string, description?: string, coverImage?: string) => Promise<void>;
 }
 
 export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProps) {
   const [name, setName] = useState(cookbook?.name || '');
   const [description, setDescription] = useState(cookbook?.description || '');
+  const [coverImage, setCoverImage] = useState(cookbook?.coverImage || '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -28,7 +30,7 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
     setError('');
 
     try {
-      await onSubmit(name.trim(), description.trim() || undefined);
+      await onSubmit(name.trim(), description.trim() || undefined, coverImage.trim() || undefined);
       onClose();
     } catch {
       setError('Failed to save cookbook. Please try again.');
@@ -39,7 +41,7 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-form" onClick={e => e.stopPropagation()}>
+      <div className="modal-content modal-form cookbook-modal" onClick={e => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>
           <X size={20} strokeWidth={2} />
         </button>
@@ -51,6 +53,23 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
 
         <form onSubmit={handleSubmit} className="form">
           {error && <div className="form-error">{error}</div>}
+
+          <div className="cookbook-cover-preview">
+            <div className="cookbook-book-preview">
+              <div className="cookbook-spine-preview">
+                <span>{name || 'Cookbook'}</span>
+              </div>
+              <div className="cookbook-cover-preview-inner">
+                {coverImage ? (
+                  <img src={coverImage} alt="Cover preview" />
+                ) : (
+                  <div className="cookbook-cover-preview-placeholder">
+                    <DinoMascot size={40} />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
           <div className="form-group">
             <label htmlFor="cookbook-name">Name</label>
@@ -72,9 +91,25 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="A collection of..."
-              rows={3}
+              rows={2}
               disabled={isLoading}
             />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="cookbook-cover">
+              <Image size={16} strokeWidth={2} />
+              Cover Image URL (optional)
+            </label>
+            <input
+              id="cookbook-cover"
+              type="url"
+              value={coverImage}
+              onChange={e => setCoverImage(e.target.value)}
+              placeholder="https://example.com/image.jpg"
+              disabled={isLoading}
+            />
+            <p className="form-hint">Add a photo to personalize your cookbook cover</p>
           </div>
 
           <button type="submit" className="btn-submit" disabled={isLoading}>

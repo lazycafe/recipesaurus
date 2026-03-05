@@ -2,6 +2,7 @@ export interface Cookbook {
   id: string;
   name: string;
   description?: string;
+  coverImage?: string | null;
   recipeCount: number;
   createdAt: number;
   updatedAt: number;

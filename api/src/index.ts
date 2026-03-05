@@ -40,6 +40,7 @@ interface Cookbook {
   user_id: string;
   name: string;
   description: string | null;
+  cover_image: string | null;
   created_at: number;
   updated_at: number;
 }
@@ -496,6 +497,64 @@ async function handleDeleteRecipe(request: Request, db: D1Database, recipeId: st
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
+async function handleUpdateRecipe(request: Request, db: D1Database, recipeId: string): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  // Verify ownership
+  const existing = await db.prepare('SELECT id FROM recipes WHERE id = ? AND user_id = ?').bind(recipeId, user.id).first();
+  if (!existing) {
+    return errorResponse('Recipe not found', 404, origin);
+  }
+
+  const body = await request.json() as {
+    title?: string;
+    description?: string;
+    ingredients?: string[];
+    instructions?: string[];
+    tags?: string[];
+    imageUrl?: string;
+    sourceUrl?: string;
+    prepTime?: string;
+    cookTime?: string;
+    servings?: string;
+  };
+
+  await db.prepare(`
+    UPDATE recipes SET
+      title = COALESCE(?, title),
+      description = COALESCE(?, description),
+      ingredients = COALESCE(?, ingredients),
+      instructions = COALESCE(?, instructions),
+      tags = COALESCE(?, tags),
+      image_url = ?,
+      source_url = ?,
+      prep_time = ?,
+      cook_time = ?,
+      servings = ?
+    WHERE id = ? AND user_id = ?
+  `).bind(
+    body.title || null,
+    body.description || null,
+    body.ingredients ? JSON.stringify(body.ingredients) : null,
+    body.instructions ? JSON.stringify(body.instructions) : null,
+    body.tags ? JSON.stringify(body.tags) : null,
+    body.imageUrl ?? null,
+    body.sourceUrl ?? null,
+    body.prepTime ?? null,
+    body.cookTime ?? null,
+    body.servings ?? null,
+    recipeId,
+    user.id
+  ).run();
+
+  return jsonResponse({ success: true }, 200, corsHeaders(origin));
+}
+
 // Cookbook handlers
 async function handleGetCookbooks(request: Request, db: D1Database): Promise<Response> {
   const user = await getSessionUser(request, db);
@@ -531,6 +590,7 @@ async function handleGetCookbooks(request: Request, db: D1Database): Promise<Res
     id: c.id,
     name: c.name,
     description: c.description,
+    coverImage: c.cover_image || null,
     recipeCount: c.recipe_count || 0,
     createdAt: c.created_at,
     updatedAt: c.updated_at,
@@ -552,7 +612,7 @@ async function handleCreateCookbook(request: Request, db: D1Database): Promise<R
     return errorResponse('Unauthorized', 401, origin);
   }
 
-  const body = await request.json() as { name: string; description?: string };
+  const body = await request.json() as { name: string; description?: string; coverImage?: string };
 
   if (!body.name?.trim()) {
     return errorResponse('Cookbook name is required', 400, origin);
@@ -562,9 +622,9 @@ async function handleCreateCookbook(request: Request, db: D1Database): Promise<R
   const now = Date.now();
 
   await db.prepare(`
-    INSERT INTO cookbooks (id, user_id, name, description, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(cookbookId, user.id, body.name.trim(), body.description?.trim() || null, now, now).run();
+    INSERT INTO cookbooks (id, user_id, name, description, cover_image, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).bind(cookbookId, user.id, body.name.trim(), body.description?.trim() || null, body.coverImage?.trim() || null, now, now).run();
 
   return jsonResponse({ id: cookbookId }, 201, corsHeaders(origin));
 }
@@ -636,6 +696,7 @@ async function handleGetCookbook(request: Request, db: D1Database, cookbookId: s
       id: cookbook.id,
       name: cookbook.name,
       description: cookbook.description,
+      coverImage: cookbook.cover_image,
       recipeCount: formattedRecipes.length,
       createdAt: cookbook.created_at,
       updatedAt: cookbook.updated_at,
@@ -662,14 +723,15 @@ async function handleUpdateCookbook(request: Request, db: D1Database, cookbookId
     return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
-  const body = await request.json() as { name?: string; description?: string };
+  const body = await request.json() as { name?: string; description?: string; coverImage?: string | null };
 
   const newName = body.name?.trim() || cookbook.name;
   const newDescription = body.description !== undefined ? (body.description?.trim() || null) : cookbook.description;
+  const newCoverImage = body.coverImage !== undefined ? (body.coverImage?.trim() || null) : cookbook.cover_image;
 
   await db.prepare(`
-    UPDATE cookbooks SET name = ?, description = ?, updated_at = ? WHERE id = ?
-  `).bind(newName, newDescription, Date.now(), cookbookId).run();
+    UPDATE cookbooks SET name = ?, description = ?, cover_image = ?, updated_at = ? WHERE id = ?
+  `).bind(newName, newDescription, newCoverImage, Date.now(), cookbookId).run();
 
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
@@ -1115,6 +1177,10 @@ export default {
       if (path.startsWith('/api/recipes/') && method === 'DELETE') {
         const recipeId = path.split('/').pop()!;
         return handleDeleteRecipe(request, env.DB, recipeId);
+      }
+      if (path.startsWith('/api/recipes/') && method === 'PUT') {
+        const recipeId = path.split('/').pop()!;
+        return handleUpdateRecipe(request, env.DB, recipeId);
       }
 
       // Cookbook routes

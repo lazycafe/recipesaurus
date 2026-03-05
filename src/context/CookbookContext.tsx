@@ -7,8 +7,8 @@ interface CookbookContextType {
   ownedCookbooks: Cookbook[];
   sharedCookbooks: Cookbook[];
   isLoading: boolean;
-  createCookbook: (name: string, description?: string) => Promise<string | null>;
-  updateCookbook: (id: string, data: { name?: string; description?: string }) => Promise<boolean>;
+  createCookbook: (name: string, description?: string, coverImage?: string) => Promise<string | null>;
+  updateCookbook: (id: string, data: { name?: string; description?: string; coverImage?: string }) => Promise<boolean>;
   deleteCookbook: (id: string) => Promise<boolean>;
   addRecipeToCookbook: (cookbookId: string, recipeId: string) => Promise<boolean>;
   removeRecipeFromCookbook: (cookbookId: string, recipeId: string) => Promise<boolean>;
@@ -22,6 +22,7 @@ function mapCookbookResponse(c: CookbookResponse): Cookbook {
     id: c.id,
     name: c.name,
     description: c.description,
+    coverImage: c.coverImage,
     recipeCount: c.recipeCount,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
@@ -62,8 +63,8 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
     refreshCookbooks();
   }, [refreshCookbooks]);
 
-  const createCookbook = useCallback(async (name: string, description?: string): Promise<string | null> => {
-    const { data, error } = await cookbooksApi.create({ name, description });
+  const createCookbook = useCallback(async (name: string, description?: string, coverImage?: string): Promise<string | null> => {
+    const { data, error } = await cookbooksApi.create({ name, description, coverImage });
     if (error || !data) {
       console.error('Failed to create cookbook:', error);
       return null;
@@ -72,7 +73,7 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
     return data.id;
   }, [refreshCookbooks]);
 
-  const updateCookbook = useCallback(async (id: string, data: { name?: string; description?: string }): Promise<boolean> => {
+  const updateCookbook = useCallback(async (id: string, data: { name?: string; description?: string; coverImage?: string }): Promise<boolean> => {
     const { error } = await cookbooksApi.update(id, data);
     if (error) {
       console.error('Failed to update cookbook:', error);

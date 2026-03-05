@@ -1,4 +1,4 @@
-import { X, Clock, ChefHat, Users, ExternalLink, Trash2 } from 'lucide-react';
+import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 
@@ -6,9 +6,10 @@ interface RecipeDetailProps {
   recipe: Recipe;
   onClose: () => void;
   onDelete: () => void;
+  onEdit: () => void;
 }
 
-export function RecipeDetail({ recipe, onClose, onDelete }: RecipeDetailProps) {
+export function RecipeDetail({ recipe, onClose, onDelete, onEdit }: RecipeDetailProps) {
   const handleDelete = () => {
     if (confirm('Delete this recipe?')) {
       onDelete();
@@ -109,9 +110,13 @@ export function RecipeDetail({ recipe, onClose, onDelete }: RecipeDetailProps) {
         </div>
 
         <div className="detail-footer">
+          <button className="btn-secondary" onClick={onEdit}>
+            <PenLine size={16} strokeWidth={2} />
+            <span>Edit</span>
+          </button>
           <button className="btn-danger" onClick={handleDelete}>
             <Trash2 size={16} strokeWidth={2} />
-            <span>Delete Recipe</span>
+            <span>Delete</span>
           </button>
         </div>
       </div>

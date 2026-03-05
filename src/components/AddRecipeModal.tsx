@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
 import { X, PenLine, Link, Plus, Loader2, Upload, Image } from 'lucide-react';
-import { RecipeFormData } from '../types/Recipe';
+import { Recipe, RecipeFormData } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 
 interface AddRecipeModalProps {
+  recipe?: Recipe;
   onClose: () => void;
   onSubmit: (data: RecipeFormData) => void;
   onUrlSubmit: (url: string) => void;
@@ -11,23 +12,24 @@ interface AddRecipeModalProps {
 
 type TabType = 'manual' | 'url';
 
-export function AddRecipeModal({ onClose, onSubmit, onUrlSubmit }: AddRecipeModalProps) {
+export function AddRecipeModal({ recipe, onClose, onSubmit, onUrlSubmit }: AddRecipeModalProps) {
+  const isEditing = !!recipe;
   const [activeTab, setActiveTab] = useState<TabType>('manual');
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(recipe?.imageUrl || null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<RecipeFormData>({
-    title: '',
-    description: '',
-    ingredients: '',
-    instructions: '',
-    tags: '',
-    imageUrl: '',
-    prepTime: '',
-    cookTime: '',
-    servings: '',
+    title: recipe?.title || '',
+    description: recipe?.description || '',
+    ingredients: recipe?.ingredients.join('\n') || '',
+    instructions: recipe?.instructions.join('\n') || '',
+    tags: recipe?.tags.join(', ') || '',
+    imageUrl: recipe?.imageUrl || '',
+    prepTime: recipe?.prepTime || '',
+    cookTime: recipe?.cookTime || '',
+    servings: recipe?.servings || '',
   });
 
   const handleInputChange = (field: keyof RecipeFormData, value: string) => {
@@ -116,25 +118,27 @@ export function AddRecipeModal({ onClose, onSubmit, onUrlSubmit }: AddRecipeModa
 
         <div className="modal-header">
           <DinoMascot size={40} className="modal-icon" />
-          <h2>Add Recipe</h2>
+          <h2>{isEditing ? 'Edit Recipe' : 'Add Recipe'}</h2>
         </div>
 
-        <div className="tab-group">
-          <button
-            className={`tab-btn ${activeTab === 'manual' ? 'active' : ''}`}
-            onClick={() => setActiveTab('manual')}
-          >
-            <PenLine size={16} strokeWidth={2} />
-            <span>Manual</span>
-          </button>
-          <button
-            className={`tab-btn ${activeTab === 'url' ? 'active' : ''}`}
-            onClick={() => setActiveTab('url')}
-          >
-            <Link size={16} strokeWidth={2} />
-            <span>From URL</span>
-          </button>
-        </div>
+        {!isEditing && (
+          <div className="tab-group">
+            <button
+              className={`tab-btn ${activeTab === 'manual' ? 'active' : ''}`}
+              onClick={() => setActiveTab('manual')}
+            >
+              <PenLine size={16} strokeWidth={2} />
+              <span>Manual</span>
+            </button>
+            <button
+              className={`tab-btn ${activeTab === 'url' ? 'active' : ''}`}
+              onClick={() => setActiveTab('url')}
+            >
+              <Link size={16} strokeWidth={2} />
+              <span>From URL</span>
+            </button>
+          </div>
+        )}
 
         {activeTab === 'manual' ? (
           <form onSubmit={handleManualSubmit} className="form">
@@ -272,10 +276,10 @@ export function AddRecipeModal({ onClose, onSubmit, onUrlSubmit }: AddRecipeModa
             </div>
 
             <button type="submit" className="btn-submit">
-              Save Recipe
+              {isEditing ? 'Update Recipe' : 'Save Recipe'}
             </button>
           </form>
-        ) : (
+        ) : !isEditing ? (
           <form onSubmit={handleUrlSubmit} className="form">
             <div className="url-notice">
               <Image size={20} strokeWidth={1.5} />
@@ -307,7 +311,7 @@ export function AddRecipeModal({ onClose, onSubmit, onUrlSubmit }: AddRecipeModa
               )}
             </button>
           </form>
-        )}
+        ) : null}
       </div>
     </div>
   );
