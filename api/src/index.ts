@@ -474,7 +474,7 @@ async function handleForgotPassword(request: Request, db: D1Database, env: Env):
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Recipesaurus <noreply@recipesaurus.app>',
+        from: 'Recipesaurus <noreply@recipesaurus.ai>',
         to: [normalizedEmail],
         subject: 'Reset Your Password - Recipesaurus',
         html: `
