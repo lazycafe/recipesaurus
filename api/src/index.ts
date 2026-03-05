@@ -66,6 +66,11 @@ const KEY_LENGTH = 256;
 const SALT_LENGTH = 16;
 const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+// Rate limiting
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+const ATTEMPT_WINDOW = 15 * 60 * 1000; // 15 minutes
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -130,6 +135,54 @@ async function verifyPassword(password: string, storedHash: string, storedSalt: 
   const salt = new Uint8Array(base64ToArrayBuffer(storedSalt));
   const derivedKey = await deriveKey(password, salt);
   return arrayBufferToBase64(derivedKey) === storedHash;
+}
+
+// Password validation
+function validatePassword(password: string): { valid: boolean; error?: string } {
+  if (password.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one uppercase letter' };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one lowercase letter' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one number' };
+  }
+  return { valid: true };
+}
+
+// Rate limiting
+async function checkRateLimit(db: D1Database, email: string, ip: string | null): Promise<{ allowed: boolean; remainingAttempts: number }> {
+  const windowStart = Date.now() - ATTEMPT_WINDOW;
+
+  // Count recent failed attempts for this email
+  const result = await db.prepare(`
+    SELECT COUNT(*) as count FROM login_attempts
+    WHERE email = ? AND attempted_at > ? AND success = 0
+  `).bind(email.toLowerCase(), windowStart).first<{ count: number }>();
+
+  const failedAttempts = result?.count || 0;
+  const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - failedAttempts);
+
+  return {
+    allowed: failedAttempts < MAX_LOGIN_ATTEMPTS,
+    remainingAttempts,
+  };
+}
+
+async function recordLoginAttempt(db: D1Database, email: string, ip: string | null, success: boolean): Promise<void> {
+  const id = generateId();
+  await db.prepare(`
+    INSERT INTO login_attempts (id, email, ip_address, attempted_at, success)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(id, email.toLowerCase(), ip, Date.now(), success ? 1 : 0).run();
+
+  // Clean up old attempts (older than 24 hours)
+  const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+  await db.prepare('DELETE FROM login_attempts WHERE attempted_at < ?').bind(oneDayAgo).run();
 }
 
 // Response helpers
@@ -221,8 +274,9 @@ async function handleRegister(request: Request, db: D1Database): Promise<Respons
     return errorResponse('Email, name, and password are required', 400, origin);
   }
 
-  if (password.length < 8) {
-    return errorResponse('Password must be at least 8 characters', 400, origin);
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.valid) {
+    return errorResponse(passwordValidation.error!, 400, origin);
   }
 
   const normalizedEmail = email.toLowerCase().trim();
@@ -272,16 +326,33 @@ async function handleLogin(request: Request, db: D1Database): Promise<Response> 
   }
 
   const normalizedEmail = email.toLowerCase().trim();
+  const ip = request.headers.get('CF-Connecting-IP');
+
+  // Check rate limit
+  const rateLimit = await checkRateLimit(db, normalizedEmail, ip);
+  if (!rateLimit.allowed) {
+    return errorResponse('Too many failed login attempts. Please try again in 15 minutes.', 429, origin);
+  }
 
   const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(normalizedEmail).first<User>();
   if (!user) {
+    // Record failed attempt (even for non-existent users to prevent enumeration)
+    await recordLoginAttempt(db, normalizedEmail, ip, false);
     return errorResponse('Invalid email or password', 401, origin);
   }
 
   const isValid = await verifyPassword(password, user.password_hash, user.password_salt);
   if (!isValid) {
+    await recordLoginAttempt(db, normalizedEmail, ip, false);
+    const remaining = rateLimit.remainingAttempts - 1;
+    if (remaining <= 2 && remaining > 0) {
+      return errorResponse(`Invalid email or password. ${remaining} attempts remaining.`, 401, origin);
+    }
     return errorResponse('Invalid email or password', 401, origin);
   }
+
+  // Record successful attempt
+  await recordLoginAttempt(db, normalizedEmail, ip, true);
 
   // Create session
   const sessionId = generateId();

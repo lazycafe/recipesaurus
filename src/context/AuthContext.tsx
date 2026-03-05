@@ -61,8 +61,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     name: string,
     password: string
   ): Promise<{ success: boolean; error?: string }> => {
+    // Validate password requirements
     if (password.length < 8) {
       return { success: false, error: 'Password must be at least 8 characters' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { success: false, error: 'Password must contain at least one uppercase letter' };
+    }
+    if (!/[a-z]/.test(password)) {
+      return { success: false, error: 'Password must contain at least one lowercase letter' };
+    }
+    if (!/[0-9]/.test(password)) {
+      return { success: false, error: 'Password must contain at least one number' };
     }
 
     const { data, error } = await authApi.register(email, name, password);

@@ -350,7 +350,7 @@ test.describe('Recipes', () => {
       }
 
       await expect(page.getByText('No recipes yet')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Add Your First Recipe' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Add Recipe' })).toBeVisible();
     });
   });
 });

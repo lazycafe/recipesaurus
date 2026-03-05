@@ -56,7 +56,8 @@ export class TestHelpers {
     await this.page.getByRole('button', { name: 'Get Started' }).click();
     await this.page.getByLabel('Name').fill(user.name);
     await this.page.getByLabel('Email').fill(user.email);
-    await this.page.getByLabel('Password').fill(user.password);
+    await this.page.locator('#password').fill(user.password);
+    await this.page.locator('#confirmPassword').fill(user.password);
     await this.page.getByRole('button', { name: 'Create Account' }).click();
     await expect(this.page.getByText(user.name)).toBeVisible({ timeout: 10000 });
   }
@@ -65,7 +66,7 @@ export class TestHelpers {
     await this.page.goto('/');
     await this.page.getByRole('button', { name: 'Sign In' }).click();
     await this.page.getByLabel('Email').fill(user.email);
-    await this.page.getByLabel('Password').fill(user.password);
+    await this.page.locator('#password').fill(user.password);
     await this.page.getByRole('button', { name: 'Sign In' }).click();
     await expect(this.page.getByText(user.name)).toBeVisible({ timeout: 10000 });
   }

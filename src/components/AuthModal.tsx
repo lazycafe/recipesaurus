@@ -128,7 +128,7 @@ export function AuthModal({ onClose, initialMode = 'login' }: AuthModalProps) {
                 id="password"
                 value={formData.password}
                 onChange={e => handleInputChange('password', e.target.value)}
-                placeholder={mode === 'register' ? 'Min. 8 characters' : 'Your password'}
+                placeholder={mode === 'register' ? 'Create a password' : 'Your password'}
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 required
               />
@@ -141,6 +141,11 @@ export function AuthModal({ onClose, initialMode = 'login' }: AuthModalProps) {
                 {showPassword ? <EyeOff size={18} strokeWidth={2} /> : <Eye size={18} strokeWidth={2} />}
               </button>
             </div>
+            {mode === 'register' && (
+              <p className="password-requirements">
+                8+ characters with uppercase, lowercase, and number
+              </p>
+            )}
           </div>
 
           {mode === 'register' && (

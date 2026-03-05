@@ -67,7 +67,8 @@ test.describe('Cookbook Sharing', () => {
       await page2.getByRole('button', { name: 'Get Started' }).click();
       await page2.getByLabel('Name').fill(user2.name);
       await page2.getByLabel('Email').fill(user2.email);
-      await page2.getByLabel('Password').fill(user2.password);
+      await page2.locator('#password').fill(user2.password);
+      await page2.locator('#confirmPassword').fill(user2.password);
       await page2.getByRole('button', { name: 'Create Account' }).click();
       await expect(page2.getByText(user2.name)).toBeVisible({ timeout: 10000 });
       await page2.close();
@@ -157,7 +158,8 @@ test.describe('Cookbook Sharing', () => {
       await page2.getByRole('button', { name: 'Get Started' }).click();
       await page2.getByLabel('Name').fill(user2.name);
       await page2.getByLabel('Email').fill(user2.email);
-      await page2.getByLabel('Password').fill(user2.password);
+      await page2.locator('#password').fill(user2.password);
+      await page2.locator('#confirmPassword').fill(user2.password);
       await page2.getByRole('button', { name: 'Create Account' }).click();
       await expect(page2.getByText(user2.name)).toBeVisible({ timeout: 10000 });
       await page2.close();
@@ -316,7 +318,8 @@ test.describe('Cookbook Sharing', () => {
       await page2.getByRole('button', { name: 'Get Started' }).click();
       await page2.getByLabel('Name').fill(user2.name);
       await page2.getByLabel('Email').fill(user2.email);
-      await page2.getByLabel('Password').fill(user2.password);
+      await page2.locator('#password').fill(user2.password);
+      await page2.locator('#confirmPassword').fill(user2.password);
       await page2.getByRole('button', { name: 'Create Account' }).click();
       await expect(page2.getByText(user2.name)).toBeVisible({ timeout: 10000 });
       await page2.close();

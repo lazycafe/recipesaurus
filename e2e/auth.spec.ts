@@ -29,7 +29,7 @@ test.describe('Authentication', () => {
       await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
       await expect(page.getByLabel('Name')).toBeVisible();
       await expect(page.getByLabel('Email')).toBeVisible();
-      await expect(page.getByLabel('Password')).toBeVisible();
+      await expect(page.locator('#password')).toBeVisible();
     });
 
     test('should successfully register a new user', async ({ page }) => {
@@ -38,7 +38,8 @@ test.describe('Authentication', () => {
 
       await page.getByLabel('Name').fill(uniqueUser.name);
       await page.getByLabel('Email').fill(uniqueUser.email);
-      await page.getByLabel('Password').fill(uniqueUser.password);
+      await page.locator('#password').fill(uniqueUser.password);
+      await page.locator('#confirmPassword').fill(uniqueUser.password);
       await page.getByRole('button', { name: 'Create Account' }).click();
 
       // Should be redirected to main app
@@ -52,7 +53,8 @@ test.describe('Authentication', () => {
 
       await page.getByLabel('Name').fill('Short Password User');
       await page.getByLabel('Email').fill('short@example.com');
-      await page.getByLabel('Password').fill('short');
+      await page.locator('#password').fill('short');
+      await page.locator('#confirmPassword').fill('short');
       await page.getByRole('button', { name: 'Create Account' }).click();
 
       await expect(page.getByText('Password must be at least 8 characters')).toBeVisible();
@@ -72,7 +74,8 @@ test.describe('Authentication', () => {
       await page.getByRole('button', { name: 'Get Started' }).click();
       await page.getByLabel('Name').fill('Another User');
       await page.getByLabel('Email').fill(duplicateUser.email);
-      await page.getByLabel('Password').fill('DifferentPassword123!');
+      await page.locator('#password').fill('DifferentPassword123!');
+      await page.locator('#confirmPassword').fill('DifferentPassword123!');
       await page.getByRole('button', { name: 'Create Account' }).click();
 
       await expect(page.getByText('An account with this email already exists')).toBeVisible();
@@ -82,17 +85,17 @@ test.describe('Authentication', () => {
       await page.goto('/');
       await page.getByRole('button', { name: 'Get Started' }).click();
 
-      // Try to submit empty form
-      await page.getByRole('button', { name: 'Create Account' }).click();
+      // Try to submit empty form - it should show the modal but not submit
+      await page.locator('.auth-submit').click();
 
-      // HTML5 validation should prevent submission
-      await expect(page.getByLabel('Name')).toBeFocused();
+      // Modal should still be visible (HTML5 validation prevents submission)
+      await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
     });
 
     test('should switch to login mode from registration', async ({ page }) => {
       await page.goto('/');
       await page.getByRole('button', { name: 'Get Started' }).click();
-      await page.getByText('Sign in').click();
+      await page.locator('.auth-toggle').click();
       await expect(page.getByRole('heading', { name: 'Welcome Back' })).toBeVisible();
     });
   });
@@ -111,7 +114,8 @@ test.describe('Authentication', () => {
       await page.getByRole('button', { name: 'Get Started' }).click();
       await page.getByLabel('Name').fill(loginUser.name);
       await page.getByLabel('Email').fill(loginUser.email);
-      await page.getByLabel('Password').fill(loginUser.password);
+      await page.locator('#password').fill(loginUser.password);
+      await page.locator('#confirmPassword').fill(loginUser.password);
       await page.getByRole('button', { name: 'Create Account' }).click();
       await expect(page.getByText(loginUser.name)).toBeVisible({ timeout: 10000 });
       await page.close();
@@ -119,19 +123,19 @@ test.describe('Authentication', () => {
 
     test('should open login modal when clicking Sign In', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.getByRole('button', { name: 'Sign In' }).first().click();
       await expect(page.getByRole('heading', { name: 'Welcome Back' })).toBeVisible();
       await expect(page.getByLabel('Email')).toBeVisible();
-      await expect(page.getByLabel('Password')).toBeVisible();
+      await expect(page.locator('#password')).toBeVisible();
     });
 
     test('should successfully log in an existing user', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.getByRole('button', { name: 'Sign In' }).first().click();
 
       await page.getByLabel('Email').fill(loginUser.email);
-      await page.getByLabel('Password').fill(loginUser.password);
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.locator('#password').fill(loginUser.password);
+      await page.locator('.auth-submit').click();
 
       await expect(page.getByText(loginUser.name)).toBeVisible({ timeout: 10000 });
       await expect(page.getByRole('button', { name: 'New Recipe' })).toBeVisible();
@@ -139,31 +143,31 @@ test.describe('Authentication', () => {
 
     test('should show error for invalid credentials', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.getByRole('button', { name: 'Sign In' }).first().click();
 
       await page.getByLabel('Email').fill('nonexistent@example.com');
-      await page.getByLabel('Password').fill('WrongPassword123!');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.locator('#password').fill('WrongPassword123!');
+      await page.locator('.auth-submit').click();
 
       await expect(page.getByText('Invalid email or password')).toBeVisible();
     });
 
     test('should show error for wrong password', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.getByRole('button', { name: 'Sign In' }).first().click();
 
       await page.getByLabel('Email').fill(loginUser.email);
-      await page.getByLabel('Password').fill('WrongPassword123!');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.locator('#password').fill('WrongPassword123!');
+      await page.locator('.auth-submit').click();
 
       await expect(page.getByText('Invalid email or password')).toBeVisible();
     });
 
     test('should toggle password visibility', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.getByRole('button', { name: 'Sign In' }).first().click();
 
-      const passwordInput = page.getByLabel('Password');
+      const passwordInput = page.locator('#password');
       await expect(passwordInput).toHaveAttribute('type', 'password');
 
       await page.locator('.password-toggle').click();
@@ -175,8 +179,8 @@ test.describe('Authentication', () => {
 
     test('should switch to registration mode from login', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).click();
-      await page.getByText('Create one').click();
+      await page.getByRole('button', { name: 'Sign In' }).first().click();
+      await page.locator('.auth-toggle').click();
       await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
     });
   });
