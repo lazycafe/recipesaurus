@@ -1,4 +1,5 @@
 import { useEffect, useRef, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalOverlayProps {
   onClose: () => void;
@@ -29,13 +30,14 @@ export function ModalOverlay({ onClose, children, className = '' }: ModalOverlay
     mouseDownTarget.current = null;
   };
 
-  return (
+  return createPortal(
     <div
       className={`modal-overlay ${className}`.trim()}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
     >
       {children}
-    </div>
+    </div>,
+    document.body
   );
 }

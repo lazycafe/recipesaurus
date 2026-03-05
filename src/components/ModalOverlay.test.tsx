@@ -1,8 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { ModalOverlay } from './ModalOverlay';
 
 describe('ModalOverlay', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('renders children', () => {
     render(
       <ModalOverlay onClose={vi.fn()}>
@@ -13,23 +17,23 @@ describe('ModalOverlay', () => {
   });
 
   it('applies custom className', () => {
-    const { container } = render(
+    render(
       <ModalOverlay onClose={vi.fn()} className="custom-class">
         <div>Content</div>
       </ModalOverlay>
     );
-    expect(container.querySelector('.modal-overlay.custom-class')).toBeDefined();
+    expect(document.body.querySelector('.modal-overlay.custom-class')).toBeDefined();
   });
 
   it('closes on mousedown + mouseup on overlay', () => {
     const onClose = vi.fn();
-    const { container } = render(
+    render(
       <ModalOverlay onClose={onClose}>
         <div>Content</div>
       </ModalOverlay>
     );
 
-    const overlay = container.querySelector('.modal-overlay')!;
+    const overlay = document.body.querySelector('.modal-overlay')!;
     fireEvent.mouseDown(overlay);
     fireEvent.mouseUp(overlay);
     expect(onClose).toHaveBeenCalledOnce();
@@ -37,14 +41,14 @@ describe('ModalOverlay', () => {
 
   it('does not close when mousedown inside and mouseup outside', () => {
     const onClose = vi.fn();
-    const { container } = render(
+    render(
       <ModalOverlay onClose={onClose}>
         <div data-testid="inner">Content</div>
       </ModalOverlay>
     );
 
     const inner = screen.getByTestId('inner');
-    const overlay = container.querySelector('.modal-overlay')!;
+    const overlay = document.body.querySelector('.modal-overlay')!;
 
     fireEvent.mouseDown(inner);
     fireEvent.mouseUp(overlay);
@@ -53,14 +57,14 @@ describe('ModalOverlay', () => {
 
   it('does not close when mousedown outside and mouseup inside', () => {
     const onClose = vi.fn();
-    const { container } = render(
+    render(
       <ModalOverlay onClose={onClose}>
         <div data-testid="inner">Content</div>
       </ModalOverlay>
     );
 
     const inner = screen.getByTestId('inner');
-    const overlay = container.querySelector('.modal-overlay')!;
+    const overlay = document.body.querySelector('.modal-overlay')!;
 
     fireEvent.mouseDown(overlay);
     fireEvent.mouseUp(inner);

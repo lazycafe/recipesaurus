@@ -122,9 +122,6 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
       console.error('Failed to delete recipe:', error);
       // Refresh to restore state on error
       await refreshRecipes();
-    } else {
-      // Refresh to ensure consistency
-      await refreshRecipes();
     }
   };
 
