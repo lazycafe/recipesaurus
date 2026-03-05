@@ -12,6 +12,7 @@ import type {
   UpdateRecipeData,
   CreateCookbookData,
   UpdateCookbookData,
+  Notification,
 } from './types';
 
 // Default localStorage-based token storage
@@ -201,6 +202,30 @@ export class HttpClient implements IClient {
 
     getShared: (token: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>> => {
       return this.transport.request('GET', `/api/shared/${token}`);
+    },
+  };
+
+  notifications = {
+    list: (): Promise<ApiResponse<{ notifications: Notification[]; unreadCount: number }>> => {
+      return this.transport.request('GET', '/api/notifications');
+    },
+
+    markRead: (notificationId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      return this.transport.request('POST', `/api/notifications/${notificationId}/read`);
+    },
+
+    markAllRead: (): Promise<ApiResponse<{ success: boolean }>> => {
+      return this.transport.request('POST', '/api/notifications/read-all');
+    },
+  };
+
+  invites = {
+    accept: (inviteId: string): Promise<ApiResponse<{ success: boolean; cookbookId: string; cookbookName: string }>> => {
+      return this.transport.request('POST', `/api/invites/${inviteId}/accept`);
+    },
+
+    decline: (inviteId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      return this.transport.request('POST', `/api/invites/${inviteId}/decline`);
     },
   };
 }

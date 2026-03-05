@@ -796,14 +796,66 @@ async function handleAddRecipeToCookbook(request: Request, db: D1Database, cookb
     return errorResponse('Recipe not found', 404, origin);
   }
 
-  // Add to cookbook (ignore if already exists)
+  // Check if recipe is already in cookbook
+  const existingEntry = await db.prepare(`
+    SELECT cookbook_id FROM cookbook_recipes WHERE cookbook_id = ? AND recipe_id = ?
+  `).bind(cookbookId, body.recipeId).first();
+
+  if (existingEntry) {
+    return jsonResponse({ success: true }, 200, corsHeaders(origin));
+  }
+
+  const now = Date.now();
+
+  // Add to cookbook
   await db.prepare(`
-    INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at)
+    INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at)
     VALUES (?, ?, ?, ?)
-  `).bind(cookbookId, body.recipeId, user.id, Date.now()).run();
+  `).bind(cookbookId, body.recipeId, user.id, now).run();
 
   // Update cookbook timestamp
-  await db.prepare('UPDATE cookbooks SET updated_at = ? WHERE id = ?').bind(Date.now(), cookbookId).run();
+  await db.prepare('UPDATE cookbooks SET updated_at = ? WHERE id = ?').bind(now, cookbookId).run();
+
+  // Get recipe title for notification
+  const recipeInfo = await db.prepare('SELECT title FROM recipes WHERE id = ?').bind(body.recipeId).first<{ title: string }>();
+
+  // Notify all other users who have access to this cookbook (owner + shared users, excluding the adder)
+  const usersToNotify: string[] = [];
+
+  // Add owner if not the adder
+  if (cookbook.user_id !== user.id) {
+    usersToNotify.push(cookbook.user_id);
+  }
+
+  // Get shared users (excluding the adder)
+  const sharedUsers = await db.prepare(`
+    SELECT shared_with_user_id FROM cookbook_shares
+    WHERE cookbook_id = ? AND shared_with_user_id != ?
+  `).bind(cookbookId, user.id).all<{ shared_with_user_id: string }>();
+
+  for (const share of sharedUsers.results) {
+    if (!usersToNotify.includes(share.shared_with_user_id)) {
+      usersToNotify.push(share.shared_with_user_id);
+    }
+  }
+
+  // Create notifications
+  for (const userId of usersToNotify) {
+    const notificationId = generateId();
+    await db.prepare(`
+      INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      notificationId,
+      userId,
+      'recipe_added',
+      'New Recipe Added',
+      `${user.name} added "${recipeInfo?.title || 'a recipe'}" to "${cookbook.name}"`,
+      JSON.stringify({ cookbookId, cookbookName: cookbook.name, recipeId: body.recipeId, addedBy: user.name }),
+      0,
+      now
+    ).run();
+  }
 
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
@@ -895,19 +947,47 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
   }
 
   // Check if already shared
-  const existing = await db.prepare(
+  const existingShare = await db.prepare(
     'SELECT id FROM cookbook_shares WHERE cookbook_id = ? AND shared_with_user_id = ?'
   ).bind(cookbookId, targetUser.id).first();
 
-  if (existing) {
+  if (existingShare) {
     return errorResponse('Cookbook is already shared with this user', 400, origin);
   }
 
-  const shareId = generateId();
+  // Check if invite already exists
+  const existingInvite = await db.prepare(
+    'SELECT id FROM cookbook_invites WHERE cookbook_id = ? AND invited_user_id = ? AND status = ?'
+  ).bind(cookbookId, targetUser.id, 'pending').first();
+
+  if (existingInvite) {
+    return errorResponse('An invite is already pending for this user', 400, origin);
+  }
+
+  const now = Date.now();
+
+  // Create invite instead of direct share
+  const inviteId = generateId();
   await db.prepare(`
-    INSERT INTO cookbook_shares (id, cookbook_id, shared_with_user_id, shared_by_user_id, created_at)
-    VALUES (?, ?, ?, ?, ?)
-  `).bind(shareId, cookbookId, targetUser.id, user.id, Date.now()).run();
+    INSERT INTO cookbook_invites (id, cookbook_id, invited_user_id, invited_by_user_id, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(inviteId, cookbookId, targetUser.id, user.id, 'pending', now).run();
+
+  // Create notification for the invited user
+  const notificationId = generateId();
+  await db.prepare(`
+    INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    notificationId,
+    targetUser.id,
+    'cookbook_invite',
+    'Cookbook Invitation',
+    `${user.name} invited you to join "${cookbook.name}"`,
+    JSON.stringify({ inviteId, cookbookId, cookbookName: cookbook.name, invitedBy: user.name }),
+    0,
+    now
+  ).run();
 
   return jsonResponse({ success: true, sharedWith: { id: targetUser.id, name: targetUser.name } }, 200, corsHeaders(origin));
 }
@@ -1080,6 +1160,153 @@ async function handleGetSharedCookbook(request: Request, db: D1Database, token: 
     },
     recipes: formattedRecipes,
   }, 200, corsHeaders(origin));
+}
+
+// Notification handlers
+async function handleGetNotifications(request: Request, db: D1Database): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const notifications = await db.prepare(`
+    SELECT * FROM notifications
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 50
+  `).bind(user.id).all<{
+    id: string;
+    user_id: string;
+    type: string;
+    title: string;
+    message: string;
+    data: string | null;
+    is_read: number;
+    created_at: number;
+  }>();
+
+  const formatted = notifications.results.map(n => ({
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    message: n.message,
+    data: n.data ? JSON.parse(n.data) : null,
+    isRead: n.is_read === 1,
+    createdAt: n.created_at,
+  }));
+
+  const unreadCount = formatted.filter(n => !n.isRead).length;
+
+  return jsonResponse({ notifications: formatted, unreadCount }, 200, corsHeaders(origin));
+}
+
+async function handleMarkNotificationRead(request: Request, db: D1Database, notificationId: string): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  await db.prepare(`
+    UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?
+  `).bind(notificationId, user.id).run();
+
+  return jsonResponse({ success: true }, 200, corsHeaders(origin));
+}
+
+async function handleMarkAllNotificationsRead(request: Request, db: D1Database): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  await db.prepare(`
+    UPDATE notifications SET is_read = 1 WHERE user_id = ?
+  `).bind(user.id).run();
+
+  return jsonResponse({ success: true }, 200, corsHeaders(origin));
+}
+
+async function handleAcceptInvite(request: Request, db: D1Database, inviteId: string): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const invite = await db.prepare(`
+    SELECT ci.*, c.name as cookbook_name, u.name as inviter_name
+    FROM cookbook_invites ci
+    JOIN cookbooks c ON ci.cookbook_id = c.id
+    JOIN users u ON ci.invited_by_user_id = u.id
+    WHERE ci.id = ? AND ci.invited_user_id = ? AND ci.status = ?
+  `).bind(inviteId, user.id, 'pending').first<{
+    id: string;
+    cookbook_id: string;
+    invited_by_user_id: string;
+    cookbook_name: string;
+    inviter_name: string;
+  }>();
+
+  if (!invite) {
+    return errorResponse('Invite not found or already responded', 404, origin);
+  }
+
+  const now = Date.now();
+
+  // Update invite status
+  await db.prepare(`
+    UPDATE cookbook_invites SET status = ? WHERE id = ?
+  `).bind('accepted', inviteId).run();
+
+  // Create the actual share
+  const shareId = generateId();
+  await db.prepare(`
+    INSERT INTO cookbook_shares (id, cookbook_id, shared_with_user_id, shared_by_user_id, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(shareId, invite.cookbook_id, user.id, invite.invited_by_user_id, now).run();
+
+  // Mark the notification as read
+  await db.prepare(`
+    UPDATE notifications SET is_read = 1 WHERE user_id = ? AND type = ? AND data LIKE ?
+  `).bind(user.id, 'cookbook_invite', `%"inviteId":"${inviteId}"%`).run();
+
+  return jsonResponse({ success: true, cookbookId: invite.cookbook_id, cookbookName: invite.cookbook_name }, 200, corsHeaders(origin));
+}
+
+async function handleDeclineInvite(request: Request, db: D1Database, inviteId: string): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const invite = await db.prepare(`
+    SELECT * FROM cookbook_invites WHERE id = ? AND invited_user_id = ? AND status = ?
+  `).bind(inviteId, user.id, 'pending').first();
+
+  if (!invite) {
+    return errorResponse('Invite not found or already responded', 404, origin);
+  }
+
+  // Update invite status
+  await db.prepare(`
+    UPDATE cookbook_invites SET status = ? WHERE id = ?
+  `).bind('declined', inviteId).run();
+
+  // Mark the notification as read
+  await db.prepare(`
+    UPDATE notifications SET is_read = 1 WHERE user_id = ? AND type = ? AND data LIKE ?
+  `).bind(user.id, 'cookbook_invite', `%"inviteId":"${inviteId}"%`).run();
+
+  return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
 async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
@@ -1320,6 +1547,28 @@ export default {
       const sharedMatch = path.match(/^\/api\/shared\/([^/]+)$/);
       if (sharedMatch && method === 'GET') {
         return handleGetSharedCookbook(request, env.DB, sharedMatch[1]);
+      }
+
+      // Notification routes
+      if (path === '/api/notifications' && method === 'GET') {
+        return handleGetNotifications(request, env.DB);
+      }
+      if (path === '/api/notifications/read-all' && method === 'POST') {
+        return handleMarkAllNotificationsRead(request, env.DB);
+      }
+      const notificationReadMatch = path.match(/^\/api\/notifications\/([^/]+)\/read$/);
+      if (notificationReadMatch && method === 'POST') {
+        return handleMarkNotificationRead(request, env.DB, notificationReadMatch[1]);
+      }
+
+      // Invite routes
+      const acceptInviteMatch = path.match(/^\/api\/invites\/([^/]+)\/accept$/);
+      if (acceptInviteMatch && method === 'POST') {
+        return handleAcceptInvite(request, env.DB, acceptInviteMatch[1]);
+      }
+      const declineInviteMatch = path.match(/^\/api\/invites\/([^/]+)\/decline$/);
+      if (declineInviteMatch && method === 'POST') {
+        return handleDeclineInvite(request, env.DB, declineInviteMatch[1]);
       }
 
       return errorResponse('Not found', 404, origin);

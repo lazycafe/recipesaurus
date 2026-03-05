@@ -11,6 +11,7 @@ import type {
   UpdateRecipeData,
   CreateCookbookData,
   UpdateCookbookData,
+  Notification,
 } from './types';
 
 // Type definitions for core handlers (matches api/src/core/handlers.ts)
@@ -217,6 +218,32 @@ export class InMemoryClient implements IClient {
     getShared: async (token: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>> => {
       const result = await this.handlers.getSharedCookbook(token);
       return toApiResponse(result);
+    },
+  };
+
+  // Notifications - stub implementation for testing
+  notifications = {
+    list: async (): Promise<ApiResponse<{ notifications: Notification[]; unreadCount: number }>> => {
+      return { data: { notifications: [], unreadCount: 0 } };
+    },
+
+    markRead: async (_notificationId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      return { data: { success: true } };
+    },
+
+    markAllRead: async (): Promise<ApiResponse<{ success: boolean }>> => {
+      return { data: { success: true } };
+    },
+  };
+
+  // Invites - stub implementation for testing
+  invites = {
+    accept: async (_inviteId: string): Promise<ApiResponse<{ success: boolean; cookbookId: string; cookbookName: string }>> => {
+      return { data: { success: true, cookbookId: '', cookbookName: '' } };
+    },
+
+    decline: async (_inviteId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      return { data: { success: true } };
     },
   };
 }

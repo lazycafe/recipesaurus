@@ -5,6 +5,7 @@ import { defaultClient } from './client/defaultClient';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RecipeProvider, useRecipes } from './context/RecipeContext';
 import { CookbookProvider, useCookbooks } from './context/CookbookContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { Header } from './components/Header';
 import { SearchFilter } from './components/SearchFilter';
 import { RecipeCard } from './components/RecipeCard';
@@ -381,7 +382,9 @@ function AppContent() {
   return (
     <RecipeProvider>
       <CookbookProvider>
-        <RecipeApp />
+        <NotificationProvider>
+          <RecipeApp />
+        </NotificationProvider>
       </CookbookProvider>
     </RecipeProvider>
   );

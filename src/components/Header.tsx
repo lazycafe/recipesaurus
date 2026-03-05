@@ -2,6 +2,7 @@ import { Plus, LogOut, User, Book, ChefHat } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { DinoMascot } from './DinoMascot';
 import { useAuth } from '../context/AuthContext';
+import { NotificationDropdown } from './NotificationDropdown';
 
 interface HeaderProps {
   currentView: 'recipes' | 'cookbooks';
@@ -46,6 +47,8 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
           <div className="header-actions">
             {user && (
               <>
+                <NotificationDropdown />
+
                 <div className="user-info">
                   <div className="user-avatar">
                     <User size={16} strokeWidth={2} />

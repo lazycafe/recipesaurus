@@ -123,6 +123,34 @@ export interface IClient {
     revokeShareLink(cookbookId: string, linkId: string): Promise<ApiResponse<{ success: boolean }>>;
     getShared(token: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   };
+
+  notifications: {
+    list(): Promise<ApiResponse<{ notifications: Notification[]; unreadCount: number }>>;
+    markRead(notificationId: string): Promise<ApiResponse<{ success: boolean }>>;
+    markAllRead(): Promise<ApiResponse<{ success: boolean }>>;
+  };
+
+  invites: {
+    accept(inviteId: string): Promise<ApiResponse<{ success: boolean; cookbookId: string; cookbookName: string }>>;
+    decline(inviteId: string): Promise<ApiResponse<{ success: boolean }>>;
+  };
+}
+
+export interface Notification {
+  id: string;
+  type: 'cookbook_invite' | 'recipe_added';
+  title: string;
+  message: string;
+  data: {
+    inviteId?: string;
+    cookbookId?: string;
+    cookbookName?: string;
+    recipeId?: string;
+    invitedBy?: string;
+    addedBy?: string;
+  } | null;
+  isRead: boolean;
+  createdAt: number;
 }
 
 // Token storage interface - allows different storage strategies

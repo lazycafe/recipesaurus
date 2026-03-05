@@ -134,6 +134,31 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       success INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      data TEXT,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS cookbook_invites (
+      id TEXT PRIMARY KEY,
+      cookbook_id TEXT NOT NULL,
+      invited_user_id TEXT NOT NULL,
+      invited_by_user_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (cookbook_id) REFERENCES cookbooks(id),
+      FOREIGN KEY (invited_user_id) REFERENCES users(id),
+      FOREIGN KEY (invited_by_user_id) REFERENCES users(id),
+      UNIQUE(cookbook_id, invited_user_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);

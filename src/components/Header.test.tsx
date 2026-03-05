@@ -3,10 +3,20 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Header } from './Header';
 import * as AuthContext from '../context/AuthContext';
+import * as NotificationContext from '../context/NotificationContext';
+import * as CookbookContext from '../context/CookbookContext';
 
-// Mock the context
+// Mock the contexts
 vi.mock('../context/AuthContext', () => ({
   useAuth: vi.fn(),
+}));
+
+vi.mock('../context/NotificationContext', () => ({
+  useNotifications: vi.fn(),
+}));
+
+vi.mock('../context/CookbookContext', () => ({
+  useCookbooks: vi.fn(),
 }));
 
 describe('Header', () => {
@@ -33,6 +43,29 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+    });
+
+    vi.mocked(NotificationContext.useNotifications).mockReturnValue({
+      notifications: [],
+      unreadCount: 0,
+      isLoading: false,
+      refresh: vi.fn(),
+      markAsRead: vi.fn(),
+      markAllAsRead: vi.fn(),
+      acceptInvite: vi.fn(),
+      declineInvite: vi.fn(),
+    });
+
+    vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
+      ownedCookbooks: [],
+      sharedCookbooks: [],
+      isLoading: false,
+      createCookbook: vi.fn(),
+      updateCookbook: vi.fn(),
+      deleteCookbook: vi.fn(),
+      addRecipeToCookbook: vi.fn(),
+      removeRecipeFromCookbook: vi.fn(),
+      refreshCookbooks: vi.fn(),
     });
   });
 
