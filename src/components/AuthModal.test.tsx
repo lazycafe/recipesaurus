@@ -21,6 +21,8 @@ describe('AuthModal', () => {
       login: mockLogin,
       register: mockRegister,
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
   });
 

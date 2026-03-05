@@ -127,6 +127,16 @@ export class InMemoryClient implements IClient {
       return toApiResponse(result);
     },
 
+    verifyEmail: async (): Promise<ApiResponse<{ user: User; token?: string; verified?: boolean }>> => {
+      // Stub for testing - email verification not implemented in InMemoryClient
+      return { error: 'Email verification not implemented in test mode' };
+    },
+
+    resendVerification: async (): Promise<ApiResponse<{ success: boolean; message?: string }>> => {
+      // Stub for testing - no actual email sent
+      return { data: { success: true, message: 'Verification email sent' } };
+    },
+
     forgotPassword: async (): Promise<ApiResponse<{ message: string }>> => {
       // Stub for testing - no actual email sent
       return { data: { message: 'If an account exists with this email, you will receive a password reset link.' } };

@@ -60,15 +60,24 @@ export interface UserResponse {
   name: string;
 }
 
+export interface AuthResponse {
+  user?: UserResponse;
+  token?: string;
+  requiresVerification?: boolean;
+  email?: string;
+  message?: string;
+  verified?: boolean;
+}
+
 export const authApi = {
-  async register(email: string, name: string, password: string): Promise<ApiResponse<{ user: UserResponse; token?: string }>> {
+  async register(email: string, name: string, password: string): Promise<ApiResponse<AuthResponse>> {
     return request('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, name, password }),
     });
   },
 
-  async login(email: string, password: string): Promise<ApiResponse<{ user: UserResponse; token?: string }>> {
+  async login(email: string, password: string): Promise<ApiResponse<AuthResponse>> {
     return request('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
@@ -83,6 +92,20 @@ export const authApi = {
 
   async getSession(): Promise<ApiResponse<{ user: UserResponse | null }>> {
     return request('/api/auth/session');
+  },
+
+  async verifyEmail(token: string): Promise<ApiResponse<AuthResponse>> {
+    return request('/api/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  async resendVerification(email: string): Promise<ApiResponse<{ success: boolean; message: string }>> {
+    return request('/api/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
   },
 };
 

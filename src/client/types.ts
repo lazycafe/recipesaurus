@@ -96,9 +96,11 @@ export interface ITransport {
 export interface IClient {
   auth: {
     getSession(): Promise<ApiResponse<{ user: User | null }>>;
-    login(email: string, password: string): Promise<ApiResponse<{ user: User; token?: string }>>;
-    register(email: string, name: string, password: string): Promise<ApiResponse<{ user: User; token?: string }>>;
+    login(email: string, password: string): Promise<ApiResponse<{ user: User; token?: string; requiresVerification?: boolean; email?: string }>>;
+    register(email: string, name: string, password: string): Promise<ApiResponse<{ user?: User; token?: string; requiresVerification?: boolean; email?: string }>>;
     logout(): Promise<ApiResponse<{ success: boolean }>>;
+    verifyEmail(token: string): Promise<ApiResponse<{ user: User; token?: string; verified?: boolean }>>;
+    resendVerification(email: string): Promise<ApiResponse<{ success: boolean; message?: string }>>;
     forgotPassword(email: string): Promise<ApiResponse<{ message: string }>>;
     resetPassword(token: string, password: string): Promise<ApiResponse<{ message: string }>>;
   };

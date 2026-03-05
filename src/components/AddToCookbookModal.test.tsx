@@ -72,6 +72,8 @@ describe('AddToCookbookModal', () => {
         login: vi.fn(),
         register: vi.fn(),
         logout: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
         forgotPassword: vi.fn(),
         resetPassword: vi.fn(),
       },

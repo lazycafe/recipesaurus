@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Mail, Lock, User, Loader2, Eye, EyeOff } from 'lucide-react';
+import { X, Mail, Lock, User, Loader2, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
@@ -11,11 +11,14 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: AuthModalProps) {
-  const { login, register } = useAuth();
+  const { login, register, resendVerification } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
 
   const [formData, setFormData] = useState({
     email: '',
@@ -45,12 +48,22 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
           return;
         }
         const result = await register(formData.email, formData.name, formData.password);
+        if (result.requiresVerification) {
+          setVerificationPending(true);
+          setVerificationEmail(result.email || formData.email);
+          return;
+        }
         if (!result.success) {
           setError(result.error || 'Registration failed');
           return;
         }
       } else {
         const result = await login(formData.email, formData.password);
+        if (result.requiresVerification) {
+          setVerificationPending(true);
+          setVerificationEmail(result.email || formData.email);
+          return;
+        }
         if (!result.success) {
           setError(result.error || 'Login failed');
           return;
@@ -62,11 +75,65 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
     }
   };
 
+  const handleResendVerification = async () => {
+    setResendStatus('sending');
+    await resendVerification(verificationEmail);
+    setResendStatus('sent');
+  };
+
   const toggleMode = () => {
     setMode(mode === 'login' ? 'register' : 'login');
     setError(null);
     setFormData({ email: '', name: '', password: '', confirmPassword: '' });
   };
+
+  if (verificationPending) {
+    return (
+      <ModalOverlay onClose={onClose}>
+        <div className="modal-content modal-auth">
+          <button className="modal-close" onClick={onClose} aria-label="Close">
+            <X size={20} strokeWidth={2} />
+          </button>
+
+          <div className="auth-header">
+            <Mail size={48} className="auth-verification-icon" />
+            <h2>Check Your Email</h2>
+            <p>We've sent a verification link to:</p>
+            <p className="verification-email">{verificationEmail}</p>
+          </div>
+
+          <div className="verification-instructions">
+            <p>Click the link in the email to verify your account and start using Recipesaurus.</p>
+            <p className="verification-note">The link will expire in 24 hours.</p>
+          </div>
+
+          <div className="verification-resend">
+            <p>Didn't receive the email?</p>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleResendVerification}
+              disabled={resendStatus === 'sending' || resendStatus === 'sent'}
+            >
+              {resendStatus === 'sending' ? (
+                <>
+                  <Loader2 size={16} className="spin" />
+                  Sending...
+                </>
+              ) : resendStatus === 'sent' ? (
+                <>
+                  <CheckCircle size={16} />
+                  Email Sent!
+                </>
+              ) : (
+                'Resend Verification Email'
+              )}
+            </button>
+          </div>
+        </div>
+      </ModalOverlay>
+    );
+  }
 
   return (
     <ModalOverlay onClose={onClose}>

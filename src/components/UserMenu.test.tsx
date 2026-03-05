@@ -36,6 +36,8 @@ describe('UserMenu', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     vi.mocked(NotificationContext.useNotifications).mockReturnValue({
@@ -71,6 +73,8 @@ describe('UserMenu', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     const { container } = renderWithRouter(<UserMenu />);
@@ -127,6 +131,8 @@ describe('UserMenu', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout,
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<UserMenu />);

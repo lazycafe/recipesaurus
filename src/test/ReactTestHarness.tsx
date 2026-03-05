@@ -124,7 +124,7 @@ export class ReactTestHarness {
       password
     );
 
-    if (result.error || !result.data) {
+    if (result.error || !result.data || !result.data.user) {
       throw new Error(`Failed to seed user: ${result.error}`);
     }
 

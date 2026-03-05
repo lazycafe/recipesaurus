@@ -19,6 +19,8 @@ describe('ForgotPasswordModal', () => {
         login: vi.fn(),
         register: vi.fn(),
         logout: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
         forgotPassword: mockForgotPassword,
         resetPassword: vi.fn(),
       },

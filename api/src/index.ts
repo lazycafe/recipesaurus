@@ -11,6 +11,7 @@ interface User {
   name: string;
   password_hash: string;
   password_salt: string;
+  email_verified: number;
   created_at: number;
 }
 
@@ -280,8 +281,78 @@ async function getSessionUser(request: Request, db: D1Database): Promise<User | 
   return db.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first<User>();
 }
 
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1479245550426783794/V5CkmHTKRySrKe2jZFw1VMeVYX_9PwKFg6s3N1OT7df6ApHFc74E-g0ED0s6ofiXpdnY';
+
+async function notifyDiscordNewUser(name: string, email: string): Promise<void> {
+  await fetch(DISCORD_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: `New user signed up: **${name}** (${email})`,
+    }),
+  });
+}
+
+const VERIFICATION_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
+
+async function createVerificationToken(db: D1Database, userId: string): Promise<string> {
+  // Delete any existing tokens for this user
+  await db.prepare('DELETE FROM email_verification_tokens WHERE user_id = ?').bind(userId).run();
+
+  const token = generateId() + generateId(); // Longer token for security
+  const now = Date.now();
+  await db.prepare(
+    'INSERT INTO email_verification_tokens (id, user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).bind(generateId(), userId, token, now + VERIFICATION_TOKEN_EXPIRY, now).run();
+
+  return token;
+}
+
+async function sendVerificationEmail(
+  apiKey: string,
+  email: string,
+  name: string,
+  token: string,
+  appUrl: string
+): Promise<boolean> {
+  const verifyUrl = `${appUrl}/verify-email?token=${token}`;
+
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Recipesaurus <noreply@recipesaurus.app>',
+        to: [email],
+        subject: 'Verify your Recipesaurus account',
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #7a9e7e; margin-bottom: 24px;">Welcome to Recipesaurus!</h1>
+            <p style="font-size: 16px; color: #333; line-height: 1.5;">Hi ${name},</p>
+            <p style="font-size: 16px; color: #333; line-height: 1.5;">Thanks for signing up! Please verify your email address by clicking the button below:</p>
+            <div style="margin: 32px 0;">
+              <a href="${verifyUrl}" style="background-color: #7a9e7e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Verify Email</a>
+            </div>
+            <p style="font-size: 14px; color: #666; line-height: 1.5;">Or copy and paste this link into your browser:</p>
+            <p style="font-size: 14px; color: #7a9e7e; word-break: break-all;">${verifyUrl}</p>
+            <p style="font-size: 14px; color: #666; margin-top: 32px;">This link will expire in 24 hours.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
+            <p style="font-size: 12px; color: #999;">If you didn't create an account with Recipesaurus, you can safely ignore this email.</p>
+          </div>
+        `,
+      }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 // Route handlers
-async function handleRegister(request: Request, db: D1Database): Promise<Response> {
+async function handleRegister(request: Request, db: D1Database, env: Env): Promise<Response> {
   const origin = request.headers.get('Origin');
   const body = await request.json() as { email: string; name: string; password: string };
   const { email, name, password } = body;
@@ -306,30 +377,30 @@ async function handleRegister(request: Request, db: D1Database): Promise<Respons
   // Hash password
   const { hash, salt } = await hashPassword(password);
 
-  // Create user
+  // Create user with email_verified = 0
   const userId = generateId();
   await db.prepare(
-    'INSERT INTO users (id, email, name, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(userId, normalizedEmail, name.trim(), hash, salt, Date.now()).run();
+    'INSERT INTO users (id, email, name, password_hash, password_salt, email_verified, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).bind(userId, normalizedEmail, name.trim(), hash, salt, 0, Date.now()).run();
 
-  // Create session
-  const sessionId = generateId();
-  const expiresAt = Date.now() + SESSION_DURATION;
-  await db.prepare(
-    'INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
-  ).bind(sessionId, userId, Date.now(), expiresAt).run();
+  // Create verification token and send email
+  const verificationToken = await createVerificationToken(db, userId);
+  await sendVerificationEmail(env.RESEND_API_KEY, normalizedEmail, name.trim(), verificationToken, env.APP_URL);
 
   // Add sample recipes for new user
   await addSampleRecipes(db, userId);
 
-  const isSecure = !origin?.includes('localhost');
+  // Notify Discord of new signup (fire and forget)
+  notifyDiscordNewUser(name.trim(), normalizedEmail).catch(() => {});
+
   return jsonResponse(
-    { user: { id: userId, email: normalizedEmail, name: name.trim() }, token: sessionId },
-    200,
     {
-      ...corsHeaders(origin),
-      'Set-Cookie': setCookie('session', sessionId, SESSION_DURATION / 1000, isSecure),
-    }
+      requiresVerification: true,
+      email: normalizedEmail,
+      message: 'Please check your email to verify your account'
+    },
+    200,
+    corsHeaders(origin)
   );
 }
 
@@ -366,6 +437,19 @@ async function handleLogin(request: Request, db: D1Database): Promise<Response> 
       return errorResponse(`Invalid email or password. ${remaining} attempts remaining.`, 401, origin);
     }
     return errorResponse('Invalid email or password', 401, origin);
+  }
+
+  // Check if email is verified
+  if (!user.email_verified) {
+    return jsonResponse(
+      {
+        requiresVerification: true,
+        email: user.email,
+        message: 'Please verify your email before logging in'
+      },
+      200,
+      corsHeaders(origin)
+    );
   }
 
   // Record successful attempt
@@ -410,6 +494,83 @@ async function handleLogout(request: Request, db: D1Database): Promise<Response>
       'Set-Cookie': clearCookie('session', isSecure),
     }
   );
+}
+
+async function handleVerifyEmail(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const body = await request.json() as { token: string };
+  const { token } = body;
+
+  if (!token) {
+    return errorResponse('Verification token is required', 400, origin);
+  }
+
+  // Find the token
+  const verificationRecord = await db.prepare(
+    'SELECT * FROM email_verification_tokens WHERE token = ?'
+  ).bind(token).first<{ id: string; user_id: string; token: string; expires_at: number }>();
+
+  if (!verificationRecord) {
+    return errorResponse('Invalid or expired verification link', 400, origin);
+  }
+
+  // Check if token has expired
+  if (Date.now() > verificationRecord.expires_at) {
+    await db.prepare('DELETE FROM email_verification_tokens WHERE id = ?').bind(verificationRecord.id).run();
+    return errorResponse('Verification link has expired. Please request a new one.', 400, origin);
+  }
+
+  // Mark user as verified
+  await db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').bind(verificationRecord.user_id).run();
+
+  // Delete the token
+  await db.prepare('DELETE FROM email_verification_tokens WHERE id = ?').bind(verificationRecord.id).run();
+
+  // Get user and create session
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(verificationRecord.user_id).first<User>();
+  if (!user) {
+    return errorResponse('User not found', 404, origin);
+  }
+
+  const sessionId = generateId();
+  const expiresAt = Date.now() + SESSION_DURATION;
+  await db.prepare(
+    'INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
+  ).bind(sessionId, user.id, Date.now(), expiresAt).run();
+
+  const isSecure = !origin?.includes('localhost');
+  return jsonResponse(
+    { user: { id: user.id, email: user.email, name: user.name }, token: sessionId, verified: true },
+    200,
+    {
+      ...corsHeaders(origin),
+      'Set-Cookie': setCookie('session', sessionId, SESSION_DURATION / 1000, isSecure),
+    }
+  );
+}
+
+async function handleResendVerification(request: Request, db: D1Database, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const body = await request.json() as { email: string };
+  const { email } = body;
+
+  if (!email) {
+    return errorResponse('Email is required', 400, origin);
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(normalizedEmail).first<User>();
+
+  // Always return success to prevent email enumeration
+  if (!user || user.email_verified) {
+    return jsonResponse({ success: true, message: 'If your email is registered and unverified, you will receive a verification email.' }, 200, corsHeaders(origin));
+  }
+
+  // Create new verification token and send email
+  const verificationToken = await createVerificationToken(db, user.id);
+  await sendVerificationEmail(env.RESEND_API_KEY, user.email, user.name, verificationToken, env.APP_URL);
+
+  return jsonResponse({ success: true, message: 'Verification email sent' }, 200, corsHeaders(origin));
 }
 
 async function handleGetSession(request: Request, db: D1Database): Promise<Response> {
@@ -1617,7 +1778,7 @@ export default {
     try {
       // Auth routes
       if (path === '/api/auth/register' && method === 'POST') {
-        return handleRegister(request, env.DB);
+        return handleRegister(request, env.DB, env);
       }
       if (path === '/api/auth/login' && method === 'POST') {
         return handleLogin(request, env.DB);
@@ -1627,6 +1788,12 @@ export default {
       }
       if (path === '/api/auth/session' && method === 'GET') {
         return handleGetSession(request, env.DB);
+      }
+      if (path === '/api/auth/verify-email' && method === 'POST') {
+        return handleVerifyEmail(request, env.DB);
+      }
+      if (path === '/api/auth/resend-verification' && method === 'POST') {
+        return handleResendVerification(request, env.DB, env);
       }
       if (path === '/api/auth/forgot-password' && method === 'POST') {
         return handleForgotPassword(request, env.DB, env);

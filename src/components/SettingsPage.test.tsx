@@ -26,6 +26,8 @@ describe('SettingsPage', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
   });
 
@@ -41,6 +43,8 @@ describe('SettingsPage', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<SettingsPage />);
@@ -54,6 +58,8 @@ describe('SettingsPage', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<SettingsPage />);
@@ -67,6 +73,8 @@ describe('SettingsPage', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<SettingsPage />);
@@ -80,6 +88,8 @@ describe('SettingsPage', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<SettingsPage />);

@@ -43,6 +43,8 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     vi.mocked(NotificationContext.useNotifications).mockReturnValue({
@@ -89,6 +91,8 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} />);
@@ -103,6 +107,8 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} />);
@@ -116,6 +122,8 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} currentView="recipes" />);
@@ -129,6 +137,8 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} currentView="cookbooks" />);
@@ -142,6 +152,8 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     const onAddRecipe = vi.fn();
@@ -158,6 +170,8 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     const onAddCookbook = vi.fn();
@@ -177,6 +191,8 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout,
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} />);
@@ -194,6 +210,8 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
     });
 
     const { container } = renderWithRouter(<Header {...defaultProps} />);

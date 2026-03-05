@@ -127,6 +127,18 @@ export class HttpClient implements IClient {
       return result;
     },
 
+    verifyEmail: async (token: string): Promise<ApiResponse<{ user: User; token?: string; verified?: boolean }>> => {
+      const result = await this.transport.request<{ user: User; token?: string; verified?: boolean }>('POST', '/api/auth/verify-email', { token });
+      if (result.data?.token) {
+        this.tokenStorage.setToken(result.data.token);
+      }
+      return result;
+    },
+
+    resendVerification: (email: string): Promise<ApiResponse<{ success: boolean; message?: string }>> => {
+      return this.transport.request('POST', '/api/auth/resend-verification', { email });
+    },
+
     forgotPassword: (email: string): Promise<ApiResponse<{ message: string }>> => {
       return this.transport.request('POST', '/api/auth/forgot-password', { email });
     },

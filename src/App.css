@@ -2412,6 +2412,137 @@ img {
 }
 
 /* ========================================
+   Verify Email Page
+   ======================================== */
+
+.verify-email-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--color-background);
+}
+
+.verify-email-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--color-surface);
+  padding: var(--space-10);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+}
+
+.verify-email-mascot {
+  margin-bottom: var(--space-4);
+}
+
+.verify-email-icon {
+  margin-bottom: var(--space-4);
+  color: var(--color-taupe);
+}
+
+.verify-email-icon.success {
+  color: var(--color-olive);
+}
+
+.verify-email-icon.error {
+  color: var(--color-danger);
+}
+
+.verify-email-card h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  color: var(--color-charcoal);
+  margin-bottom: var(--space-3);
+}
+
+.verify-email-card p {
+  color: var(--color-taupe);
+  line-height: 1.6;
+}
+
+.verify-email-resend {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+.verify-email-resend p {
+  margin-bottom: var(--space-3);
+}
+
+.resend-form {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.resend-form input {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.resend-form button {
+  padding: var(--space-2) var(--space-4);
+}
+
+.resend-success {
+  color: var(--color-olive);
+  font-size: var(--text-sm);
+  margin-top: var(--space-3);
+}
+
+/* Auth Modal Verification State */
+.auth-verification-icon {
+  color: var(--color-terracotta);
+  margin-bottom: var(--space-2);
+}
+
+.verification-email {
+  font-weight: 600;
+  color: var(--color-charcoal);
+  font-size: var(--text-lg);
+  margin-top: var(--space-2);
+}
+
+.verification-instructions {
+  padding: var(--space-4);
+  background: var(--color-cream);
+  border-radius: var(--radius-md);
+  margin: var(--space-6) 0;
+}
+
+.verification-instructions p {
+  color: var(--color-charcoal);
+  margin: 0;
+}
+
+.verification-note {
+  font-size: var(--text-sm);
+  color: var(--color-taupe);
+  margin-top: var(--space-2);
+}
+
+.verification-resend {
+  text-align: center;
+}
+
+.verification-resend p {
+  color: var(--color-taupe);
+  margin-bottom: var(--space-3);
+}
+
+.verification-resend button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ========================================
    Cookbook Card
    ======================================== */
 

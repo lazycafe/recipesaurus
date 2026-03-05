@@ -14,6 +14,7 @@ import { AddRecipeModal } from './components/AddRecipeModal';
 import { AuthModal } from './components/AuthModal';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
+import { VerifyEmailPage } from './components/VerifyEmailPage';
 import { EmptyState } from './components/EmptyState';
 import { DinoMascot } from './components/DinoMascot';
 import { CookbookList } from './components/CookbookList';
@@ -471,9 +472,18 @@ function ResetPasswordRoute() {
   );
 }
 
+function VerifyEmailRoute() {
+  return (
+    <div className="app">
+      <VerifyEmailPage />
+    </div>
+  );
+}
+
 function App() {
   const isSharedRoute = window.location.pathname.startsWith('/shared/');
   const isResetPasswordRoute = window.location.pathname.startsWith('/reset-password');
+  const isVerifyEmailRoute = window.location.pathname.startsWith('/verify-email');
 
   return (
     <ClientProvider client={defaultClient}>
@@ -481,6 +491,8 @@ function App() {
         <div className="app">
           {isResetPasswordRoute ? (
             <ResetPasswordRoute />
+          ) : isVerifyEmailRoute ? (
+            <VerifyEmailRoute />
           ) : isSharedRoute ? (
             <SharedCookbookRoute />
           ) : (
