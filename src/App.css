@@ -579,6 +579,10 @@ img {
   box-shadow: var(--shadow-sm);
 }
 
+.search-bar:focus-within {
+  border-color: var(--color-terracotta);
+  box-shadow: 0 0 0 4px var(--color-terracotta-light);
+}
 
 .search-icon {
   color: var(--color-sand);
@@ -592,7 +596,14 @@ img {
   background: transparent;
   color: var(--color-charcoal);
   outline: none;
+  box-shadow: none;
   font-size: var(--text-base);
+}
+
+.search-input:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
 }
 
 .search-input::placeholder {
@@ -2623,6 +2634,25 @@ img {
   transition: all var(--transition-base);
 }
 
+.cookbook-search-bar:focus-within {
+  border-color: var(--color-terracotta);
+  box-shadow: 0 0 0 4px var(--color-terracotta-light);
+}
+
+.cookbook-search-bar input {
+  flex: 1;
+  height: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.cookbook-search-bar input:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
 
 .cookbook-filter-tags {
   display: flex;
