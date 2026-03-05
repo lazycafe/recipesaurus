@@ -327,20 +327,17 @@ async function sendVerificationEmail(
       body: JSON.stringify({
         from: 'Recipesaurus <noreply@recipesaurus.ai>',
         to: [email],
-        subject: 'Verify your Recipesaurus account',
+        subject: 'Verify your email for Recipesaurus',
         html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #7a9e7e; margin-bottom: 24px;">Welcome to Recipesaurus!</h1>
-            <p style="font-size: 16px; color: #333; line-height: 1.5;">Hi ${name},</p>
-            <p style="font-size: 16px; color: #333; line-height: 1.5;">Thanks for signing up! Please verify your email address by clicking the button below:</p>
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 40px 20px; text-align: center;">
+            <h1 style="color: #7a9e7e; margin-bottom: 8px; font-size: 28px;">Welcome, ${name}!</h1>
+            <p style="font-size: 16px; color: #666; margin-bottom: 32px;">Verify your email to start saving recipes.</p>
             <div style="margin: 32px 0;">
-              <a href="${verifyUrl}" style="background-color: #7a9e7e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Verify Email</a>
+              <a href="${verifyUrl}" style="background-color: #7a9e7e; color: white; padding: 16px 48px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">Verify Email</a>
             </div>
-            <p style="font-size: 14px; color: #666; line-height: 1.5;">Or copy and paste this link into your browser:</p>
-            <p style="font-size: 14px; color: #7a9e7e; word-break: break-all;">${verifyUrl}</p>
-            <p style="font-size: 14px; color: #666; margin-top: 32px;">This link will expire in 24 hours.</p>
+            <p style="font-size: 13px; color: #999; margin-top: 32px;">Link expires in 24 hours.</p>
             <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
-            <p style="font-size: 12px; color: #999;">If you didn't create an account with Recipesaurus, you can safely ignore this email.</p>
+            <p style="font-size: 12px; color: #bbb;">Didn't sign up? Ignore this email.</p>
           </div>
         `,
       }),

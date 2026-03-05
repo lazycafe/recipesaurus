@@ -97,21 +97,19 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
 
           <div className="auth-header">
             <Mail size={48} className="auth-verification-icon" />
-            <h2>Check Your Email</h2>
-            <p>We've sent a verification link to:</p>
+            <h2>Verify Your Email</h2>
             <p className="verification-email">{verificationEmail}</p>
           </div>
 
           <div className="verification-instructions">
-            <p>Click the link in the email to verify your account and start using Recipesaurus.</p>
-            <p className="verification-note">The link will expire in 24 hours.</p>
+            <p>We sent you a verification link. Click it to activate your account.</p>
+            <p className="verification-note">Check your spam folder if you don't see it.</p>
           </div>
 
           <div className="verification-resend">
-            <p>Didn't receive the email?</p>
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-primary"
               onClick={handleResendVerification}
               disabled={resendStatus === 'sending' || resendStatus === 'sent'}
             >
@@ -123,10 +121,10 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
               ) : resendStatus === 'sent' ? (
                 <>
                   <CheckCircle size={16} />
-                  Email Sent!
+                  Sent! Check your inbox.
                 </>
               ) : (
-                'Resend Verification Email'
+                'Resend Email'
               )}
             </button>
           </div>

@@ -2465,8 +2465,6 @@ img {
 
 .verify-email-resend {
   margin-top: var(--space-6);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--color-border);
 }
 
 .verify-email-resend p {
@@ -2480,14 +2478,27 @@ img {
 
 .resend-form input {
   flex: 1;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
 }
 
 .resend-form button {
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  white-space: nowrap;
+}
+
+.back-to-login {
+  display: inline-block;
+  margin-top: var(--space-6);
+  color: var(--color-terracotta);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.back-to-login:hover {
+  text-decoration: underline;
 }
 
 .resend-success {
