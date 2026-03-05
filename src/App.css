@@ -2015,6 +2015,102 @@ img {
   margin-top: var(--space-5);
 }
 
+.forgot-password-link {
+  font-size: var(--text-sm);
+  color: var(--color-terracotta);
+  text-align: right;
+  margin-top: var(--space-2);
+  transition: all var(--transition-fast);
+}
+
+.forgot-password-link:hover {
+  color: var(--color-terracotta-dark);
+  text-decoration: underline;
+}
+
+/* Forgot Password Modal Success */
+.forgot-password-success {
+  text-align: center;
+  padding: var(--space-6) 0;
+}
+
+.forgot-password-success .success-icon {
+  color: var(--color-olive);
+  margin-bottom: var(--space-5);
+}
+
+.forgot-password-success p {
+  font-size: var(--text-base);
+  color: var(--color-charcoal);
+  margin-bottom: var(--space-4);
+  line-height: 1.6;
+}
+
+.forgot-password-success p strong {
+  color: var(--color-terracotta);
+}
+
+.forgot-password-note {
+  font-size: var(--text-sm) !important;
+  color: var(--color-taupe) !important;
+}
+
+/* Reset Password Page */
+.reset-password-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: var(--color-background);
+}
+
+.reset-password-container {
+  width: 100%;
+  max-width: 440px;
+  background: var(--color-surface);
+  padding: var(--space-10);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+@media (max-width: 480px) {
+  .reset-password-container {
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+  }
+}
+
+.reset-password-page .auth-header h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  margin-bottom: var(--space-2);
+}
+
+.reset-password-success,
+.reset-password-error {
+  text-align: center;
+  padding: var(--space-6) 0;
+}
+
+.reset-password-success .success-icon {
+  color: var(--color-olive);
+  margin-bottom: var(--space-5);
+}
+
+.reset-password-error .error-icon {
+  color: var(--color-danger);
+  margin-bottom: var(--space-5);
+}
+
+.reset-password-success p,
+.reset-password-error p {
+  font-size: var(--text-base);
+  color: var(--color-charcoal);
+  margin-bottom: var(--space-6);
+  line-height: 1.6;
+}
+
 /* ========================================
    Cookbook Card
    ======================================== */

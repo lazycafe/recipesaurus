@@ -99,6 +99,8 @@ export interface IClient {
     login(email: string, password: string): Promise<ApiResponse<{ user: User; token?: string }>>;
     register(email: string, name: string, password: string): Promise<ApiResponse<{ user: User; token?: string }>>;
     logout(): Promise<ApiResponse<{ success: boolean }>>;
+    forgotPassword(email: string): Promise<ApiResponse<{ message: string }>>;
+    resetPassword(token: string, password: string): Promise<ApiResponse<{ message: string }>>;
   };
 
   recipes: {

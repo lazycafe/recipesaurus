@@ -126,6 +126,14 @@ export class HttpClient implements IClient {
       this.tokenStorage.clearToken();
       return result;
     },
+
+    forgotPassword: (email: string): Promise<ApiResponse<{ message: string }>> => {
+      return this.transport.request('POST', '/api/auth/forgot-password', { email });
+    },
+
+    resetPassword: (token: string, password: string): Promise<ApiResponse<{ message: string }>> => {
+      return this.transport.request('POST', '/api/auth/reset-password', { token, password });
+    },
   };
 
   recipes = {

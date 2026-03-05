@@ -12,6 +12,8 @@ import { RecipeCard } from './components/RecipeCard';
 import { RecipeDetail } from './components/RecipeDetail';
 import { AddRecipeModal } from './components/AddRecipeModal';
 import { AuthModal } from './components/AuthModal';
+import { ForgotPasswordModal } from './components/ForgotPasswordModal';
+import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { EmptyState } from './components/EmptyState';
 import { DinoMascot } from './components/DinoMascot';
 import { CookbookList } from './components/CookbookList';
@@ -357,6 +359,7 @@ function RecipeApp() {
 function AppContent() {
   const { user, isLoading } = useAuth();
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   if (isLoading) {
     return <LoadingScreen />;
@@ -373,6 +376,19 @@ function AppContent() {
           <AuthModal
             initialMode={authModal}
             onClose={() => setAuthModal(null)}
+            onForgotPassword={() => {
+              setAuthModal(null);
+              setShowForgotPassword(true);
+            }}
+          />
+        )}
+        {showForgotPassword && (
+          <ForgotPasswordModal
+            onClose={() => setShowForgotPassword(false)}
+            onBackToLogin={() => {
+              setShowForgotPassword(false);
+              setAuthModal('login');
+            }}
           />
         )}
       </>
@@ -404,14 +420,29 @@ function SharedCookbookWrapper() {
   return <SharedCookbookView token={token} />;
 }
 
+function ResetPasswordRoute() {
+  return (
+    <div className="app">
+      <ResetPasswordPage />
+    </div>
+  );
+}
+
 function App() {
   const isSharedRoute = window.location.pathname.startsWith('/shared/');
+  const isResetPasswordRoute = window.location.pathname.startsWith('/reset-password');
 
   return (
     <ClientProvider client={defaultClient}>
       <AuthProvider>
         <div className="app">
-          {isSharedRoute ? <SharedCookbookRoute /> : <AppContent />}
+          {isResetPasswordRoute ? (
+            <ResetPasswordRoute />
+          ) : isSharedRoute ? (
+            <SharedCookbookRoute />
+          ) : (
+            <AppContent />
+          )}
         </div>
       </AuthProvider>
     </ClientProvider>

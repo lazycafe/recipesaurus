@@ -1,6 +1,8 @@
 export interface Env {
   DB: D1Database;
   ENVIRONMENT: string;
+  APP_URL: string;
+  RESEND_API_KEY: string;
 }
 
 interface User {
@@ -60,6 +62,18 @@ interface CookbookShareLink {
   is_active: number;
   created_at: number;
 }
+
+interface PasswordResetToken {
+  id: string;
+  user_id: string;
+  token: string;
+  expires_at: number;
+  used: number;
+  created_at: number;
+}
+
+// Password reset config
+const RESET_TOKEN_DURATION = 60 * 60 * 1000; // 1 hour
 
 // Crypto utilities
 const ITERATIONS = 100000;
@@ -404,6 +418,149 @@ async function handleGetSession(request: Request, db: D1Database): Promise<Respo
 
   return jsonResponse(
     { user: { id: user.id, email: user.email, name: user.name } },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+async function handleForgotPassword(request: Request, db: D1Database, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const body = await request.json() as { email: string };
+  const { email } = body;
+
+  if (!email) {
+    return errorResponse('Email is required', 400, origin);
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Always return success to prevent email enumeration
+  const successResponse = () => jsonResponse(
+    { message: 'If an account exists with this email, you will receive a password reset link.' },
+    200,
+    corsHeaders(origin)
+  );
+
+  // Check if user exists
+  const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(normalizedEmail).first<User>();
+  if (!user) {
+    return successResponse();
+  }
+
+  // Invalidate any existing reset tokens for this user
+  await db.prepare(
+    'UPDATE password_reset_tokens SET used = 1 WHERE user_id = ? AND used = 0'
+  ).bind(user.id).run();
+
+  // Generate secure reset token
+  const tokenBytes = crypto.getRandomValues(new Uint8Array(32));
+  const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  // Create reset token record
+  const tokenId = generateId();
+  const expiresAt = Date.now() + RESET_TOKEN_DURATION;
+  await db.prepare(
+    'INSERT INTO password_reset_tokens (id, user_id, token, expires_at, used, created_at) VALUES (?, ?, ?, ?, 0, ?)'
+  ).bind(tokenId, user.id, token, expiresAt, Date.now()).run();
+
+  // Send email via Resend
+  const resetUrl = `${env.APP_URL}/reset-password?token=${token}`;
+
+  try {
+    const emailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'Recipesaurus <noreply@recipesaurus.app>',
+        to: [normalizedEmail],
+        subject: 'Reset Your Password - Recipesaurus',
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #10b981; margin-bottom: 24px;">Reset Your Password</h1>
+            <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+              Hi ${user.name},
+            </p>
+            <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+              We received a request to reset your password. Click the button below to create a new password:
+            </p>
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="${resetUrl}" style="display: inline-block; background-color: #10b981; color: white; padding: 12px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+                Reset Password
+              </a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px; line-height: 1.6;">
+              This link will expire in 1 hour. If you didn't request this, you can safely ignore this email.
+            </p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+            <p style="color: #9ca3af; font-size: 12px;">
+              Recipesaurus - Your Recipe Collection
+            </p>
+          </div>
+        `,
+      }),
+    });
+
+    if (!emailResponse.ok) {
+      console.error('Failed to send email:', await emailResponse.text());
+      // Still return success to not leak information
+    }
+  } catch (err) {
+    console.error('Email sending error:', err);
+    // Still return success to not leak information
+  }
+
+  return successResponse();
+}
+
+async function handleResetPassword(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const body = await request.json() as { token: string; password: string };
+  const { token, password } = body;
+
+  if (!token || !password) {
+    return errorResponse('Token and password are required', 400, origin);
+  }
+
+  // Validate password
+  const passwordValidation = validatePassword(password);
+  if (!passwordValidation.valid) {
+    return errorResponse(passwordValidation.error!, 400, origin);
+  }
+
+  // Find valid reset token
+  const resetToken = await db.prepare(
+    'SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0 AND expires_at > ?'
+  ).bind(token, Date.now()).first<PasswordResetToken>();
+
+  if (!resetToken) {
+    return errorResponse('Invalid or expired reset link. Please request a new one.', 400, origin);
+  }
+
+  // Get user
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(resetToken.user_id).first<User>();
+  if (!user) {
+    return errorResponse('User not found', 400, origin);
+  }
+
+  // Hash new password
+  const { hash, salt } = await hashPassword(password);
+
+  // Update user password
+  await db.prepare(
+    'UPDATE users SET password_hash = ?, password_salt = ? WHERE id = ?'
+  ).bind(hash, salt, user.id).run();
+
+  // Mark token as used
+  await db.prepare('UPDATE password_reset_tokens SET used = 1 WHERE id = ?').bind(resetToken.id).run();
+
+  // Invalidate all existing sessions for security
+  await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
+
+  return jsonResponse(
+    { message: 'Password reset successfully. Please log in with your new password.' },
     200,
     corsHeaders(origin)
   );
@@ -1422,6 +1579,12 @@ export default {
       }
       if (path === '/api/auth/session' && method === 'GET') {
         return handleGetSession(request, env.DB);
+      }
+      if (path === '/api/auth/forgot-password' && method === 'POST') {
+        return handleForgotPassword(request, env.DB, env);
+      }
+      if (path === '/api/auth/reset-password' && method === 'POST') {
+        return handleResetPassword(request, env.DB);
       }
 
       // Proxy fetch for recipe import

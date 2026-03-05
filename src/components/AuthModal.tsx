@@ -6,9 +6,10 @@ import { DinoMascot } from './DinoMascot';
 interface AuthModalProps {
   onClose: () => void;
   initialMode?: 'login' | 'register';
+  onForgotPassword?: () => void;
 }
 
-export function AuthModal({ onClose, initialMode = 'login' }: AuthModalProps) {
+export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: AuthModalProps) {
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [isLoading, setIsLoading] = useState(false);
@@ -145,6 +146,15 @@ export function AuthModal({ onClose, initialMode = 'login' }: AuthModalProps) {
               <p className="password-requirements">
                 8+ characters with uppercase, lowercase, and number
               </p>
+            )}
+            {mode === 'login' && onForgotPassword && (
+              <button
+                type="button"
+                className="forgot-password-link"
+                onClick={onForgotPassword}
+              >
+                Forgot password?
+              </button>
             )}
           </div>
 

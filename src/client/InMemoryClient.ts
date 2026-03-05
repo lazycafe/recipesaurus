@@ -125,6 +125,16 @@ export class InMemoryClient implements IClient {
       this.tokenStorage.clearToken();
       return toApiResponse(result);
     },
+
+    forgotPassword: async (): Promise<ApiResponse<{ message: string }>> => {
+      // Stub for testing - no actual email sent
+      return { data: { message: 'If an account exists with this email, you will receive a password reset link.' } };
+    },
+
+    resetPassword: async (): Promise<ApiResponse<{ message: string }>> => {
+      // Stub for testing - no actual password reset
+      return { data: { message: 'Password reset successfully. Please log in with your new password.' } };
+    },
   };
 
   recipes = {
