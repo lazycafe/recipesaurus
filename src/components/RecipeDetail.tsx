@@ -21,7 +21,7 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, readOnly = fal
 
   const confirmDelete = () => {
     setShowDeleteConfirm(false);
-    onDelete();
+    onDelete?.();
     onClose();
   };
 

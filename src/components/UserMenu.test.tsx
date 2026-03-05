@@ -94,7 +94,15 @@ describe('UserMenu', () => {
 
   it('shows notification dot when unread notifications', () => {
     vi.mocked(NotificationContext.useNotifications).mockReturnValue({
-      notifications: [{ id: '1', type: 'cookbook_invite', message: 'Test', isRead: false, createdAt: Date.now() }],
+      notifications: [{
+        id: '1',
+        type: 'cookbook_invite',
+        title: 'Cookbook Invite',
+        message: 'Test',
+        data: { inviteId: 'inv-1' },
+        isRead: false,
+        createdAt: Date.now()
+      }],
       unreadCount: 1,
       isLoading: false,
       refresh: vi.fn(),
