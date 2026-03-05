@@ -1093,6 +1093,7 @@ async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
       prepTime: '15 mins',
       cookTime: '30 mins',
       servings: '4',
+      imageUrl: 'https://images.unsplash.com/photo-1598103442097-8b74394b95c6?w=800&q=80',
     },
     {
       title: 'Classic Buttermilk Pancakes',
@@ -1103,6 +1104,7 @@ async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
       prepTime: '10 mins',
       cookTime: '15 mins',
       servings: '6',
+      imageUrl: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80',
     },
     {
       title: 'Chocolate Fondant',
@@ -1113,15 +1115,19 @@ async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
       prepTime: '15 mins',
       cookTime: '12 mins',
       servings: '4',
+      imageUrl: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=800&q=80',
     },
   ];
 
+  const recipeIds: string[] = [];
   for (const recipe of samples) {
+    const recipeId = generateId();
+    recipeIds.push(recipeId);
     await db.prepare(`
-      INSERT INTO recipes (id, user_id, title, description, ingredients, instructions, tags, prep_time, cook_time, servings, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO recipes (id, user_id, title, description, ingredients, instructions, tags, prep_time, cook_time, servings, image_url, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      generateId(),
+      recipeId,
       userId,
       recipe.title,
       recipe.description,
@@ -1131,8 +1137,32 @@ async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
       recipe.prepTime,
       recipe.cookTime,
       recipe.servings,
+      recipe.imageUrl,
       Date.now() - Math.random() * 86400000 * 3
     ).run();
+  }
+
+  // Create default cookbook
+  const cookbookId = generateId();
+  const now = Date.now();
+  await db.prepare(`
+    INSERT INTO cookbooks (id, user_id, name, description, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).bind(
+    cookbookId,
+    userId,
+    'My Favorite Recipes',
+    'A collection of recipes I love',
+    now,
+    now
+  ).run();
+
+  // Add all sample recipes to the cookbook
+  for (const recipeId of recipeIds) {
+    await db.prepare(`
+      INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at)
+      VALUES (?, ?, ?, ?)
+    `).bind(cookbookId, recipeId, userId, now).run();
   }
 }
 

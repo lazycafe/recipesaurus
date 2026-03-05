@@ -109,7 +109,7 @@ describe('Recipes with React components', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Classic Pancakes')).toBeDefined();
+        expect(screen.getByText('Herb-Crusted Chicken')).toBeDefined();
       });
     });
 

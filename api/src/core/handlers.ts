@@ -1015,19 +1015,44 @@ export class CoreHandlers {
   private async addSampleRecipes(userId: string): Promise<void> {
     const sampleRecipes = [
       {
-        title: 'Classic Pancakes',
-        description: 'Fluffy, golden pancakes perfect for a weekend breakfast.',
-        ingredients: ['2 cups all-purpose flour', '2 tablespoons sugar', '2 teaspoons baking powder', '1 teaspoon salt', '2 eggs', '1 3/4 cups milk', '1/4 cup melted butter', '1 teaspoon vanilla extract'],
-        instructions: ['Mix dry ingredients in a large bowl.', 'Whisk eggs, milk, butter, and vanilla in another bowl.', 'Pour wet ingredients into dry and stir until just combined.', 'Heat a griddle over medium heat and grease lightly.', 'Pour 1/4 cup batter per pancake and cook until bubbles form.', 'Flip and cook until golden brown.'],
-        tags: ['breakfast', 'quick', 'vegetarian'],
-        prepTime: '10 mins',
-        cookTime: '20 mins',
+        title: 'Herb-Crusted Chicken',
+        description: 'Tender chicken breast with a golden herb crust, served with seasonal vegetables.',
+        ingredients: ['4 chicken breasts', '1 cup fresh breadcrumbs', '2 tbsp fresh thyme, chopped', '2 tbsp fresh rosemary, chopped', '3 cloves garlic, minced', '3 tbsp olive oil', 'Salt and pepper to taste'],
+        instructions: ['Preheat oven to 400°F', 'Combine breadcrumbs, herbs, garlic, and olive oil', 'Season chicken with salt and pepper', 'Press herb mixture onto chicken breasts', 'Bake for 25-30 minutes until golden', 'Rest for 5 minutes before serving'],
+        tags: ['dinner', 'chicken', 'healthy'],
+        prepTime: '15 mins',
+        cookTime: '30 mins',
         servings: '4',
+        imageUrl: 'https://images.unsplash.com/photo-1598103442097-8b74394b95c6?w=800&q=80',
+      },
+      {
+        title: 'Classic Buttermilk Pancakes',
+        description: 'Light and fluffy pancakes with a subtle tang from buttermilk.',
+        ingredients: ['2 cups all-purpose flour', '2 tbsp sugar', '2 tsp baking powder', '1 tsp baking soda', '2 cups buttermilk', '2 eggs', '3 tbsp melted butter'],
+        instructions: ['Whisk together dry ingredients', 'In a separate bowl, combine buttermilk, eggs, and butter', 'Fold wet ingredients into dry until just combined', 'Heat griddle to medium', 'Pour 1/4 cup batter per pancake', 'Flip when bubbles form on surface', 'Serve warm with maple syrup'],
+        tags: ['breakfast', 'vegetarian', 'quick'],
+        prepTime: '10 mins',
+        cookTime: '15 mins',
+        servings: '6',
+        imageUrl: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80',
+      },
+      {
+        title: 'Chocolate Fondant',
+        description: 'Individual chocolate cakes with a molten center, dusted with cocoa.',
+        ingredients: ['200g dark chocolate (70%)', '150g unsalted butter', '3 whole eggs', '3 egg yolks', '75g caster sugar', '50g plain flour', 'Cocoa powder for dusting'],
+        instructions: ['Melt chocolate and butter over a bain-marie', 'Whisk eggs, yolks, and sugar until pale', 'Fold in chocolate mixture', 'Sift in flour and fold gently', 'Pour into buttered ramekins', 'Bake at 220°C for 10-12 minutes', 'Rest for 1 minute, then invert onto plates', 'Dust with cocoa and serve immediately'],
+        tags: ['dessert', 'chocolate', 'dinner-party'],
+        prepTime: '15 mins',
+        cookTime: '12 mins',
+        servings: '4',
+        imageUrl: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=800&q=80',
       },
     ];
 
+    const recipeIds: string[] = [];
     for (const recipe of sampleRecipes) {
       const recipeId = this.crypto.generateId();
+      recipeIds.push(recipeId);
       await this.db.run(
         `INSERT INTO recipes (id, user_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1038,12 +1063,39 @@ export class CoreHandlers {
         JSON.stringify(recipe.ingredients),
         JSON.stringify(recipe.instructions),
         JSON.stringify(recipe.tags),
-        null,
+        recipe.imageUrl,
         null,
         recipe.prepTime,
         recipe.cookTime,
         recipe.servings,
         Date.now()
+      );
+    }
+
+    // Create default cookbook
+    const cookbookId = this.crypto.generateId();
+    const now = Date.now();
+    await this.db.run(
+      `INSERT INTO cookbooks (id, user_id, name, description, cover_image, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      cookbookId,
+      userId,
+      'My Favorite Recipes',
+      'A collection of recipes I love',
+      null,
+      now,
+      now
+    );
+
+    // Add all sample recipes to the cookbook
+    for (const recipeId of recipeIds) {
+      await this.db.run(
+        `INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at)
+         VALUES (?, ?, ?, ?)`,
+        cookbookId,
+        recipeId,
+        userId,
+        now
       );
     }
   }
