@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { AlertTriangle, Info } from 'lucide-react';
 import { ModalOverlay } from './ModalOverlay';
 
@@ -22,9 +23,9 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
   const Icon = variant === 'info' ? Info : AlertTriangle;
 
-  return (
+  return createPortal(
     <ModalOverlay onClose={onCancel} className="confirm-modal-overlay">
-      <div className="confirm-modal">
+      <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
         <div className={`confirm-modal-icon ${variant}`}>
           <Icon size={28} strokeWidth={1.5} />
         </div>
@@ -33,17 +34,18 @@ export function ConfirmModal({
         <p>{message}</p>
 
         <div className="confirm-modal-actions">
-          <button className="btn-secondary" onClick={onCancel}>
+          <button className="btn-secondary" onClick={(e) => { e.stopPropagation(); onCancel(); }}>
             {cancelText}
           </button>
           <button
             className={variant === 'danger' ? 'btn-danger' : 'btn-primary'}
-            onClick={onConfirm}
+            onClick={(e) => { e.stopPropagation(); onConfirm(); }}
           >
             {confirmText}
           </button>
         </div>
       </div>
-    </ModalOverlay>
+    </ModalOverlay>,
+    document.body
   );
 }
