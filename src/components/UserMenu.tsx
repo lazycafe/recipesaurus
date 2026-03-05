@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, LogOut, Check, X, Book, ChefHat, CheckCheck, Bell } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { User, LogOut, Check, X, Book, ChefHat, CheckCheck, Bell, Settings } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useCookbooks } from '../context/CookbookContext';
@@ -156,6 +157,11 @@ export function UserMenu() {
           </div>
 
           <div className="user-menu-divider" />
+
+          <Link to="/settings" className="user-menu-item" onClick={() => setIsOpen(false)}>
+            <Settings size={16} strokeWidth={2} />
+            Settings
+          </Link>
 
           <button className="user-menu-logout" onClick={handleLogout}>
             <LogOut size={16} strokeWidth={2} />

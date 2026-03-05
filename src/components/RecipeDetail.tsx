@@ -7,11 +7,12 @@ import { ConfirmModal } from './ConfirmModal';
 interface RecipeDetailProps {
   recipe: Recipe;
   onClose: () => void;
-  onDelete: () => void;
-  onEdit: () => void;
+  onDelete?: () => void;
+  onEdit?: () => void;
+  readOnly?: boolean;
 }
 
-export function RecipeDetail({ recipe, onClose, onDelete, onEdit }: RecipeDetailProps) {
+export function RecipeDetail({ recipe, onClose, onDelete, onEdit, readOnly = false }: RecipeDetailProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleDelete = () => {
@@ -116,18 +117,20 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit }: RecipeDetail
           </section>
         </div>
 
-        <div className="detail-footer">
-          <button className="btn-secondary" onClick={onEdit}>
-            <PenLine size={16} strokeWidth={2} />
-            <span>Edit</span>
-          </button>
-          <button className="btn-danger" onClick={handleDelete}>
-            <Trash2 size={16} strokeWidth={2} />
-            <span>Delete</span>
-          </button>
-        </div>
+        {!readOnly && onEdit && onDelete && (
+          <div className="detail-footer">
+            <button className="btn-secondary" onClick={onEdit}>
+              <PenLine size={16} strokeWidth={2} />
+              <span>Edit</span>
+            </button>
+            <button className="btn-danger" onClick={handleDelete}>
+              <Trash2 size={16} strokeWidth={2} />
+              <span>Delete</span>
+            </button>
+          </div>
+        )}
 
-        {showDeleteConfirm && (
+        {showDeleteConfirm && onDelete && (
           <ConfirmModal
             title="Delete Recipe"
             message={`Are you sure you want to delete "${recipe.title}"?`}

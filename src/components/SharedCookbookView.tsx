@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Loader2, User, Clock, Users, X, ChefHat } from 'lucide-react';
+import { Loader2, User, ChefHat } from 'lucide-react';
 import { cookbooksApi, RecipeResponse } from '../utils/api';
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { RecipeCard } from './RecipeCard';
+import { RecipeDetail } from './RecipeDetail';
 
 interface SharedCookbook {
   id: string;
@@ -134,71 +135,11 @@ export function SharedCookbookView({ token }: SharedCookbookViewProps) {
       </footer>
 
       {selectedRecipe && (
-        <div className="modal-overlay" onClick={() => setSelectedRecipe(null)}>
-          <div className="recipe-detail" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSelectedRecipe(null)} aria-label="Close">
-              <X size={20} strokeWidth={2} />
-            </button>
-
-            {selectedRecipe.imageUrl && (
-              <div className="detail-image">
-                <img src={selectedRecipe.imageUrl} alt={selectedRecipe.title} />
-              </div>
-            )}
-
-            <div className="detail-content">
-              <h2>{selectedRecipe.title}</h2>
-              <p className="detail-description">{selectedRecipe.description}</p>
-
-              <div className="detail-meta">
-                {selectedRecipe.prepTime && (
-                  <div className="meta-item">
-                    <Clock size={16} />
-                    <span>Prep: {selectedRecipe.prepTime}</span>
-                  </div>
-                )}
-                {selectedRecipe.cookTime && (
-                  <div className="meta-item">
-                    <Clock size={16} />
-                    <span>Cook: {selectedRecipe.cookTime}</span>
-                  </div>
-                )}
-                {selectedRecipe.servings && (
-                  <div className="meta-item">
-                    <Users size={16} />
-                    <span>Serves: {selectedRecipe.servings}</span>
-                  </div>
-                )}
-              </div>
-
-              {selectedRecipe.tags.length > 0 && (
-                <div className="detail-tags">
-                  {selectedRecipe.tags.map(tag => (
-                    <span key={tag} className="tag">{tag}</span>
-                  ))}
-                </div>
-              )}
-
-              <section className="detail-section">
-                <h3>Ingredients</h3>
-                <ul className="ingredients-list">
-                  {selectedRecipe.ingredients.map((ingredient, i) => (
-                    <li key={i}>{ingredient}</li>
-                  ))}
-                </ul>
-              </section>
-
-              <section className="detail-section">
-                <h3>Instructions</h3>
-                <ol className="instructions-list">
-                  {selectedRecipe.instructions.map((instruction, i) => (
-                    <li key={i}>{instruction}</li>
-                  ))}
-                </ol>
-              </section>
-            </div>
-          </div>
-        </div>
+        <RecipeDetail
+          recipe={selectedRecipe}
+          onClose={() => setSelectedRecipe(null)}
+          readOnly
+        />
       )}
     </div>
   );

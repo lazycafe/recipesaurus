@@ -22,6 +22,7 @@ import { CookbookDetail } from './components/CookbookDetail';
 import { ShareCookbookModal } from './components/ShareCookbookModal';
 import { AddToCookbookModal } from './components/AddToCookbookModal';
 import { SharedCookbookView } from './components/SharedCookbookView';
+import { SettingsPage } from './components/SettingsPage';
 import { Recipe, RecipeFormData } from './types/Recipe';
 import { Cookbook } from './types/Cookbook';
 import { Loader2, ChefHat } from 'lucide-react';
@@ -271,6 +272,10 @@ function RecipeApp() {
                   onSelectCookbook={setSelectedCookbook}
                 />
               }
+            />
+            <Route
+              path="/settings"
+              element={<SettingsPage />}
             />
           </Routes>
         </div>
