@@ -3,6 +3,7 @@ import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine } from 'lucide-
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { ConfirmModal } from './ConfirmModal';
+import { ModalOverlay } from './ModalOverlay';
 
 interface RecipeDetailProps {
   recipe: Recipe;
@@ -26,8 +27,8 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, readOnly = fal
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-detail" onClick={e => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="modal-content modal-detail">
         <button className="modal-close" onClick={onClose} aria-label="Close">
           <X size={20} strokeWidth={2} />
         </button>
@@ -140,6 +141,6 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, readOnly = fal
           />
         )}
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

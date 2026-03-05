@@ -118,7 +118,9 @@ describe('AuthModal', () => {
     const onClose = vi.fn();
     const { container } = render(<AuthModal onClose={onClose} />);
 
-    fireEvent.click(container.querySelector('.modal-overlay')!);
+    const overlay = container.querySelector('.modal-overlay')!;
+    fireEvent.mouseDown(overlay);
+    fireEvent.mouseUp(overlay);
     expect(onClose).toHaveBeenCalledOnce();
   });
 

@@ -3,6 +3,7 @@ import { X, Loader2, Mail, Link, Copy, Check, Trash2 } from 'lucide-react';
 import { Cookbook, CookbookShare, CookbookShareLink } from '../types/Cookbook';
 import { cookbooksApi } from '../utils/api';
 import { ConfirmModal } from './ConfirmModal';
+import { ModalOverlay } from './ModalOverlay';
 
 interface ShareCookbookModalProps {
   cookbook: Cookbook;
@@ -102,8 +103,8 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content share-modal" onClick={e => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="modal-content share-modal">
         <button className="modal-close" onClick={onClose}>
           <X size={20} strokeWidth={2} />
         </button>
@@ -250,6 +251,6 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
           />
         )}
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

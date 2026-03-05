@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { X, PenLine, Link, Plus, Loader2, Upload, Image } from 'lucide-react';
 import { Recipe, RecipeFormData } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
+import { ModalOverlay } from './ModalOverlay';
 
 interface AddRecipeModalProps {
   recipe?: Recipe;
@@ -262,8 +263,8 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-form" onClick={e => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="modal-content modal-form">
         <button className="modal-close" onClick={onClose} aria-label="Close">
           <X size={20} strokeWidth={2} />
         </button>
@@ -470,6 +471,6 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
           </form>
         ) : null}
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

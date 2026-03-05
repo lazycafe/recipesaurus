@@ -6,6 +6,7 @@ import { cookbooksApi, RecipeResponse } from '../utils/api';
 import { RecipeCard } from './RecipeCard';
 import { DinoMascot } from './DinoMascot';
 import { useAuth } from '../context/AuthContext';
+import { ModalOverlay } from './ModalOverlay';
 
 interface CookbookDetailProps {
   cookbook: Cookbook;
@@ -128,8 +129,8 @@ export function CookbookDetail({
   // If a recipe is selected, show the recipe detail view
   if (selectedRecipe) {
     return (
-      <div className="modal-overlay cookbook-detail-overlay" onClick={() => setSelectedRecipe(null)}>
-        <div className="cookbook-detail cookbook-recipe-view" onClick={e => e.stopPropagation()}>
+      <ModalOverlay onClose={() => setSelectedRecipe(null)} className="cookbook-detail-overlay">
+        <div className="cookbook-detail cookbook-recipe-view">
           <div className="cookbook-recipe-header">
             <button className="btn-back" onClick={() => setSelectedRecipe(null)}>
               <ArrowLeft size={18} />
@@ -220,13 +221,13 @@ export function CookbookDetail({
             </div>
           </div>
         </div>
-      </div>
+      </ModalOverlay>
     );
   }
 
   return (
-    <div className="modal-overlay cookbook-detail-overlay" onClick={onClose}>
-      <div className="cookbook-detail" onClick={e => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose} className="cookbook-detail-overlay">
+      <div className="cookbook-detail">
         <button className="modal-close" onClick={onClose}>
           <X size={20} strokeWidth={2} />
         </button>
@@ -354,8 +355,8 @@ export function CookbookDetail({
         </div>
 
         {recipeToRemove && (
-          <div className="confirm-modal-overlay" onClick={() => setRecipeToRemove(null)}>
-            <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+          <ModalOverlay onClose={() => setRecipeToRemove(null)} className="confirm-modal-overlay">
+            <div className="confirm-modal">
               <h3>Remove Recipe</h3>
               <p>Remove <strong>{recipeToRemove.title}</strong> from this cookbook?</p>
               <div className="confirm-modal-actions">
@@ -368,9 +369,9 @@ export function CookbookDetail({
                 </button>
               </div>
             </div>
-          </div>
+          </ModalOverlay>
         )}
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Loader2, Plus, Check, Book } from 'lucide-react';
 import { useCookbooks } from '../context/CookbookContext';
 import { Recipe } from '../types/Recipe';
+import { ModalOverlay } from './ModalOverlay';
 
 interface AddToCookbookModalProps {
   recipe: Recipe;
@@ -27,8 +28,8 @@ export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToC
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content add-to-cookbook-modal" onClick={e => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="modal-content add-to-cookbook-modal">
         <button className="modal-close" onClick={onClose}>
           <X size={20} strokeWidth={2} />
         </button>
@@ -89,6 +90,6 @@ export function AddToCookbookModal({ recipe, onClose, onCreateCookbook }: AddToC
           Create New Cookbook
         </button>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

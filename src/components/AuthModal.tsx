@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Mail, Lock, User, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { DinoMascot } from './DinoMascot';
+import { ModalOverlay } from './ModalOverlay';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -68,8 +69,8 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-auth" onClick={e => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="modal-content modal-auth">
         <button className="modal-close" onClick={onClose} aria-label="Close">
           <X size={20} strokeWidth={2} />
         </button>
@@ -203,6 +204,6 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
           </p>
         )}
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

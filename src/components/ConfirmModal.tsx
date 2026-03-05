@@ -1,4 +1,5 @@
 import { AlertTriangle, Info } from 'lucide-react';
+import { ModalOverlay } from './ModalOverlay';
 
 interface ConfirmModalProps {
   title: string;
@@ -22,8 +23,8 @@ export function ConfirmModal({
   const Icon = variant === 'info' ? Info : AlertTriangle;
 
   return (
-    <div className="confirm-modal-overlay" onClick={onCancel}>
-      <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+    <ModalOverlay onClose={onCancel} className="confirm-modal-overlay">
+      <div className="confirm-modal">
         <div className={`confirm-modal-icon ${variant}`}>
           <Icon size={28} strokeWidth={1.5} />
         </div>
@@ -43,6 +44,6 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

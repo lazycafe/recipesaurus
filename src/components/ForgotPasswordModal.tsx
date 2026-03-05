@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Mail, Loader2, CheckCircle } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import { DinoMascot } from './DinoMascot';
+import { ModalOverlay } from './ModalOverlay';
 
 interface ForgotPasswordModalProps {
   onClose: () => void;
@@ -35,8 +36,8 @@ export function ForgotPasswordModal({ onClose, onBackToLogin }: ForgotPasswordMo
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-auth" onClick={e => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="modal-content modal-auth">
         <button className="modal-close" onClick={onClose} aria-label="Close">
           <X size={20} strokeWidth={2} />
         </button>
@@ -119,6 +120,6 @@ export function ForgotPasswordModal({ onClose, onBackToLogin }: ForgotPasswordMo
           </p>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { X, Loader2, Book, Upload } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { DinoMascot } from './DinoMascot';
+import { ModalOverlay } from './ModalOverlay';
 
 interface CookbookModalProps {
   cookbook?: Cookbook;
@@ -64,8 +65,8 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-form cookbook-modal" onClick={e => e.stopPropagation()}>
+    <ModalOverlay onClose={onClose}>
+      <div className="modal-content modal-form cookbook-modal">
         <button className="modal-close" onClick={onClose}>
           <X size={20} strokeWidth={2} />
         </button>
@@ -165,6 +166,6 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
           </button>
         </form>
       </div>
-    </div>
+    </ModalOverlay>
   );
 }
