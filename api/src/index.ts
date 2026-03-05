@@ -683,15 +683,43 @@ async function handleRemoveRecipeFromCookbook(request: Request, db: D1Database, 
     return errorResponse('Unauthorized', 401, origin);
   }
 
+  // Check if cookbook exists
   const cookbook = await db.prepare(
-    'SELECT * FROM cookbooks WHERE id = ? AND user_id = ?'
-  ).bind(cookbookId, user.id).first<Cookbook>();
+    'SELECT * FROM cookbooks WHERE id = ?'
+  ).bind(cookbookId).first<Cookbook>();
 
   if (!cookbook) {
-    return errorResponse('Cookbook not found or access denied', 404, origin);
+    return errorResponse('Cookbook not found', 404, origin);
   }
 
-  await db.prepare('DELETE FROM cookbook_recipes WHERE cookbook_id = ? AND recipe_id = ?').bind(cookbookId, recipeId).run();
+  const isOwner = cookbook.user_id === user.id;
+
+  // Check if user has shared access
+  let hasSharedAccess = false;
+  if (!isOwner) {
+    const share = await db.prepare(
+      'SELECT id FROM cookbook_shares WHERE cookbook_id = ? AND shared_with_user_id = ?'
+    ).bind(cookbookId, user.id).first();
+    hasSharedAccess = !!share;
+  }
+
+  if (!isOwner && !hasSharedAccess) {
+    return errorResponse('Access denied', 403, origin);
+  }
+
+  // If owner, can remove any recipe. If shared user, can only remove recipes they added.
+  if (isOwner) {
+    await db.prepare('DELETE FROM cookbook_recipes WHERE cookbook_id = ? AND recipe_id = ?').bind(cookbookId, recipeId).run();
+  } else {
+    // Shared user can only remove recipes they added
+    const result = await db.prepare(
+      'DELETE FROM cookbook_recipes WHERE cookbook_id = ? AND recipe_id = ? AND added_by_user_id = ?'
+    ).bind(cookbookId, recipeId, user.id).run();
+
+    if (result.meta.changes === 0) {
+      return errorResponse('You can only remove recipes you added', 403, origin);
+    }
+  }
 
   // Update cookbook timestamp
   await db.prepare('UPDATE cookbooks SET updated_at = ? WHERE id = ?').bind(Date.now(), cookbookId).run();

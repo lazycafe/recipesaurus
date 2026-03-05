@@ -5,6 +5,7 @@ import { Recipe } from '../types/Recipe';
 import { cookbooksApi, RecipeResponse } from '../utils/api';
 import { RecipeCard } from './RecipeCard';
 import { DinoMascot } from './DinoMascot';
+import { useAuth } from '../context/AuthContext';
 
 interface CookbookDetailProps {
   cookbook: Cookbook;
@@ -15,6 +16,7 @@ interface CookbookDetailProps {
 }
 
 interface CookbookRecipe extends Recipe {
+  addedByUserId?: string;
   addedByUserName?: string | null;
 }
 
@@ -32,6 +34,7 @@ function mapRecipeResponse(r: RecipeResponse): CookbookRecipe {
     cookTime: r.cookTime,
     servings: r.servings,
     createdAt: r.createdAt,
+    addedByUserId: r.addedByUserId,
     addedByUserName: r.addedByUserName,
   };
 }
@@ -43,12 +46,19 @@ export function CookbookDetail({
   onShare,
   onRemoveRecipe,
 }: CookbookDetailProps) {
+  const { user } = useAuth();
   const [recipes, setRecipes] = useState<CookbookRecipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<CookbookRecipe | null>(null);
   const [recipeToRemove, setRecipeToRemove] = useState<CookbookRecipe | null>(null);
+
+  // Check if user can remove a recipe (owner can remove any, shared users can only remove their own)
+  const canRemoveRecipe = (recipe: CookbookRecipe) => {
+    if (cookbook.isOwner) return true;
+    return recipe.addedByUserId === user?.id;
+  };
 
   useEffect(() => {
     async function fetchCookbook() {
@@ -310,7 +320,7 @@ export function CookbookDetail({
                           <span>Added by {recipe.addedByUserName}</span>
                         </div>
                       )}
-                      {cookbook.isOwner && (
+                      {canRemoveRecipe(recipe) && (
                         <button
                           className="remove-from-cookbook"
                           onClick={() => handleRemoveRecipe(recipe)}
