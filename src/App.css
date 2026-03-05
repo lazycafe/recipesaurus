@@ -579,10 +579,6 @@ img {
   box-shadow: var(--shadow-sm);
 }
 
-.search-bar:focus-within {
-  border-color: var(--color-olive);
-  box-shadow: 0 0 0 4px var(--color-olive-light);
-}
 
 .search-icon {
   color: var(--color-sand);
@@ -2627,10 +2623,6 @@ img {
   transition: all var(--transition-base);
 }
 
-.cookbook-search-bar:focus-within {
-  border-color: var(--color-olive);
-  box-shadow: 0 0 0 4px var(--color-olive-light);
-}
 
 .cookbook-filter-tags {
   display: flex;
