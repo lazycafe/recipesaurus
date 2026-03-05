@@ -325,7 +325,7 @@ async function sendVerificationEmail(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Recipesaurus <noreply@recipesaurus.app>',
+        from: 'Recipesaurus <noreply@recipesaurus.ai>',
         to: [email],
         subject: 'Verify your Recipesaurus account',
         html: `
