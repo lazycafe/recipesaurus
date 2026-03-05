@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { ClientProvider } from './client/ClientContext';
 import { defaultClient } from './client/defaultClient';
@@ -187,6 +187,14 @@ function CookbooksView({
   );
 }
 
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 function RecipeApp() {
   const { addRecipe, updateRecipe, deleteRecipe } = useRecipes();
   const { createCookbook, updateCookbook, deleteCookbook, leaveCookbook, removeRecipeFromCookbook } = useCookbooks();
@@ -242,6 +250,7 @@ function RecipeApp() {
 
   return (
     <>
+      <ScrollToTop />
       <Header
         currentView={currentView}
         onAddRecipe={() => setShowAddModal(true)}
