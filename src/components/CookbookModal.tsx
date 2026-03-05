@@ -1,22 +1,40 @@
 import { useState, useRef } from 'react';
-import { X, Loader2, Book, Upload } from 'lucide-react';
+import { X, Loader2, Book, Upload, Trash2 } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
+import { ConfirmModal } from './ConfirmModal';
 
 interface CookbookModalProps {
   cookbook?: Cookbook;
   onClose: () => void;
   onSubmit: (name: string, description?: string, coverImage?: string) => Promise<void>;
+  onDelete?: () => void;
 }
 
-export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProps) {
+export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: CookbookModalProps) {
   const [name, setName] = useState(cookbook?.name || '');
   const [description, setDescription] = useState(cookbook?.description || '');
   const [coverImage, setCoverImage] = useState(cookbook?.coverImage || '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if form has unsaved changes
+  const hasChanges =
+    name !== (cookbook?.name || '') ||
+    description !== (cookbook?.description || '') ||
+    coverImage !== (cookbook?.coverImage || '');
+
+  const handleClose = () => {
+    if (hasChanges) {
+      setShowDiscardConfirm(true);
+    } else {
+      onClose();
+    }
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -65,9 +83,9 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
   };
 
   return (
-    <ModalOverlay onClose={onClose}>
+    <ModalOverlay onClose={handleClose}>
       <div className="modal-content modal-form cookbook-modal">
-        <button className="modal-close" onClick={onClose}>
+        <button className="modal-close" onClick={handleClose}>
           <X size={20} strokeWidth={2} />
         </button>
 
@@ -164,7 +182,46 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
               isEditing ? 'Save Changes' : 'Create Cookbook'
             )}
           </button>
+
+          {isEditing && onDelete && (
+            <button
+              type="button"
+              className="btn-danger-outline delete-cookbook-btn"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={isLoading}
+            >
+              <Trash2 size={16} />
+              Delete Cookbook
+            </button>
+          )}
         </form>
+
+        {showDeleteConfirm && cookbook && (
+          <ConfirmModal
+            title="Delete Cookbook"
+            message={`Are you sure you want to delete "${cookbook.name}"? Your recipes will not be deleted.`}
+            confirmText="Delete"
+            onConfirm={() => {
+              setShowDeleteConfirm(false);
+              onClose();
+              onDelete?.();
+            }}
+            onCancel={() => setShowDeleteConfirm(false)}
+          />
+        )}
+
+        {showDiscardConfirm && (
+          <ConfirmModal
+            title="Discard Changes"
+            message="You have unsaved changes. Are you sure you want to discard them?"
+            confirmText="Discard"
+            onConfirm={() => {
+              setShowDiscardConfirm(false);
+              onClose();
+            }}
+            onCancel={() => setShowDiscardConfirm(false)}
+          />
+        )}
       </div>
     </ModalOverlay>
   );

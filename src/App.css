@@ -498,6 +498,30 @@ img {
   color: white;
 }
 
+.btn-danger-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--space-5);
+  background: transparent;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border: 2px solid var(--color-danger-light);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-top: var(--space-4);
+}
+
+.btn-danger-outline:hover {
+  background: var(--color-danger-light);
+  border-color: var(--color-danger);
+}
+
 .btn-clear {
   display: inline-flex;
   align-items: center;

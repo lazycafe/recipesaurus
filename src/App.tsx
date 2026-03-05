@@ -187,7 +187,7 @@ function CookbooksView({
 
 function RecipeApp() {
   const { addRecipe, updateRecipe, deleteRecipe } = useRecipes();
-  const { createCookbook, updateCookbook, removeRecipeFromCookbook } = useCookbooks();
+  const { createCookbook, updateCookbook, deleteCookbook, leaveCookbook, removeRecipeFromCookbook } = useCookbooks();
   const location = useLocation();
 
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
@@ -321,6 +321,11 @@ function RecipeApp() {
             setEditingCookbook(null);
           }}
           onSubmit={handleSaveCookbook}
+          onDelete={editingCookbook ? () => {
+            deleteCookbook(editingCookbook.id);
+            setShowCookbookModal(false);
+            setEditingCookbook(null);
+          } : undefined}
         />
       )}
 
@@ -338,6 +343,7 @@ function RecipeApp() {
             setSelectedCookbook(null);
           }}
           onRemoveRecipe={(recipeId) => removeRecipeFromCookbook(selectedCookbook.id, recipeId)}
+          onLeave={!selectedCookbook.isOwner ? () => leaveCookbook(selectedCookbook.id) : undefined}
         />
       )}
 

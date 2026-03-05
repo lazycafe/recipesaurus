@@ -3,6 +3,7 @@ import { X, PenLine, Link, Plus, Loader2, Upload, Image } from 'lucide-react';
 import { Recipe, RecipeFormData } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
+import { ConfirmModal } from './ConfirmModal';
 
 interface AddRecipeModalProps {
   recipe?: Recipe;
@@ -145,6 +146,29 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
   });
   const [importError, setImportError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  // Check if form has unsaved changes
+  const hasChanges =
+    url !== '' ||
+    formData.title !== (recipe?.title || '') ||
+    formData.description !== (recipe?.description || '') ||
+    formData.ingredients !== (recipe?.ingredients.join('\n') || '') ||
+    formData.instructions !== (recipe?.instructions.join('\n') || '') ||
+    formData.tags !== (recipe?.tags.join(', ') || '') ||
+    formData.imageUrl !== (recipe?.imageUrl || '') ||
+    formData.prepTime !== (recipe?.prepTime || '') ||
+    formData.cookTime !== (recipe?.cookTime || '') ||
+    formData.servings !== (recipe?.servings || '') ||
+    formData.sourceUrl !== (recipe?.sourceUrl || '');
+
+  const handleClose = () => {
+    if (hasChanges) {
+      setShowDiscardConfirm(true);
+    } else {
+      onClose();
+    }
+  };
 
   const handleInputChange = (field: keyof RecipeFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -263,9 +287,9 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
   };
 
   return (
-    <ModalOverlay onClose={onClose}>
+    <ModalOverlay onClose={handleClose}>
       <div className="modal-content modal-form">
-        <button className="modal-close" onClick={onClose} aria-label="Close">
+        <button className="modal-close" onClick={handleClose} aria-label="Close">
           <X size={20} strokeWidth={2} />
         </button>
 
@@ -305,6 +329,7 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
                 value={formData.title}
                 onChange={e => handleInputChange('title', e.target.value)}
                 placeholder="Recipe name"
+                autoFocus
               />
             </div>
 
@@ -452,6 +477,7 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
                 value={url}
                 onChange={e => setUrl(e.target.value)}
                 placeholder="https://example.com/recipe"
+                autoFocus
               />
               {importError && (
                 <p className="form-error">{importError}</p>
@@ -470,6 +496,19 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
             </button>
           </form>
         ) : null}
+
+        {showDiscardConfirm && (
+          <ConfirmModal
+            title="Discard Changes"
+            message="You have unsaved changes. Are you sure you want to discard them?"
+            confirmText="Discard"
+            onConfirm={() => {
+              setShowDiscardConfirm(false);
+              onClose();
+            }}
+            onCancel={() => setShowDiscardConfirm(false)}
+          />
+        )}
       </div>
     </ModalOverlay>
   );

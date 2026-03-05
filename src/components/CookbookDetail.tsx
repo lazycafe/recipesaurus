@@ -15,7 +15,6 @@ interface CookbookDetailProps {
   onEdit: () => void;
   onShare: () => void;
   onRemoveRecipe: (recipeId: string) => void;
-  onDelete?: () => void;
   onLeave?: () => void;
 }
 
@@ -49,7 +48,6 @@ export function CookbookDetail({
   onEdit,
   onShare,
   onRemoveRecipe,
-  onDelete,
   onLeave,
 }: CookbookDetailProps) {
   const { user } = useAuth();
@@ -263,12 +261,6 @@ export function CookbookDetail({
                   <Share2 size={16} />
                   Share
                 </button>
-                {onDelete && (
-                  <button className="btn-danger" onClick={() => setShowDeleteConfirm(true)}>
-                    <Trash2 size={16} />
-                    Delete
-                  </button>
-                )}
               </>
             ) : onLeave && (
               <button className="btn-secondary" onClick={() => setShowDeleteConfirm(true)}>
@@ -391,23 +383,15 @@ export function CookbookDetail({
           </ModalOverlay>
         )}
 
-        {showDeleteConfirm && (
+        {showDeleteConfirm && !cookbook.isOwner && (
           <ConfirmModal
-            title={cookbook.isOwner ? "Delete Cookbook" : "Leave Cookbook"}
-            message={
-              cookbook.isOwner
-                ? `Are you sure you want to delete "${cookbook.name}"? Your recipes will not be deleted.`
-                : `Are you sure you want to leave "${cookbook.name}"? You'll no longer have access to this cookbook.`
-            }
-            confirmText={cookbook.isOwner ? "Delete" : "Leave"}
+            title="Leave Cookbook"
+            message={`Are you sure you want to leave "${cookbook.name}"? You'll no longer have access to this cookbook.`}
+            confirmText="Leave"
             onConfirm={() => {
               setShowDeleteConfirm(false);
               onClose();
-              if (cookbook.isOwner) {
-                onDelete?.();
-              } else {
-                onLeave?.();
-              }
+              onLeave?.();
             }}
             onCancel={() => setShowDeleteConfirm(false)}
           />
