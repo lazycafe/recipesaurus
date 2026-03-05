@@ -1470,9 +1470,9 @@ async function handleAcceptInvite(request: Request, db: D1Database, inviteId: st
     VALUES (?, ?, ?, ?, ?)
   `).bind(shareId, invite.cookbook_id, user.id, invite.invited_by_user_id, now).run();
 
-  // Mark the notification as read
+  // Delete the notification
   await db.prepare(`
-    UPDATE notifications SET is_read = 1 WHERE user_id = ? AND type = ? AND data LIKE ?
+    DELETE FROM notifications WHERE user_id = ? AND type = ? AND data LIKE ?
   `).bind(user.id, 'cookbook_invite', `%"inviteId":"${inviteId}"%`).run();
 
   return jsonResponse({ success: true, cookbookId: invite.cookbook_id, cookbookName: invite.cookbook_name }, 200, corsHeaders(origin));
@@ -1499,9 +1499,9 @@ async function handleDeclineInvite(request: Request, db: D1Database, inviteId: s
     UPDATE cookbook_invites SET status = ? WHERE id = ?
   `).bind('declined', inviteId).run();
 
-  // Mark the notification as read
+  // Delete the notification
   await db.prepare(`
-    UPDATE notifications SET is_read = 1 WHERE user_id = ? AND type = ? AND data LIKE ?
+    DELETE FROM notifications WHERE user_id = ? AND type = ? AND data LIKE ?
   `).bind(user.id, 'cookbook_invite', `%"inviteId":"${inviteId}"%`).run();
 
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
