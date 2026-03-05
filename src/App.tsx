@@ -24,7 +24,7 @@ import { AddToCookbookModal } from './components/AddToCookbookModal';
 import { SharedCookbookView } from './components/SharedCookbookView';
 import { Recipe, RecipeFormData } from './types/Recipe';
 import { Cookbook } from './types/Cookbook';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
 
 const parseFormData = (formData: RecipeFormData) => ({
@@ -277,7 +277,8 @@ function RecipeApp() {
       </main>
 
       <footer className="footer">
-        <p>Recipesaurus</p>
+        <ChefHat size={16} />
+        <span>Recipesaurus</span>
       </footer>
 
       {selectedRecipe && (

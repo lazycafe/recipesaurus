@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Loader2, User, Clock, Users } from 'lucide-react';
+import { Loader2, User, Clock, Users, X, ChefHat } from 'lucide-react';
 import { cookbooksApi, RecipeResponse } from '../utils/api';
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
+import { RecipeCard } from './RecipeCard';
 
 interface SharedCookbook {
   id: string;
@@ -108,49 +109,11 @@ export function SharedCookbookView({ token }: SharedCookbookViewProps) {
           {recipes.length > 0 ? (
             <div className="recipe-grid">
               {recipes.map(recipe => (
-                <article
+                <RecipeCard
                   key={recipe.id}
-                  className="recipe-card"
+                  recipe={recipe}
                   onClick={() => setSelectedRecipe(recipe)}
-                >
-                  <div className="card-image">
-                    {recipe.imageUrl ? (
-                      <img src={recipe.imageUrl} alt={recipe.title} />
-                    ) : (
-                      <div className="card-image-placeholder">
-                        <DinoMascot size={64} />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="card-body">
-                    <h3 className="card-title">{recipe.title}</h3>
-                    <p className="card-description">{recipe.description}</p>
-
-                    <div className="card-meta">
-                      {recipe.prepTime && (
-                        <span className="meta-item">
-                          <Clock size={14} />
-                          {recipe.prepTime}
-                        </span>
-                      )}
-                      {recipe.servings && (
-                        <span className="meta-item">
-                          <Users size={14} />
-                          {recipe.servings}
-                        </span>
-                      )}
-                    </div>
-
-                    {recipe.tags.length > 0 && (
-                      <div className="card-tags">
-                        {recipe.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="tag">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </article>
+                />
               ))}
             </div>
           ) : (
@@ -164,16 +127,17 @@ export function SharedCookbookView({ token }: SharedCookbookViewProps) {
       </main>
 
       <footer className="footer">
-        <p>
-          <a href="/">Recipesaurus</a>
-        </p>
+        <a href="/" className="footer-link">
+          <ChefHat size={16} />
+          <span>Recipesaurus</span>
+        </a>
       </footer>
 
       {selectedRecipe && (
         <div className="modal-overlay" onClick={() => setSelectedRecipe(null)}>
           <div className="recipe-detail" onClick={e => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSelectedRecipe(null)}>
-              <span>&times;</span>
+            <button className="modal-close" onClick={() => setSelectedRecipe(null)} aria-label="Close">
+              <X size={20} strokeWidth={2} />
             </button>
 
             {selectedRecipe.imageUrl && (

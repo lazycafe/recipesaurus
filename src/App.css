@@ -1633,13 +1633,14 @@ img {
    ======================================== */
 
 .footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
   padding: var(--space-8);
   text-align: center;
   border-top: 1px solid var(--color-border);
   background: var(--color-cream);
-}
-
-.footer p {
   font-family: var(--font-display);
   font-size: var(--text-base);
   font-weight: 500;
@@ -1647,15 +1648,17 @@ img {
   letter-spacing: 0.02em;
 }
 
-.footer a {
+.footer-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--color-terracotta);
   text-decoration: none;
   transition: all var(--transition-fast);
 }
 
-.footer a:hover {
+.footer-link:hover {
   color: var(--color-terracotta-dark);
-  text-decoration: underline;
 }
 
 /* ========================================
