@@ -1,8 +1,8 @@
-import { Plus, LogOut, User, Book, ChefHat } from 'lucide-react';
+import { Plus, Book, ChefHat } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { DinoMascot } from './DinoMascot';
 import { useAuth } from '../context/AuthContext';
-import { NotificationDropdown } from './NotificationDropdown';
+import { UserMenu } from './UserMenu';
 
 interface HeaderProps {
   currentView: 'recipes' | 'cookbooks';
@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   return (
     <>
@@ -47,15 +47,6 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
           <div className="header-actions">
             {user && (
               <>
-                <NotificationDropdown />
-
-                <div className="user-info">
-                  <div className="user-avatar">
-                    <User size={16} strokeWidth={2} />
-                  </div>
-                  <span className="user-name">{user.name}</span>
-                </div>
-
                 {currentView === 'recipes' ? (
                   <button className="btn-primary" onClick={onAddRecipe}>
                     <Plus size={18} strokeWidth={2.5} />
@@ -68,9 +59,7 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
                   </button>
                 )}
 
-                <button className="btn-icon" onClick={logout} aria-label="Sign out">
-                  <LogOut size={18} strokeWidth={2} />
-                </button>
+                <UserMenu />
               </>
             )}
           </div>

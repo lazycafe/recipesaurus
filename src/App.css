@@ -3065,6 +3065,190 @@ img {
 }
 
 /* ========================================
+   User Menu
+   ======================================== */
+
+.user-menu {
+  position: relative;
+}
+
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-2);
+  background: var(--color-cream);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.user-menu-trigger:hover {
+  background: var(--color-cream-dark);
+}
+
+.user-menu-trigger .user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-terracotta) 0%, var(--color-terracotta-dark) 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-menu-trigger .user-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-charcoal);
+}
+
+.user-notification-dot {
+  position: absolute;
+  top: 4px;
+  left: 28px;
+  width: 10px;
+  height: 10px;
+  background: var(--color-terracotta);
+  border: 2px solid var(--color-cream);
+  border-radius: 50%;
+}
+
+.user-menu-trigger:hover .user-notification-dot {
+  border-color: var(--color-cream-dark);
+}
+
+.user-menu-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: var(--space-2);
+  background: var(--color-background);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 320px;
+  max-height: 480px;
+  overflow: hidden;
+  z-index: 100;
+  animation: slideDown var(--transition-fast) ease-out;
+}
+
+.user-menu-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-cream);
+}
+
+.user-menu-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-terracotta) 0%, var(--color-terracotta-dark) 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-menu-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-menu-name {
+  font-weight: 600;
+  color: var(--color-charcoal);
+}
+
+.user-menu-email {
+  font-size: var(--text-xs);
+  color: var(--color-taupe);
+}
+
+.user-menu-divider {
+  height: 1px;
+  background: var(--color-border);
+}
+
+.user-menu-notifications {
+  padding: var(--space-3);
+}
+
+.user-menu-notifications-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.user-menu-notifications-header h4 {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-taupe);
+  margin: 0;
+}
+
+.user-menu-notifications-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.user-menu-notifications-list .notification-item {
+  border-radius: var(--radius-md);
+  border-bottom: none;
+  margin-bottom: var(--space-1);
+}
+
+.user-menu-notifications-list .notification-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.user-menu-notifications-list .notification-empty {
+  padding: var(--space-4);
+}
+
+.user-menu-logout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-4);
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.user-menu-logout:hover {
+  background: var(--color-cream);
+  color: var(--color-danger);
+}
+
+@media (max-width: 640px) {
+  .user-menu-trigger .user-name {
+    display: none;
+  }
+
+  .user-menu-trigger {
+    padding: var(--space-2);
+  }
+
+  .user-menu-panel {
+    width: calc(100vw - var(--space-4));
+    right: calc(-1 * var(--space-2));
+  }
+}
+
+/* ========================================
    Share Modal
    ======================================== */
 

@@ -167,7 +167,7 @@ describe('Header', () => {
     expect(onAddCookbook).toHaveBeenCalledOnce();
   });
 
-  it('calls logout when sign out clicked', () => {
+  it('calls logout when sign out clicked in user menu', () => {
     const logout = vi.fn();
     vi.mocked(AuthContext.useAuth).mockReturnValue({
       user: mockUser,
@@ -178,7 +178,10 @@ describe('Header', () => {
     });
 
     renderWithRouter(<Header {...defaultProps} />);
-    fireEvent.click(screen.getByLabelText('Sign out'));
+    // Open user menu
+    fireEvent.click(screen.getByLabelText('User menu'));
+    // Click sign out
+    fireEvent.click(screen.getByText('Sign out'));
     expect(logout).toHaveBeenCalledOnce();
   });
 
