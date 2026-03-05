@@ -2628,8 +2628,8 @@ img {
 }
 
 .cookbook-search-bar:focus-within {
-  border-color: var(--color-terracotta);
-  box-shadow: 0 0 0 4px var(--color-terracotta-light);
+  border-color: var(--color-olive);
+  box-shadow: 0 0 0 4px var(--color-olive-light);
 }
 
 .cookbook-filter-tags {
@@ -3457,8 +3457,8 @@ img {
 
 .share-input-group input:focus {
   outline: none;
-  border-color: var(--color-terracotta);
-  box-shadow: 0 0 0 4px var(--color-terracotta-light);
+  border-color: var(--color-olive);
+  box-shadow: 0 0 0 4px var(--color-olive-light);
 }
 
 .share-input-group .btn-primary {
