@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Lock, Loader2, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import { DinoMascot } from './DinoMascot';
 
 export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const client = useClient();
   const token = searchParams.get('token');
 
@@ -69,7 +68,7 @@ export function ResetPasswordPage() {
   };
 
   const goToLogin = () => {
-    navigate('/');
+    window.location.href = '/';
   };
 
   return (

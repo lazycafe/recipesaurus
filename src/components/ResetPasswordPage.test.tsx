@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ResetPasswordPage } from './ResetPasswordPage';
@@ -8,21 +8,18 @@ vi.mock('../client/ClientContext', () => ({
   useClient: vi.fn(),
 }));
 
-const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
-});
-
 describe('ResetPasswordPage', () => {
   const mockResetPassword = vi.fn();
+  const originalLocation = window.location;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockResetPassword.mockResolvedValue({ data: { message: 'Success' } });
+    // Mock window.location
+    Object.defineProperty(window, 'location', {
+      value: { href: '' },
+      writable: true,
+    });
     vi.mocked(ClientContext.useClient).mockReturnValue({
       auth: {
         getSession: vi.fn(),
@@ -36,6 +33,14 @@ describe('ResetPasswordPage', () => {
       cookbooks: {} as any,
       notifications: {} as any,
       invites: {} as any,
+    });
+  });
+
+  afterEach(() => {
+    // Restore window.location
+    Object.defineProperty(window, 'location', {
+      value: originalLocation,
+      writable: true,
     });
   });
 
@@ -215,7 +220,7 @@ describe('ResetPasswordPage', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Go to Sign In' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/');
+    expect(window.location.href).toBe('/');
   });
 
   it('shows error on API failure', async () => {
@@ -254,6 +259,6 @@ describe('ResetPasswordPage', () => {
     renderWithRouter(['/reset-password']);
 
     fireEvent.click(screen.getByRole('button', { name: 'Request New Reset Link' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/');
+    expect(window.location.href).toBe('/');
   });
 });

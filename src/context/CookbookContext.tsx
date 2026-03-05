@@ -86,6 +86,7 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
   const deleteCookbook = useCallback(async (id: string): Promise<boolean> => {
     // Optimistic update
     setOwnedCookbooks(prev => prev.filter(c => c.id !== id));
+    setSharedCookbooks(prev => prev.filter(c => c.id !== id));
 
     const { error } = await cookbooksApi.delete(id);
     if (error) {
@@ -93,6 +94,8 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
       await refreshCookbooks();
       return false;
     }
+    // Refresh to ensure consistency
+    await refreshCookbooks();
     return true;
   }, [refreshCookbooks]);
 
