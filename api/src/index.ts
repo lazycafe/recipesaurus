@@ -215,12 +215,14 @@ function errorResponse(message: string, status = 400, origin?: string | null): R
   return jsonResponse({ error: message }, status, corsHeaders(origin ?? null));
 }
 
-function setCookie(name: string, value: string, maxAge: number): string {
-  return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${maxAge}`;
+function setCookie(name: string, value: string, maxAge: number, isSecure: boolean): string {
+  const secureFlags = isSecure ? 'Secure; SameSite=None' : 'SameSite=Lax';
+  return `${name}=${value}; Path=/; HttpOnly; ${secureFlags}; Max-Age=${maxAge}`;
 }
 
-function clearCookie(name: string): string {
-  return `${name}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`;
+function clearCookie(name: string, isSecure: boolean): string {
+  const secureFlags = isSecure ? 'Secure; SameSite=None' : 'SameSite=Lax';
+  return `${name}=; Path=/; HttpOnly; ${secureFlags}; Max-Age=0`;
 }
 
 function getCookie(request: Request, name: string): string | null {
@@ -321,12 +323,13 @@ async function handleRegister(request: Request, db: D1Database): Promise<Respons
   // Add sample recipes for new user
   await addSampleRecipes(db, userId);
 
+  const isSecure = !origin?.includes('localhost');
   return jsonResponse(
     { user: { id: userId, email: normalizedEmail, name: name.trim() }, token: sessionId },
     200,
     {
       ...corsHeaders(origin),
-      'Set-Cookie': setCookie('session', sessionId, SESSION_DURATION / 1000),
+      'Set-Cookie': setCookie('session', sessionId, SESSION_DURATION / 1000, isSecure),
     }
   );
 }
@@ -376,12 +379,13 @@ async function handleLogin(request: Request, db: D1Database): Promise<Response> 
     'INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
   ).bind(sessionId, user.id, Date.now(), expiresAt).run();
 
+  const isSecure = !origin?.includes('localhost');
   return jsonResponse(
     { user: { id: user.id, email: user.email, name: user.name }, token: sessionId },
     200,
     {
       ...corsHeaders(origin),
-      'Set-Cookie': setCookie('session', sessionId, SESSION_DURATION / 1000),
+      'Set-Cookie': setCookie('session', sessionId, SESSION_DURATION / 1000, isSecure),
     }
   );
 }
@@ -398,12 +402,13 @@ async function handleLogout(request: Request, db: D1Database): Promise<Response>
   }
 
   const origin = request.headers.get('Origin');
+  const isSecure = !origin?.includes('localhost');
   return jsonResponse(
     { success: true },
     200,
     {
       ...corsHeaders(origin),
-      'Set-Cookie': clearCookie('session'),
+      'Set-Cookie': clearCookie('session', isSecure),
     }
   );
 }
