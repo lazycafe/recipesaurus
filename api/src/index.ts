@@ -1167,6 +1167,52 @@ export default {
         return handleGetSession(request, env.DB);
       }
 
+      // Proxy fetch for recipe import
+      if (path === '/api/proxy-fetch' && method === 'POST') {
+        try {
+          const body = await request.json() as { url?: string };
+          const targetUrl = body.url;
+
+          if (!targetUrl || typeof targetUrl !== 'string') {
+            return errorResponse('URL is required', 400, origin);
+          }
+
+          // Validate URL format
+          let parsedUrl: URL;
+          try {
+            parsedUrl = new URL(targetUrl);
+            if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+              return errorResponse('Invalid URL protocol', 400, origin);
+            }
+          } catch {
+            return errorResponse('Invalid URL format', 400, origin);
+          }
+
+          // Fetch the page content
+          const fetchResponse = await fetch(targetUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; Recipesaurus/1.0; +https://recipesaurus.app)',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+          });
+
+          if (!fetchResponse.ok) {
+            return errorResponse(`Failed to fetch URL: ${fetchResponse.status}`, 400, origin);
+          }
+
+          const html = await fetchResponse.text();
+
+          // Limit response size to prevent abuse
+          const maxSize = 1024 * 1024; // 1MB
+          const truncatedHtml = html.length > maxSize ? html.slice(0, maxSize) : html;
+
+          return jsonResponse({ html: truncatedHtml }, 200, corsHeaders(origin));
+        } catch (err) {
+          console.error('Proxy fetch error:', err);
+          return errorResponse('Failed to fetch URL', 500, origin);
+        }
+      }
+
       // Recipe routes
       if (path === '/api/recipes' && method === 'GET') {
         return handleGetRecipes(request, env.DB);

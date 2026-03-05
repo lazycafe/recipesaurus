@@ -23,4 +23,5 @@ export interface RecipeFormData {
   prepTime: string;
   cookTime: string;
   servings: string;
+  sourceUrl: string;
 }

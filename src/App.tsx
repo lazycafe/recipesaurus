@@ -43,6 +43,7 @@ const parseFormData = (formData: RecipeFormData) => ({
   prepTime: formData.prepTime.trim() || undefined,
   cookTime: formData.cookTime.trim() || undefined,
   servings: formData.servings.trim() || undefined,
+  sourceUrl: formData.sourceUrl.trim() || undefined,
 });
 
 function LandingPage({ onLogin, onRegister }: { onLogin: () => void; onRegister: () => void }) {
@@ -214,21 +215,6 @@ function RecipeApp() {
     }
   };
 
-  const handleUrlImport = async (url: string) => {
-    try {
-      await addRecipe({
-        title: 'Imported Recipe',
-        description: 'Recipe imported from: ' + url,
-        ingredients: ['Ingredient 1', 'Ingredient 2', 'Ingredient 3'],
-        instructions: ['Step 1', 'Step 2', 'Step 3'],
-        tags: ['imported'],
-        sourceUrl: url,
-      });
-    } catch (error) {
-      console.error('Failed to import recipe:', error);
-    }
-  };
-
   const handleDeleteRecipe = async (id: string) => {
     try {
       await deleteRecipe(id);
@@ -307,7 +293,6 @@ function RecipeApp() {
         <AddRecipeModal
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddRecipe}
-          onUrlSubmit={handleUrlImport}
         />
       )}
 
@@ -316,7 +301,6 @@ function RecipeApp() {
           recipe={editingRecipe}
           onClose={() => setEditingRecipe(null)}
           onSubmit={handleUpdateRecipe}
-          onUrlSubmit={() => {}}
         />
       )}
 

@@ -84,7 +84,7 @@ describe('SearchFilter', () => {
   });
 
   it('shows check icon on selected tags', () => {
-    const { container } = render(
+    render(
       <SearchFilter
         {...defaultProps}
         allTags={['breakfast', 'dinner']}
