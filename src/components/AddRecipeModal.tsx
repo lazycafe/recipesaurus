@@ -231,6 +231,11 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
         sourceUrl: extracted.sourceUrl || url.trim(),
       }));
 
+      // Show extracted image in preview
+      if (extracted.imageUrl) {
+        setImagePreview(extracted.imageUrl);
+      }
+
       // Switch to manual tab for user to review/edit
       setActiveTab('manual');
     } catch (err) {

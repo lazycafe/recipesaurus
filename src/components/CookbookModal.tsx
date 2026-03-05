@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Loader2, Book, Image } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { X, Loader2, Book, Upload } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { DinoMascot } from './DinoMascot';
 
@@ -15,6 +15,30 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
   const [coverImage, setCoverImage] = useState(cookbook?.coverImage || '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image must be less than 5MB');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCoverImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setCoverImage('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   const isEditing = !!cookbook;
 
@@ -97,19 +121,36 @@ export function CookbookModal({ cookbook, onClose, onSubmit }: CookbookModalProp
           </div>
 
           <div className="form-group">
-            <label htmlFor="cookbook-cover">
-              <Image size={16} strokeWidth={2} />
-              Cover Image URL (optional)
-            </label>
+            <label>Cover Image (optional)</label>
             <input
-              id="cookbook-cover"
-              type="url"
-              value={coverImage}
-              onChange={e => setCoverImage(e.target.value)}
-              placeholder="https://example.com/image.jpg"
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="file-input-hidden"
+              id="cookbook-cover-upload"
               disabled={isLoading}
             />
-            <p className="form-hint">Add a photo to personalize your cookbook cover</p>
+
+            {coverImage ? (
+              <div className="image-preview">
+                <img src={coverImage} alt="Cover preview" />
+                <button
+                  type="button"
+                  className="image-remove"
+                  onClick={handleRemoveImage}
+                  aria-label="Remove image"
+                >
+                  <X size={16} strokeWidth={2} />
+                </button>
+              </div>
+            ) : (
+              <label htmlFor="cookbook-cover-upload" className="image-upload-area">
+                <Upload size={24} strokeWidth={1.5} />
+                <span>Click to upload image</span>
+                <span className="upload-hint">PNG, JPG up to 5MB</span>
+              </label>
+            )}
           </div>
 
           <button type="submit" className="btn-submit" disabled={isLoading}>
