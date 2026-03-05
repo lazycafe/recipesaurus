@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { ClientProvider } from './client/ClientContext';
 import { defaultClient } from './client/defaultClient';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -23,6 +23,8 @@ import { ShareCookbookModal } from './components/ShareCookbookModal';
 import { AddToCookbookModal } from './components/AddToCookbookModal';
 import { SharedCookbookView } from './components/SharedCookbookView';
 import { SettingsPage } from './components/SettingsPage';
+import { TermsPage } from './components/TermsPage';
+import { FeedbackPage } from './components/FeedbackPage';
 import { Recipe, RecipeFormData } from './types/Recipe';
 import { Cookbook } from './types/Cookbook';
 import { Loader2, ChefHat } from 'lucide-react';
@@ -277,13 +279,33 @@ function RecipeApp() {
               path="/settings"
               element={<SettingsPage />}
             />
+            <Route
+              path="/terms"
+              element={<TermsPage />}
+            />
+            <Route
+              path="/feedback"
+              element={<FeedbackPage />}
+            />
           </Routes>
         </div>
       </main>
 
       <footer className="footer">
-        <ChefHat size={16} />
-        <span>Recipesaurus</span>
+        <div className="footer-content">
+          <div className="footer-brand">
+            <ChefHat size={16} />
+            <span>Recipesaurus</span>
+          </div>
+          <div className="footer-links">
+            <Link to="/terms">Terms of Use</Link>
+            <Link to="/feedback">Give Feedback</Link>
+            <a href="https://buymeacoffee.com/andreayang" target="_blank" rel="noopener noreferrer">Buy Me a Coffee</a>
+          </div>
+          <div className="footer-copyright">
+            © 2026 Andrea Yang. All Rights Reserved.
+          </div>
+        </div>
       </footer>
 
       {selectedRecipe && (
