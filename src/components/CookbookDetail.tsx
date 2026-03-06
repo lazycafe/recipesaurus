@@ -232,10 +232,6 @@ export function CookbookDetail({
   return (
     <ModalOverlay onClose={onClose} className="cookbook-detail-overlay">
       <div className="cookbook-detail">
-        <button className="modal-close" onClick={onClose}>
-          <X size={20} strokeWidth={2} />
-        </button>
-
         <div className="cookbook-detail-header">
           <div className="cookbook-detail-info">
             <h2>{cookbook.name}</h2>
@@ -268,6 +264,9 @@ export function CookbookDetail({
                 Leave
               </button>
             )}
+            <button className="btn-icon" onClick={onClose} aria-label="Close">
+              <X size={20} strokeWidth={2} />
+            </button>
           </div>
         </div>
 
