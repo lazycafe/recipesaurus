@@ -9,9 +9,9 @@
 
 :root {
   /* Fresh Garden Palette - WCAG AA compliant */
-  /* Primary green: 4.5:1+ contrast with white for buttons */
-  --color-terracotta: #3d6b40;
-  --color-terracotta-dark: #2d5b30;
+  /* Primary green: 7:1+ contrast with white for buttons (AAA) */
+  --color-terracotta: #2d5a30;
+  --color-terracotta-dark: #1d4a20;
   --color-terracotta-light: #e8f2e9;
   --color-cream: #f8faf7;
   --color-cream-dark: #e8efe6;
