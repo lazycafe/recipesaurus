@@ -27,7 +27,7 @@ export function NotificationDropdown() {
     if (result) {
       await refreshCookbooks();
       setIsOpen(false);
-      navigate('/cookbooks');
+      navigate(`/cookbooks/${result.cookbookId}`);
     }
   };
 

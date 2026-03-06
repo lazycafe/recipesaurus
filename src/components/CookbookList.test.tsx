@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { CookbookList } from './CookbookList';
 import * as CookbookContext from '../context/CookbookContext';
 import type { Cookbook } from '../types/Cookbook';
@@ -28,6 +29,14 @@ describe('CookbookList', () => {
     ownerName: 'Jane Doe',
   };
 
+  const renderWithRouter = (ui: React.ReactElement) => {
+    return render(
+      <MemoryRouter>
+        {ui}
+      </MemoryRouter>
+    );
+  };
+
   beforeEach(() => {
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
       ownedCookbooks: [],
@@ -44,8 +53,8 @@ describe('CookbookList', () => {
   });
 
   it('shows empty state when no cookbooks', () => {
-    render(
-      <CookbookList onCreateCookbook={() => {}} onSelectCookbook={() => {}} />
+    renderWithRouter(
+      <CookbookList onCreateCookbook={() => {}} />
     );
 
     expect(screen.getByText('No cookbooks yet')).toBeDefined();
@@ -54,8 +63,8 @@ describe('CookbookList', () => {
 
   it('calls onCreateCookbook when create button clicked', () => {
     const onCreateCookbook = vi.fn();
-    render(
-      <CookbookList onCreateCookbook={onCreateCookbook} onSelectCookbook={() => {}} />
+    renderWithRouter(
+      <CookbookList onCreateCookbook={onCreateCookbook} />
     );
 
     fireEvent.click(screen.getByText('New Cookbook'));
@@ -76,8 +85,8 @@ describe('CookbookList', () => {
       refreshCookbooks: vi.fn(),
     });
 
-    render(
-      <CookbookList onCreateCookbook={() => {}} onSelectCookbook={() => {}} />
+    renderWithRouter(
+      <CookbookList onCreateCookbook={() => {}} />
     );
 
     // Cookbook name appears multiple times (spine + cover)
@@ -99,8 +108,8 @@ describe('CookbookList', () => {
       refreshCookbooks: vi.fn(),
     });
 
-    render(
-      <CookbookList onCreateCookbook={() => {}} onSelectCookbook={() => {}} />
+    renderWithRouter(
+      <CookbookList onCreateCookbook={() => {}} />
     );
 
     expect(screen.getByText('Shared with Me')).toBeDefined();
@@ -120,8 +129,8 @@ describe('CookbookList', () => {
       refreshCookbooks: vi.fn(),
     });
 
-    render(
-      <CookbookList onCreateCookbook={() => {}} onSelectCookbook={() => {}} />
+    renderWithRouter(
+      <CookbookList onCreateCookbook={() => {}} />
     );
 
     fireEvent.click(screen.getByText('Shared with Me'));
@@ -129,7 +138,7 @@ describe('CookbookList', () => {
     expect(screen.getAllByText('Shared Cookbook').length).toBeGreaterThan(0);
   });
 
-  it('calls onSelectCookbook when cookbook clicked', () => {
+  it('links to cookbook detail page when cookbook clicked', () => {
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
       ownedCookbooks: [mockCookbook],
       sharedCookbooks: [],
@@ -143,13 +152,12 @@ describe('CookbookList', () => {
       refreshCookbooks: vi.fn(),
     });
 
-    const onSelectCookbook = vi.fn();
-    render(
-      <CookbookList onCreateCookbook={() => {}} onSelectCookbook={onSelectCookbook} />
+    renderWithRouter(
+      <CookbookList onCreateCookbook={() => {}} />
     );
 
-    fireEvent.click(screen.getByRole('article'));
-    expect(onSelectCookbook).toHaveBeenCalledWith(mockCookbook);
+    const link = screen.getByRole('link');
+    expect(link.getAttribute('href')).toBe('/cookbooks/1');
   });
 
   it('shows tabs only when shared cookbooks exist', () => {
@@ -166,8 +174,8 @@ describe('CookbookList', () => {
       refreshCookbooks: vi.fn(),
     });
 
-    render(
-      <CookbookList onCreateCookbook={() => {}} onSelectCookbook={() => {}} />
+    renderWithRouter(
+      <CookbookList onCreateCookbook={() => {}} />
     );
 
     // Both tabs should be visible
@@ -189,8 +197,8 @@ describe('CookbookList', () => {
       refreshCookbooks: vi.fn(),
     });
 
-    render(
-      <CookbookList onCreateCookbook={() => {}} onSelectCookbook={() => {}} />
+    renderWithRouter(
+      <CookbookList onCreateCookbook={() => {}} />
     );
 
     // The shared tab should not be visible when there are no shared cookbooks

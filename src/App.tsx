@@ -19,15 +19,13 @@ import { EmptyState } from './components/EmptyState';
 import { DinoMascot } from './components/DinoMascot';
 import { CookbookList } from './components/CookbookList';
 import { CookbookModal } from './components/CookbookModal';
-import { CookbookDetail } from './components/CookbookDetail';
-import { ShareCookbookModal } from './components/ShareCookbookModal';
+import { CookbookDetailPage } from './components/CookbookDetailPage';
 import { AddToCookbookModal } from './components/AddToCookbookModal';
 import { SharedCookbookView } from './components/SharedCookbookView';
 import { SettingsPage } from './components/SettingsPage';
 import { TermsPage } from './components/TermsPage';
 import { FeedbackPage } from './components/FeedbackPage';
 import { Recipe, RecipeFormData } from './types/Recipe';
-import { Cookbook } from './types/Cookbook';
 import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
 
@@ -175,15 +173,12 @@ function RecipesView({
 
 function CookbooksView({
   onCreateCookbook,
-  onSelectCookbook,
 }: {
   onCreateCookbook: () => void;
-  onSelectCookbook: (cookbook: Cookbook) => void;
 }) {
   return (
     <CookbookList
       onCreateCookbook={onCreateCookbook}
-      onSelectCookbook={onSelectCookbook}
     />
   );
 }
@@ -198,19 +193,16 @@ function ScrollToTop() {
 
 function RecipeApp() {
   const { addRecipe, updateRecipe, deleteRecipe } = useRecipes();
-  const { createCookbook, updateCookbook, deleteCookbook, leaveCookbook, removeRecipeFromCookbook } = useCookbooks();
+  const { createCookbook } = useCookbooks();
   const location = useLocation();
 
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showCookbookModal, setShowCookbookModal] = useState(false);
-  const [selectedCookbook, setSelectedCookbook] = useState<Cookbook | null>(null);
-  const [editingCookbook, setEditingCookbook] = useState<Cookbook | null>(null);
-  const [sharingCookbook, setSharingCookbook] = useState<Cookbook | null>(null);
   const [addToCookbookRecipe, setAddToCookbookRecipe] = useState<Recipe | null>(null);
 
-  const currentView = location.pathname === '/cookbooks' ? 'cookbooks' : 'recipes';
+  const currentView = location.pathname.startsWith('/cookbooks') ? 'cookbooks' : 'recipes';
 
   const handleAddRecipe = async (formData: RecipeFormData) => {
     try {
@@ -242,11 +234,7 @@ function RecipeApp() {
   };
 
   const handleSaveCookbook = async (name: string, description?: string, coverImage?: string) => {
-    if (editingCookbook) {
-      await updateCookbook(editingCookbook.id, { name, description, coverImage });
-    } else {
-      await createCookbook(name, description, coverImage);
-    }
+    await createCookbook(name, description, coverImage);
   };
 
   return (
@@ -281,9 +269,12 @@ function RecipeApp() {
               element={
                 <CookbooksView
                   onCreateCookbook={() => setShowCookbookModal(true)}
-                  onSelectCookbook={setSelectedCookbook}
                 />
               }
+            />
+            <Route
+              path="/cookbooks/:id"
+              element={<CookbookDetailPage />}
             />
             <Route
               path="/settings"
@@ -347,42 +338,8 @@ function RecipeApp() {
 
       {showCookbookModal && (
         <CookbookModal
-          cookbook={editingCookbook || undefined}
-          onClose={() => {
-            setShowCookbookModal(false);
-            setEditingCookbook(null);
-          }}
+          onClose={() => setShowCookbookModal(false)}
           onSubmit={handleSaveCookbook}
-          onDelete={editingCookbook ? () => {
-            deleteCookbook(editingCookbook.id);
-            setShowCookbookModal(false);
-            setEditingCookbook(null);
-          } : undefined}
-        />
-      )}
-
-      {selectedCookbook && (
-        <CookbookDetail
-          cookbook={selectedCookbook}
-          onClose={() => setSelectedCookbook(null)}
-          onEdit={() => {
-            setEditingCookbook(selectedCookbook);
-            setSelectedCookbook(null);
-            setShowCookbookModal(true);
-          }}
-          onShare={() => {
-            setSharingCookbook(selectedCookbook);
-            setSelectedCookbook(null);
-          }}
-          onRemoveRecipe={(recipeId) => removeRecipeFromCookbook(selectedCookbook.id, recipeId)}
-          onLeave={!selectedCookbook.isOwner ? () => leaveCookbook(selectedCookbook.id) : undefined}
-        />
-      )}
-
-      {sharingCookbook && (
-        <ShareCookbookModal
-          cookbook={sharingCookbook}
-          onClose={() => setSharingCookbook(null)}
         />
       )}
 

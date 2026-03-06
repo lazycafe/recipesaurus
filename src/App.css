@@ -3051,8 +3051,67 @@ img {
 .cookbook-grid .cookbook-card:nth-child(4) { animation-delay: 150ms; }
 .cookbook-grid .cookbook-card:nth-child(n+5) { animation-delay: 200ms; }
 
+/* Cookbook card link wrapper */
+.cookbook-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.cookbook-card-link:hover .cookbook-book,
+.cookbook-card-link:focus .cookbook-book {
+  transform: rotateY(-8deg) translateZ(6px);
+}
+
 /* ========================================
-   Cookbook Detail
+   Cookbook Detail Page (Full Page Version)
+   ======================================== */
+
+.cookbook-detail-page {
+  padding-bottom: var(--space-8);
+}
+
+.cookbook-detail-page .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-taupe);
+  font-weight: 500;
+  margin-bottom: var(--space-6);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+
+.cookbook-detail-page .back-link:hover {
+  color: var(--color-terracotta);
+}
+
+.cookbook-detail-page .cookbook-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-5);
+  padding: 0;
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-6);
+}
+
+.cookbook-detail-page .cookbook-detail-info h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  margin-bottom: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .cookbook-detail-page .cookbook-detail-header {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+}
+
+/* ========================================
+   Cookbook Detail (Modal Version)
    ======================================== */
 
 .cookbook-detail-overlay {

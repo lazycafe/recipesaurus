@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { User, LogOut, Check, X, Book, ChefHat, CheckCheck, Bell, Settings, Trash2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
@@ -7,6 +7,7 @@ import { useCookbooks } from '../context/CookbookContext';
 import type { Notification } from '../client/types';
 
 export function UserMenu() {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll, acceptInvite, declineInvite } = useNotifications();
   const { refreshCookbooks } = useCookbooks();
@@ -26,7 +27,9 @@ export function UserMenu() {
   const handleAccept = async (inviteId: string) => {
     const result = await acceptInvite(inviteId);
     if (result) {
-      refreshCookbooks();
+      await refreshCookbooks();
+      setIsOpen(false);
+      navigate(`/cookbooks/${result.cookbookId}`);
     }
   };
 

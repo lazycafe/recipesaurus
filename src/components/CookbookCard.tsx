@@ -4,7 +4,7 @@ import { DinoMascot } from './DinoMascot';
 
 interface CookbookCardProps {
   cookbook: Cookbook;
-  onClick: () => void;
+  onClick?: () => void;
 }
 
 export function CookbookCard({ cookbook, onClick }: CookbookCardProps) {
