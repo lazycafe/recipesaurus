@@ -339,14 +339,17 @@ img {
   color: var(--color-taupe);
   font-size: var(--text-xs);
   font-weight: 500;
-  transition: color var(--transition-fast);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
 }
 
 .mobile-nav-item.active {
-  color: var(--color-terracotta);
+  background: var(--color-terracotta);
+  color: white;
+  font-weight: 600;
 }
 
-.mobile-nav-item:hover {
+.mobile-nav-item:hover:not(.active) {
   color: var(--color-terracotta);
 }
 
