@@ -1906,6 +1906,11 @@ img {
   text-decoration: underline;
 }
 
+.static-page a.btn-primary {
+  color: white;
+  text-decoration: none;
+}
+
 /* Feedback Page */
 .feedback-page {
   max-width: 600px;
