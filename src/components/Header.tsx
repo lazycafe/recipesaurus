@@ -68,21 +68,23 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
 
       {user && (
         <nav className="mobile-nav">
-          <NavLink
-            to="/"
-            className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
-            end
-          >
-            <ChefHat size={22} />
-            <span>Recipes</span>
-          </NavLink>
-          <NavLink
-            to="/cookbooks"
-            className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
-          >
-            <Book size={22} />
-            <span>Cookbooks</span>
-          </NavLink>
+          <div className="mobile-nav-container">
+            <NavLink
+              to="/"
+              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+              end
+            >
+              <ChefHat size={20} />
+              <span>Recipes</span>
+            </NavLink>
+            <NavLink
+              to="/cookbooks"
+              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Book size={20} />
+              <span>Cookbooks</span>
+            </NavLink>
+          </div>
         </nav>
       )}
     </>
