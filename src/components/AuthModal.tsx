@@ -90,26 +90,25 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
   if (verificationPending) {
     return (
       <ModalOverlay onClose={onClose}>
-        <div className="modal-content modal-auth">
+        <div className="modal-content modal-auth modal-verification">
           <button className="modal-close" onClick={onClose} aria-label="Close">
             <X size={20} strokeWidth={2} />
           </button>
 
-          <div className="auth-header">
-            <Mail size={48} className="auth-verification-icon" />
-            <h2>Verify Your Email</h2>
+          <div className="verification-content">
+            <div className="verification-icon-wrapper">
+              <Mail size={32} strokeWidth={1.5} />
+            </div>
+            <h2>Check Your Email</h2>
             <p className="verification-email">{verificationEmail}</p>
+            <p className="verification-message">We sent a verification link to your email. Click the link to activate your account.</p>
+            <p className="verification-note">Don't see it? Check your spam folder.</p>
           </div>
 
-          <div className="verification-instructions">
-            <p>We sent you a verification link. Click it to activate your account.</p>
-            <p className="verification-note">Check your spam folder if you don't see it.</p>
-          </div>
-
-          <div className="verification-resend">
+          <div className="verification-actions">
             <button
               type="button"
-              className="btn-primary"
+              className="btn-resend"
               onClick={handleResendVerification}
               disabled={resendStatus === 'sending' || resendStatus === 'sent'}
             >
@@ -121,10 +120,10 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
               ) : resendStatus === 'sent' ? (
                 <>
                   <CheckCircle size={16} />
-                  Sent! Check your inbox.
+                  Email sent!
                 </>
               ) : (
-                'Resend Email'
+                'Resend verification email'
               )}
             </button>
           </div>

@@ -2508,49 +2508,83 @@ img {
 }
 
 /* Auth Modal Verification State */
-.auth-verification-icon {
+.modal-verification {
+  text-align: center;
+  padding: var(--space-8) var(--space-6);
+}
+
+.verification-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.verification-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-terracotta-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--color-terracotta);
   margin-bottom: var(--space-2);
+}
+
+.modal-verification h2 {
+  font-size: var(--text-2xl);
+  color: var(--color-charcoal);
+  margin: 0;
 }
 
 .verification-email {
   font-weight: 600;
   color: var(--color-charcoal);
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
+}
+
+.verification-message {
+  color: var(--color-taupe);
+  font-size: var(--text-sm);
+  max-width: 280px;
   margin-top: var(--space-2);
-}
-
-.verification-instructions {
-  padding: var(--space-4);
-  background: var(--color-cream);
-  border-radius: var(--radius-md);
-  margin: var(--space-6) 0;
-}
-
-.verification-instructions p {
-  color: var(--color-charcoal);
-  margin: 0;
 }
 
 .verification-note {
   font-size: var(--text-sm);
   color: var(--color-taupe);
-  margin-top: var(--space-2);
+  margin-top: var(--space-1);
 }
 
-.verification-resend {
-  text-align: center;
+.verification-actions {
+  margin-top: var(--space-6);
 }
 
-.verification-resend p {
-  color: var(--color-taupe);
-  margin-bottom: var(--space-3);
-}
-
-.verification-resend button {
+.btn-resend {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-charcoal);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-resend:hover:not(:disabled) {
+  background: var(--color-cream);
+  border-color: var(--color-terracotta);
+}
+
+.btn-resend:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 /* ========================================

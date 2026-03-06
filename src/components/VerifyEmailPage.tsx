@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +12,7 @@ export function VerifyEmailPage() {
   const [error, setError] = useState('');
   const [resendEmail, setResendEmail] = useState('');
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const verificationAttempted = useRef(false);
 
   const token = searchParams.get('token');
 
@@ -21,6 +22,10 @@ export function VerifyEmailPage() {
       setError('Missing verification link. Please check your email or request a new one.');
       return;
     }
+
+    // Prevent double verification attempts (token gets consumed on first call)
+    if (verificationAttempted.current) return;
+    verificationAttempted.current = true;
 
     async function verify() {
       const result = await verifyEmail(token!);
