@@ -1995,6 +1995,35 @@ img {
   line-height: 1.6;
 }
 
+.feedback-rate-limit {
+  text-align: center;
+  padding: var(--space-12) 0;
+}
+
+.feedback-rate-limit p {
+  color: var(--color-taupe);
+  margin-bottom: var(--space-4);
+  line-height: 1.6;
+}
+
+.feedback-rate-limit p:first-child {
+  font-weight: 600;
+  color: var(--color-charcoal);
+}
+
+.feedback-submit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.feedback-remaining {
+  font-size: var(--text-sm);
+  color: var(--color-taupe);
+  margin: 0;
+}
+
 .footer-link {
   display: flex;
   align-items: center;

@@ -5,6 +5,16 @@ import { FeedbackPage } from './FeedbackPage';
 
 const mockFetch = vi.fn();
 
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => { store[key] = value; },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { store = {}; },
+  };
+})();
+
 describe('FeedbackPage', () => {
   const renderWithRouter = () => {
     return render(
@@ -17,7 +27,9 @@ describe('FeedbackPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal('fetch', mockFetch);
+    vi.stubGlobal('localStorage', localStorageMock);
     mockFetch.mockResolvedValue({ ok: true });
+    localStorageMock.clear();
   });
 
   it('renders the page title', () => {
@@ -151,5 +163,26 @@ describe('FeedbackPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Thank You!')).toBeDefined();
     });
+  });
+
+  it('shows rate limit message after 3 submissions', () => {
+    // Simulate 3 recent submissions
+    const recentTimestamps = [Date.now() - 1000, Date.now() - 2000, Date.now() - 3000];
+    localStorageMock.setItem('recipesaurus_feedback_timestamps', JSON.stringify(recentTimestamps));
+
+    renderWithRouter();
+
+    expect(screen.getByText(/reached the daily feedback limit/)).toBeDefined();
+    expect(screen.queryByText('Send Feedback')).toBeNull();
+  });
+
+  it('shows remaining submissions count', async () => {
+    // Simulate 1 recent submission
+    const recentTimestamps = [Date.now() - 1000];
+    localStorageMock.setItem('recipesaurus_feedback_timestamps', JSON.stringify(recentTimestamps));
+
+    renderWithRouter();
+
+    expect(screen.getByText('2 submissions remaining today')).toBeDefined();
   });
 });
