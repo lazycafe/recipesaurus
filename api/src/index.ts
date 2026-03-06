@@ -351,7 +351,7 @@ async function sendVerificationEmail(
 }
 
 // Route handlers
-async function handleRegister(request: Request, db: D1Database, env: Env): Promise<Response> {
+async function handleRegister(request: Request, db: D1Database, env: Env, ctx: ExecutionContext): Promise<Response> {
   const origin = request.headers.get('Origin');
   const body = await request.json() as { email: string; name: string; password: string };
   const { email, name, password } = body;
@@ -389,8 +389,8 @@ async function handleRegister(request: Request, db: D1Database, env: Env): Promi
   // Add sample recipes for new user
   await addSampleRecipes(db, userId);
 
-  // Notify Discord of new signup (fire and forget)
-  notifyDiscordNewUser(name.trim(), normalizedEmail).catch(() => {});
+  // Notify Discord of new signup (runs in background after response)
+  ctx.waitUntil(notifyDiscordNewUser(name.trim(), normalizedEmail));
 
   return jsonResponse(
     {
@@ -1763,7 +1763,7 @@ async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
 
 // Main request handler
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
@@ -1780,7 +1780,7 @@ export default {
     try {
       // Auth routes
       if (path === '/api/auth/register' && method === 'POST') {
-        return handleRegister(request, env.DB, env);
+        return handleRegister(request, env.DB, env, ctx);
       }
       if (path === '/api/auth/login' && method === 'POST') {
         return handleLogin(request, env.DB);
