@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { DinoMascot } from './DinoMascot';
 
 export function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { verifyEmail, resendVerification } = useAuth();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState('');
@@ -31,7 +30,8 @@ export function VerifyEmailPage() {
       const result = await verifyEmail(token!);
       if (result.success) {
         setStatus('success');
-        setTimeout(() => navigate('/'), 2000);
+        // Use full page navigation since App checks window.location.pathname
+        setTimeout(() => { window.location.href = '/'; }, 2000);
       } else {
         setStatus('error');
         setError(result.error || 'This link is invalid or expired.');
@@ -39,7 +39,7 @@ export function VerifyEmailPage() {
     }
 
     verify();
-  }, [token, verifyEmail, navigate]);
+  }, [token, verifyEmail]);
 
   const handleResend = async (e: React.FormEvent) => {
     e.preventDefault();
