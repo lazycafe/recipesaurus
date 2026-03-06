@@ -301,9 +301,11 @@ async function createVerificationToken(db: D1Database, userId: string): Promise<
 
   const token = generateId() + generateId(); // Longer token for security
   const now = Date.now();
-  await db.prepare(
+  const result = await db.prepare(
     'INSERT INTO email_verification_tokens (id, user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)'
   ).bind(generateId(), userId, token, now + VERIFICATION_TOKEN_EXPIRY, now).run();
+
+  console.log('Created verification token for user:', userId, 'Token:', token.substring(0, 10) + '...', 'Insert success:', result.success);
 
   return token;
 }
@@ -508,6 +510,9 @@ async function handleVerifyEmail(request: Request, db: D1Database): Promise<Resp
   ).bind(token).first<{ id: string; user_id: string; token: string; expires_at: number }>();
 
   if (!verificationRecord) {
+    // Debug: check if any tokens exist
+    const tokenCount = await db.prepare('SELECT COUNT(*) as count FROM email_verification_tokens').first<{ count: number }>();
+    console.log('Token lookup failed. Token received:', token.substring(0, 10) + '...', 'Total tokens in DB:', tokenCount?.count);
     return errorResponse('Invalid or expired verification link', 400, origin);
   }
 
