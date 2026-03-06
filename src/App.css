@@ -8,29 +8,31 @@
    ======================================== */
 
 :root {
-  /* Fresh Garden Palette */
-  --color-terracotta: #7a9e7e;
-  --color-terracotta-dark: #5f8463;
+  /* Fresh Garden Palette - WCAG AA compliant */
+  /* Primary green: 4.5:1 contrast with white for buttons */
+  --color-terracotta: #4a7a4e;
+  --color-terracotta-dark: #3a6a3e;
   --color-terracotta-light: #e8f2e9;
   --color-cream: #f8faf7;
   --color-cream-dark: #e8efe6;
-  --color-olive: #6b8f72;
-  --color-olive-dark: #4a7052;
+  --color-olive: #3a6a3e;
+  --color-olive-dark: #2a5a2e;
   --color-olive-light: #e5f0e7;
-  --color-mustard: #c9a962;
+  --color-mustard: #7a6a22;
   --color-mustard-light: #faf6e8;
   --color-charcoal: #2a3a2e;
-  --color-brown: #4a5a4e;
-  --color-taupe: #7a8a7e;
-  --color-sand: #b8c4b8;
+  --color-brown: #3a4a3e;
+  /* Muted text: 4.5:1 contrast on light backgrounds */
+  --color-taupe: #566a58;
+  --color-sand: #5a6a5c;
 
   /* Semantic */
   --color-background: #fafcfa;
   --color-surface: var(--color-cream);
-  --color-border: #dce8dc;
+  --color-border: #c8d8c8;
   --color-text: var(--color-charcoal);
   --color-text-muted: var(--color-taupe);
-  --color-danger: #c45a5a;
+  --color-danger: #c33;
   --color-danger-light: #fceaea;
 
   /* Typography */
