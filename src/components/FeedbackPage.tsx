@@ -1,18 +1,43 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Send, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, Loader2 } from 'lucide-react';
+
+const DISCORD_FEEDBACK_WEBHOOK = 'https://discord.com/api/webhooks/1479281683659231385/v-F4gca2WaDW4avhErnCq_JqSeEvVnXAZ3SVOEmUE7GhaPp2p5CsAQIlZj24yQZkY_yv';
 
 export function FeedbackPage() {
   const [feedbackType, setFeedbackType] = useState<'bug' | 'feature' | 'general'>('general');
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, this would send to a backend
-    console.log('Feedback submitted:', { feedbackType, message, email });
+    setIsSubmitting(true);
+
+    const typeEmoji = feedbackType === 'bug' ? '🐛' : feedbackType === 'feature' ? '✨' : '💬';
+    const typeLabel = feedbackType === 'bug' ? 'Bug Report' : feedbackType === 'feature' ? 'Feature Request' : 'General Feedback';
+
+    try {
+      await fetch(DISCORD_FEEDBACK_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          embeds: [{
+            title: `${typeEmoji} ${typeLabel}`,
+            description: message,
+            color: feedbackType === 'bug' ? 0xc45a5a : feedbackType === 'feature' ? 0x7a9e7e : 0xc9a962,
+            fields: email ? [{ name: 'Contact Email', value: email }] : [],
+            timestamp: new Date().toISOString(),
+          }],
+        }),
+      });
+    } catch {
+      // Still show success even if Discord fails
+    }
+
     setSubmitted(true);
+    setIsSubmitting(false);
   };
 
   if (submitted) {
@@ -105,9 +130,18 @@ export function FeedbackPage() {
           <p className="form-hint">If you'd like us to follow up with you about your feedback</p>
         </div>
 
-        <button type="submit" className="btn-primary btn-submit" disabled={!message.trim()}>
-          <Send size={18} />
-          Send Feedback
+        <button type="submit" className="btn-primary btn-submit" disabled={!message.trim() || isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 size={18} className="spin" />
+              Sending...
+            </>
+          ) : (
+            <>
+              <Send size={18} />
+              Send Feedback
+            </>
+          )}
         </button>
       </form>
     </div>

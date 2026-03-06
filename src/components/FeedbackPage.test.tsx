@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { FeedbackPage } from './FeedbackPage';
+
+const mockFetch = vi.fn();
 
 describe('FeedbackPage', () => {
   const renderWithRouter = () => {
@@ -11,6 +13,12 @@ describe('FeedbackPage', () => {
       </MemoryRouter>
     );
   };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('fetch', mockFetch);
+    mockFetch.mockResolvedValue({ ok: true });
+  });
 
   it('renders the page title', () => {
     renderWithRouter();
@@ -74,8 +82,7 @@ describe('FeedbackPage', () => {
     expect(screen.getByPlaceholderText(/What feature would you like/)).toBeDefined();
   });
 
-  it('shows success message after submission', () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  it('shows success message after submission', async () => {
     renderWithRouter();
 
     const textarea = screen.getByLabelText('Your Message');
@@ -84,14 +91,13 @@ describe('FeedbackPage', () => {
     const submitButton = screen.getByText('Send Feedback').closest('button')!;
     fireEvent.click(submitButton);
 
-    expect(screen.getByText('Thank You!')).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText('Thank You!')).toBeDefined();
+    });
     expect(screen.getByText(/Your feedback has been received/)).toBeDefined();
-
-    consoleSpy.mockRestore();
   });
 
-  it('logs feedback data on submission', () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  it('sends feedback to Discord webhook', async () => {
     renderWithRouter();
 
     fireEvent.click(screen.getByText('Report a Bug'));
@@ -105,17 +111,18 @@ describe('FeedbackPage', () => {
     const submitButton = screen.getByText('Send Feedback').closest('button')!;
     fireEvent.click(submitButton);
 
-    expect(consoleSpy).toHaveBeenCalledWith('Feedback submitted:', {
-      feedbackType: 'bug',
-      message: 'Found a bug',
-      email: 'test@example.com',
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('discord.com'),
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
     });
-
-    consoleSpy.mockRestore();
   });
 
-  it('shows return to recipes link after submission', () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  it('shows return to recipes link after submission', async () => {
     renderWithRouter();
 
     const textarea = screen.getByLabelText('Your Message');
@@ -124,8 +131,25 @@ describe('FeedbackPage', () => {
     const submitButton = screen.getByText('Send Feedback').closest('button')!;
     fireEvent.click(submitButton);
 
-    expect(screen.getByText('Return to Recipes')).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText('Return to Recipes')).toBeDefined();
+    });
+  });
 
-    consoleSpy.mockRestore();
+  it('shows loading state while submitting', async () => {
+    mockFetch.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ ok: true }), 100)));
+    renderWithRouter();
+
+    const textarea = screen.getByLabelText('Your Message');
+    fireEvent.change(textarea, { target: { value: 'Feedback' } });
+
+    const submitButton = screen.getByText('Send Feedback').closest('button')!;
+    fireEvent.click(submitButton);
+
+    expect(screen.getByText('Sending...')).toBeDefined();
+
+    await waitFor(() => {
+      expect(screen.getByText('Thank You!')).toBeDefined();
+    });
   });
 });
