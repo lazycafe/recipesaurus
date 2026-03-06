@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, Check, X, Book, ChefHat, CheckCheck } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useCookbooks } from '../context/CookbookContext';
 import type { Notification } from '../client/types';
 
 export function NotificationDropdown() {
+  const navigate = useNavigate();
   const { notifications, unreadCount, markAsRead, markAllAsRead, acceptInvite, declineInvite } = useNotifications();
   const { refreshCookbooks } = useCookbooks();
   const [isOpen, setIsOpen] = useState(false);
@@ -23,7 +25,9 @@ export function NotificationDropdown() {
   const handleAccept = async (inviteId: string) => {
     const result = await acceptInvite(inviteId);
     if (result) {
-      refreshCookbooks();
+      await refreshCookbooks();
+      setIsOpen(false);
+      navigate('/cookbooks');
     }
   };
 
