@@ -80,7 +80,7 @@ describe('Header', () => {
 
   it('hides navigation when no user', () => {
     renderWithRouter(<Header {...defaultProps} />);
-    expect(screen.queryByText('Recipes')).toBeNull();
+    expect(screen.queryByText('My Recipes')).toBeNull();
     expect(screen.queryByText('Cookbooks')).toBeNull();
   });
 
@@ -96,7 +96,7 @@ describe('Header', () => {
     });
 
     renderWithRouter(<Header {...defaultProps} />);
-    expect(screen.getAllByText('Recipes').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('My Recipes').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cookbooks').length).toBeGreaterThan(0);
   });
 

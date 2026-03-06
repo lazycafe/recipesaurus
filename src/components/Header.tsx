@@ -32,7 +32,7 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
                 end
               >
                 <ChefHat size={18} />
-                Recipes
+                My Recipes
               </NavLink>
               <NavLink
                 to="/cookbooks"
@@ -75,7 +75,7 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
               end
             >
               <ChefHat size={20} />
-              <span>Recipes</span>
+              <span>My Recipes</span>
             </NavLink>
             <NavLink
               to="/cookbooks"
