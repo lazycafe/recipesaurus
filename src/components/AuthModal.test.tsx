@@ -138,4 +138,153 @@ describe('AuthModal', () => {
     fireEvent.click(screen.getByLabelText('Hide password'));
     expect(passwordInput.getAttribute('type')).toBe('password');
   });
+
+  it('shows verification pending state after registration requires verification', async () => {
+    mockRegister.mockResolvedValue({ success: false, requiresVerification: true, email: 'test@example.com' });
+    render(<AuthModal onClose={vi.fn()} initialMode="register" />);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Test User' } });
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Create a password'), { target: { value: 'Password123' } });
+    fireEvent.change(screen.getByPlaceholderText('Confirm your password'), { target: { value: 'Password123' } });
+
+    const form = screen.getByRole('button', { name: 'Create Account' }).closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(screen.getByText('Check Your Email')).toBeDefined();
+      expect(screen.getByText('test@example.com')).toBeDefined();
+    });
+  });
+
+  it('shows verification pending state after login requires verification', async () => {
+    mockLogin.mockResolvedValue({ success: false, requiresVerification: true, email: 'user@example.com' });
+    render(<AuthModal onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Your password'), { target: { value: 'Password123' } });
+
+    const form = screen.getByRole('button', { name: 'Sign In' }).closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(screen.getByText('Check Your Email')).toBeDefined();
+    });
+  });
+
+  it('allows resending verification email', async () => {
+    const mockResendVerification = vi.fn().mockResolvedValue({ success: true });
+    vi.mocked(AuthContext.useAuth).mockReturnValue({
+      user: null,
+      isLoading: false,
+      login: mockLogin,
+      register: mockRegister,
+      logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: mockResendVerification,
+    });
+
+    mockRegister.mockResolvedValue({ success: false, requiresVerification: true, email: 'test@example.com' });
+    render(<AuthModal onClose={vi.fn()} initialMode="register" />);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Test User' } });
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Create a password'), { target: { value: 'Password123' } });
+    fireEvent.change(screen.getByPlaceholderText('Confirm your password'), { target: { value: 'Password123' } });
+
+    const form = screen.getByRole('button', { name: 'Create Account' }).closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(screen.getByText('Resend verification email')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Resend verification email'));
+
+    await waitFor(() => {
+      expect(mockResendVerification).toHaveBeenCalledWith('test@example.com');
+      expect(screen.getByText('Email sent!')).toBeDefined();
+    });
+  });
+
+  it('shows error when name is empty in register mode', async () => {
+    render(<AuthModal onClose={vi.fn()} initialMode="register" />);
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Create a password'), { target: { value: 'Password123' } });
+    fireEvent.change(screen.getByPlaceholderText('Confirm your password'), { target: { value: 'Password123' } });
+
+    const form = screen.getByRole('button', { name: 'Create Account' }).closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(screen.getByText('Please enter your name')).toBeDefined();
+    });
+  });
+
+  it('shows error when passwords do not match', async () => {
+    render(<AuthModal onClose={vi.fn()} initialMode="register" />);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Test User' } });
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Create a password'), { target: { value: 'Password123' } });
+    fireEvent.change(screen.getByPlaceholderText('Confirm your password'), { target: { value: 'Different456' } });
+
+    const form = screen.getByRole('button', { name: 'Create Account' }).closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(screen.getByText('Passwords do not match')).toBeDefined();
+    });
+  });
+
+  it('shows default error message on register failure without error text', async () => {
+    mockRegister.mockResolvedValue({ success: false });
+    render(<AuthModal onClose={vi.fn()} initialMode="register" />);
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Test User' } });
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Create a password'), { target: { value: 'Password123' } });
+    fireEvent.change(screen.getByPlaceholderText('Confirm your password'), { target: { value: 'Password123' } });
+
+    const form = screen.getByRole('button', { name: 'Create Account' }).closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(screen.getByText('Registration failed')).toBeDefined();
+    });
+  });
+
+  it('shows default error message on login failure without error text', async () => {
+    mockLogin.mockResolvedValue({ success: false });
+    render(<AuthModal onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Your password'), { target: { value: 'Password123' } });
+
+    const form = screen.getByRole('button', { name: 'Sign In' }).closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(screen.getByText('Login failed')).toBeDefined();
+    });
+  });
+
+  it('clears error when input changes', async () => {
+    mockLogin.mockResolvedValue({ success: false, error: 'Invalid credentials' });
+    render(<AuthModal onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('Your password'), { target: { value: 'wrong' } });
+
+    const form = screen.getByRole('button', { name: 'Sign In' }).closest('form')!;
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(screen.getByText('Invalid credentials')).toBeDefined();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText('Your password'), { target: { value: 'newpass' } });
+    expect(screen.queryByText('Invalid credentials')).toBeNull();
+  });
 });
