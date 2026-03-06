@@ -284,9 +284,10 @@ img {
 }
 
 .nav-tab.active {
-  background: var(--color-background);
-  color: var(--color-terracotta);
+  background: var(--color-terracotta);
+  color: white;
   box-shadow: var(--shadow-sm);
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
@@ -1163,9 +1164,10 @@ img {
 }
 
 .tab-btn.active {
-  background: var(--color-background);
-  color: var(--color-terracotta);
+  background: var(--color-terracotta);
+  color: white;
   box-shadow: var(--shadow-sm);
+  font-weight: 600;
 }
 
 /* ========================================
@@ -2946,9 +2948,10 @@ img {
 }
 
 .cookbook-tab.active {
-  background: var(--color-background);
-  color: var(--color-terracotta);
+  background: var(--color-terracotta);
+  color: white;
   box-shadow: var(--shadow-sm);
+  font-weight: 600;
 }
 
 .tab-count {
@@ -3950,9 +3953,10 @@ img {
 }
 
 .share-tab.active {
-  background: var(--color-background);
-  color: var(--color-terracotta);
+  background: var(--color-terracotta);
+  color: white;
   box-shadow: var(--shadow-sm);
+  font-weight: 600;
 }
 
 .share-content {
