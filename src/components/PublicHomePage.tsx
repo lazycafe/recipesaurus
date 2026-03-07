@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users, Book } from 'lucide-react';
 import { DinoMascot } from './DinoMascot';
-import { fetchAndExtractRecipe, ExtractedRecipeData } from '../utils/recipeExtractor';
+import { fetchAndExtractRecipe } from '../utils/recipeExtractor';
 
 interface ExtractedRecipe {
   title: string;

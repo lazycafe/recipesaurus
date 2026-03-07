@@ -32,10 +32,10 @@ describe('PublicHomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock fetch for recipe extraction
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(window, 'fetch').mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ html: mockHtmlWithRecipe }),
-    });
+    } as Response);
   });
 
   afterEach(() => {
