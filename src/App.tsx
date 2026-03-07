@@ -54,6 +54,7 @@ const parseFormData = (formData: RecipeFormData) => ({
   cookTime: formData.cookTime.trim() || undefined,
   servings: formData.servings.trim() || undefined,
   sourceUrl: formData.sourceUrl.trim() || undefined,
+  isPublic: formData.isPublic,
 });
 
 

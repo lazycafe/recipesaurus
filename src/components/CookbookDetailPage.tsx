@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Share2, Pencil, Loader2, User, Trash2, Search, ArrowLeft, Check, LogOut, X } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
-import { Recipe } from '../types/Recipe';
+import { Recipe, RecipeFormData } from '../types/Recipe';
 import { cookbooksApi, RecipeResponse, CookbookResponse } from '../utils/api';
 import { RecipeCard } from './RecipeCard';
 import { DinoMascot } from './DinoMascot';
@@ -10,13 +10,17 @@ import { ConfirmModal } from './ConfirmModal';
 import { RecipeDetail } from './RecipeDetail';
 import { CookbookModal } from './CookbookModal';
 import { ShareCookbookModal } from './ShareCookbookModal';
+import { AddRecipeModal } from './AddRecipeModal';
 import { useAuth } from '../context/AuthContext';
 import { useCookbooks } from '../context/CookbookContext';
+import { useRecipes } from '../context/RecipeContext';
 import { ModalOverlay } from './ModalOverlay';
 
 interface CookbookRecipe extends Recipe {
   addedByUserId?: string;
   addedByUserName?: string | null;
+  ownerId?: string;
+  isOwner?: boolean;
 }
 
 function mapRecipeResponse(r: RecipeResponse): CookbookRecipe {
@@ -32,9 +36,12 @@ function mapRecipeResponse(r: RecipeResponse): CookbookRecipe {
     prepTime: r.prepTime,
     cookTime: r.cookTime,
     servings: r.servings,
+    isPublic: r.isPublic,
     createdAt: r.createdAt,
     addedByUserId: r.addedByUserId,
     addedByUserName: r.addedByUserName,
+    ownerId: r.ownerId,
+    isOwner: r.isOwner,
   };
 }
 
@@ -52,11 +59,35 @@ function mapCookbookResponse(c: CookbookResponse): Cookbook {
   };
 }
 
+const parseFormData = (formData: RecipeFormData) => ({
+  title: formData.title.trim(),
+  description: formData.description.trim(),
+  ingredients: formData.ingredients
+    .split('\n')
+    .map((i: string) => i.trim())
+    .filter(Boolean),
+  instructions: formData.instructions
+    .split('\n')
+    .map((i: string) => i.trim())
+    .filter(Boolean),
+  tags: formData.tags
+    .split(',')
+    .map((t: string) => t.trim().toLowerCase())
+    .filter(Boolean),
+  imageUrl: formData.imageUrl.trim() || undefined,
+  prepTime: formData.prepTime.trim() || undefined,
+  cookTime: formData.cookTime.trim() || undefined,
+  servings: formData.servings.trim() || undefined,
+  sourceUrl: formData.sourceUrl.trim() || undefined,
+  isPublic: formData.isPublic,
+});
+
 export function CookbookDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { updateCookbook, deleteCookbook, leaveCookbook, removeRecipeFromCookbook } = useCookbooks();
+  const { updateRecipe, deleteRecipe } = useRecipes();
 
   const [cookbook, setCookbook] = useState<Cookbook | null>(null);
   const [recipes, setRecipes] = useState<CookbookRecipe[]>([]);
@@ -65,7 +96,9 @@ export function CookbookDetailPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<CookbookRecipe | null>(null);
+  const [editingRecipe, setEditingRecipe] = useState<CookbookRecipe | null>(null);
   const [recipeToRemove, setRecipeToRemove] = useState<CookbookRecipe | null>(null);
+  const [recipeToDelete, setRecipeToDelete] = useState<CookbookRecipe | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -164,6 +197,35 @@ export function CookbookDetailPage() {
     if (cookbook) {
       await leaveCookbook(cookbook.id);
       navigate('/cookbooks');
+    }
+  };
+
+  const handleUpdateRecipe = async (formData: RecipeFormData) => {
+    if (!editingRecipe) return;
+    try {
+      await updateRecipe(editingRecipe.id, parseFormData(formData));
+      // Update the recipe in local state
+      setRecipes(prev => prev.map(r =>
+        r.id === editingRecipe.id
+          ? { ...r, ...parseFormData(formData) }
+          : r
+      ));
+      setEditingRecipe(null);
+    } catch (error) {
+      console.error('Failed to update recipe:', error);
+    }
+  };
+
+  const handleDeleteRecipe = async () => {
+    if (!recipeToDelete) return;
+    try {
+      await deleteRecipe(recipeToDelete.id);
+      // Remove from local state
+      setRecipes(prev => prev.filter(r => r.id !== recipeToDelete.id));
+      setRecipeToDelete(null);
+      setSelectedRecipe(null);
+    } catch (error) {
+      console.error('Failed to delete recipe:', error);
     }
   };
 
@@ -330,6 +392,13 @@ export function CookbookDetailPage() {
         <RecipeDetail
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
+          onEdit={selectedRecipe.isOwner ? () => {
+            setEditingRecipe(selectedRecipe);
+            setSelectedRecipe(null);
+          } : undefined}
+          onDelete={selectedRecipe.isOwner ? () => {
+            setRecipeToDelete(selectedRecipe);
+          } : undefined}
         />
       )}
 
@@ -374,6 +443,24 @@ export function CookbookDetailPage() {
         <ShareCookbookModal
           cookbook={cookbook}
           onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {editingRecipe && (
+        <AddRecipeModal
+          recipe={editingRecipe}
+          onClose={() => setEditingRecipe(null)}
+          onSubmit={handleUpdateRecipe}
+        />
+      )}
+
+      {recipeToDelete && (
+        <ConfirmModal
+          title="Delete Recipe"
+          message={`Are you sure you want to delete "${recipeToDelete.title}"? This will remove it from all cookbooks.`}
+          confirmText="Delete"
+          onConfirm={handleDeleteRecipe}
+          onCancel={() => setRecipeToDelete(null)}
         />
       )}
     </div>

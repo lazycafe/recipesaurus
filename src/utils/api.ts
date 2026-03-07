@@ -122,6 +122,9 @@ export interface RecipeResponse {
   prepTime?: string;
   cookTime?: string;
   servings?: string;
+  isPublic?: boolean;
+  ownerId?: string;
+  isOwner?: boolean;
   createdAt: number;
   addedByUserId?: string;
   addedByUserName?: string | null;
