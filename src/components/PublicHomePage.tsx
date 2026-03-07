@@ -161,7 +161,7 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
 
     // Download
     const filename = extractedRecipe.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-    doc.save(`${filename}.pdf`);
+    doc.save(`${filename}_Recipe.pdf`);
   };
 
   const handleShareLink = () => {

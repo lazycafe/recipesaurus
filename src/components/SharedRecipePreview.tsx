@@ -132,7 +132,7 @@ export function SharedRecipePreview({ encodedData }: SharedRecipePreviewProps) {
 
     // Download
     const filename = recipe.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-    doc.save(`${filename}.pdf`);
+    doc.save(`${filename}_Recipe.pdf`);
   };
 
   if (error || !recipe) {
