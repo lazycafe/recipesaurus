@@ -207,9 +207,9 @@ img {
   max-width: var(--container-max);
   margin: 0 auto;
   padding: 0 var(--space-6);
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
 }
 
 @media (max-width: 640px) {
@@ -224,8 +224,7 @@ img {
   gap: var(--space-3);
   text-decoration: none;
   color: inherit;
-  margin-right: var(--space-4);
-  flex-shrink: 0;
+  justify-self: start;
 }
 
 .logo-icon {
@@ -262,7 +261,7 @@ img {
   display: flex;
   align-items: center;
   gap: var(--space-6);
-  flex-shrink: 0;
+  justify-self: center;
 }
 
 .nav-tab {
@@ -403,12 +402,7 @@ img {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-}
-
-.header-action-button {
-  min-width: 140px;
-  display: flex;
-  justify-content: flex-end;
+  justify-self: end;
 }
 
 .user-info {
