@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Share2, Pencil, Loader2, User, Trash2, Search, ArrowLeft, Check, LogOut, X } from 'lucide-react';
+import { Share2, Pencil, Loader2, User, Search, ArrowLeft, Check, LogOut, X } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { Recipe, RecipeFormData } from '../types/Recipe';
 import { cookbooksApi, RecipeResponse, CookbookResponse } from '../utils/api';
@@ -11,10 +11,9 @@ import { RecipeDetail } from './RecipeDetail';
 import { CookbookModal } from './CookbookModal';
 import { ShareCookbookModal } from './ShareCookbookModal';
 import { AddRecipeModal } from './AddRecipeModal';
-import { useAuth } from '../context/AuthContext';
+import { AddToCookbookModal } from './AddToCookbookModal';
 import { useCookbooks } from '../context/CookbookContext';
 import { useRecipes } from '../context/RecipeContext';
-import { ModalOverlay } from './ModalOverlay';
 
 interface CookbookRecipe extends Recipe {
   addedByUserId?: string;
@@ -85,8 +84,7 @@ const parseFormData = (formData: RecipeFormData) => ({
 export function CookbookDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { updateCookbook, deleteCookbook, leaveCookbook, removeRecipeFromCookbook } = useCookbooks();
+  const { createCookbook, updateCookbook, deleteCookbook, leaveCookbook } = useCookbooks();
   const { updateRecipe, deleteRecipe } = useRecipes();
 
   const [cookbook, setCookbook] = useState<Cookbook | null>(null);
@@ -97,16 +95,12 @@ export function CookbookDetailPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<CookbookRecipe | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<CookbookRecipe | null>(null);
-  const [recipeToRemove, setRecipeToRemove] = useState<CookbookRecipe | null>(null);
   const [recipeToDelete, setRecipeToDelete] = useState<CookbookRecipe | null>(null);
+  const [addToCookbookRecipe, setAddToCookbookRecipe] = useState<CookbookRecipe | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-
-  const canRemoveRecipe = (recipe: CookbookRecipe) => {
-    if (cookbook?.isOwner) return true;
-    return recipe.addedByUserId === user?.id;
-  };
+  const [showCreateCookbookModal, setShowCreateCookbookModal] = useState(false);
 
   useEffect(() => {
     async function fetchCookbook() {
@@ -164,18 +158,6 @@ export function CookbookDetailPage() {
   const handleClearFilters = () => {
     setSearchQuery('');
     setSelectedTags([]);
-  };
-
-  const handleRemoveRecipe = (recipe: CookbookRecipe) => {
-    setRecipeToRemove(recipe);
-  };
-
-  const confirmRemoveRecipe = async () => {
-    if (recipeToRemove && cookbook) {
-      setRecipes(prev => prev.filter(r => r.id !== recipeToRemove.id));
-      await removeRecipeFromCookbook(cookbook.id, recipeToRemove.id);
-      setRecipeToRemove(null);
-    }
   };
 
   const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => {
@@ -344,27 +326,13 @@ export function CookbookDetailPage() {
             {filteredRecipes.length > 0 ? (
               <div className="recipe-grid">
                 {filteredRecipes.map(recipe => (
-                  <div key={recipe.id} className="cookbook-recipe-card">
-                    <RecipeCard
-                      recipe={recipe}
-                      onClick={() => setSelectedRecipe(recipe)}
-                    />
-                    {recipe.addedByUserName && (
-                      <div className="recipe-added-by">
-                        <User size={12} />
-                        <span>Added by {recipe.addedByUserName}</span>
-                      </div>
-                    )}
-                    {canRemoveRecipe(recipe) && (
-                      <button
-                        className="remove-from-cookbook"
-                        onClick={() => handleRemoveRecipe(recipe)}
-                        title="Remove from cookbook"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
+                  <RecipeCard
+                    key={recipe.id}
+                    recipe={recipe}
+                    onClick={() => setSelectedRecipe(recipe)}
+                    onDelete={recipe.isOwner ? () => setRecipeToDelete(recipe) : undefined}
+                    onAddToCookbook={recipe.isOwner ? () => setAddToCookbookRecipe(recipe) : undefined}
+                  />
                 ))}
               </div>
             ) : (
@@ -400,24 +368,6 @@ export function CookbookDetailPage() {
             setRecipeToDelete(selectedRecipe);
           } : undefined}
         />
-      )}
-
-      {recipeToRemove && (
-        <ModalOverlay onClose={() => setRecipeToRemove(null)} className="confirm-modal-overlay">
-          <div className="confirm-modal">
-            <h3>Remove Recipe</h3>
-            <p>Remove <strong>{recipeToRemove.title}</strong> from this cookbook?</p>
-            <div className="confirm-modal-actions">
-              <button className="btn-secondary" onClick={() => setRecipeToRemove(null)}>
-                Cancel
-              </button>
-              <button className="btn-danger" onClick={confirmRemoveRecipe}>
-                <Trash2 size={16} />
-                Remove
-              </button>
-            </div>
-          </div>
-        </ModalOverlay>
       )}
 
       {showLeaveConfirm && !cookbook.isOwner && (
@@ -461,6 +411,27 @@ export function CookbookDetailPage() {
           confirmText="Delete"
           onConfirm={handleDeleteRecipe}
           onCancel={() => setRecipeToDelete(null)}
+        />
+      )}
+
+      {addToCookbookRecipe && (
+        <AddToCookbookModal
+          recipe={addToCookbookRecipe}
+          onClose={() => setAddToCookbookRecipe(null)}
+          onCreateCookbook={() => {
+            setAddToCookbookRecipe(null);
+            setShowCreateCookbookModal(true);
+          }}
+        />
+      )}
+
+      {showCreateCookbookModal && (
+        <CookbookModal
+          onClose={() => setShowCreateCookbookModal(false)}
+          onSubmit={async (data) => {
+            await createCookbook(data);
+            setShowCreateCookbookModal(false);
+          }}
         />
       )}
     </div>
