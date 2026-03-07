@@ -4593,6 +4593,52 @@ img {
   margin-bottom: var(--space-8);
 }
 
+/* Shared Recipe Preview */
+.shared-recipe-preview .recipe-preview-content {
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-lg);
+}
+
+.shared-recipe-preview .preview-image {
+  margin-bottom: var(--space-6);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.shared-recipe-preview .preview-image img {
+  width: 100%;
+  height: auto;
+  max-height: 400px;
+  object-fit: cover;
+}
+
+.shared-recipe-preview .preview-meta {
+  flex-wrap: wrap;
+}
+
+.shared-recipe-preview .preview-section h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  margin-bottom: var(--space-4);
+  color: var(--color-olive);
+}
+
+.shared-recipe-preview .preview-actions {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+  .shared-recipe-preview .preview-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ========================================
    Utilities
    ======================================== */

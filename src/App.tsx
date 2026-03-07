@@ -23,6 +23,7 @@ import { CookbookModal } from './components/CookbookModal';
 import { CookbookDetailPage } from './components/CookbookDetailPage';
 import { AddToCookbookModal } from './components/AddToCookbookModal';
 import { SharedCookbookView } from './components/SharedCookbookView';
+import { SharedRecipePreview } from './components/SharedRecipePreview';
 import { SettingsPage } from './components/SettingsPage';
 import { TermsPage } from './components/TermsPage';
 import { FeedbackPage } from './components/FeedbackPage';
@@ -412,6 +413,12 @@ function SharedCookbookWrapper() {
   return <SharedCookbookView token={token} />;
 }
 
+function SharedRecipePreviewRoute() {
+  const encodedData = window.location.pathname.split('/preview/')[1];
+  if (!encodedData) return <Navigate to="/" replace />;
+  return <SharedRecipePreview encodedData={encodedData} />;
+}
+
 function ResetPasswordRoute() {
   return (
     <div className="app">
@@ -430,6 +437,7 @@ function VerifyEmailRoute() {
 
 function AppWithClient({ client }: { client: IClient }) {
   const isSharedRoute = window.location.pathname.startsWith('/shared/');
+  const isPreviewRoute = window.location.pathname.startsWith('/preview/');
   const isResetPasswordRoute = window.location.pathname.startsWith('/reset-password');
   const isVerifyEmailRoute = window.location.pathname.startsWith('/verify-email');
 
@@ -443,6 +451,8 @@ function AppWithClient({ client }: { client: IClient }) {
             <VerifyEmailRoute />
           ) : isSharedRoute ? (
             <SharedCookbookRoute />
+          ) : isPreviewRoute ? (
+            <SharedRecipePreviewRoute />
           ) : (
             <AppContent />
           )}
