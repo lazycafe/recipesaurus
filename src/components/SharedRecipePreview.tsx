@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Clock, Users, ExternalLink, ChefHat, Download } from 'lucide-react';
+import { Clock, Users, ExternalLink, ChefHat, Download, Loader2, Heart } from 'lucide-react';
 import { DinoMascot } from './DinoMascot';
 import { decompressFromEncodedURIComponent } from 'lz-string';
 import { jsPDF } from 'jspdf';
+import { useClient } from '../client/ClientContext';
+import { useToast } from '../context/ToastContext';
 
 interface PreviewRecipe {
   title: string;
@@ -18,11 +20,33 @@ interface PreviewRecipe {
 
 interface SharedRecipePreviewProps {
   encodedData: string;
+  isLoggedIn?: boolean;
+  onSignIn?: () => void;
+  onSignUp?: () => void;
 }
 
-export function SharedRecipePreview({ encodedData }: SharedRecipePreviewProps) {
+export function SharedRecipePreview({ encodedData, isLoggedIn, onSignUp }: SharedRecipePreviewProps) {
   const [recipe, setRecipe] = useState<PreviewRecipe | null>(null);
   const [error, setError] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
+
+  // These will only be available when rendered within the logged-in app context
+  let client: ReturnType<typeof useClient> | null = null;
+  let showToast: ReturnType<typeof useToast>['showToast'] | null = null;
+
+  try {
+    client = useClient();
+  } catch {
+    // Not in a ClientProvider - this is expected for unauthenticated preview
+  }
+
+  try {
+    const toast = useToast();
+    showToast = toast.showToast;
+  } catch {
+    // Not in a ToastProvider
+  }
 
   useEffect(() => {
     try {
@@ -37,6 +61,67 @@ export function SharedRecipePreview({ encodedData }: SharedRecipePreviewProps) {
       setError(true);
     }
   }, [encodedData]);
+
+  // Check for pending save after login
+  useEffect(() => {
+    if (isLoggedIn && recipe && client) {
+      const pendingRecipe = sessionStorage.getItem('pendingSaveRecipe');
+      if (pendingRecipe) {
+        sessionStorage.removeItem('pendingSaveRecipe');
+        handleSaveRecipe();
+      }
+    }
+  }, [isLoggedIn, recipe, client]);
+
+  const handleSaveRecipe = async () => {
+    if (!recipe) return;
+
+    if (!isLoggedIn) {
+      // Store pending action and show auth modal
+      sessionStorage.setItem('pendingSaveRecipe', JSON.stringify(recipe));
+      onSignUp?.();
+      return;
+    }
+
+    if (!client) return;
+
+    setIsSaving(true);
+    try {
+      const result = await client.recipes.saveFromPreview({
+        title: recipe.title,
+        description: recipe.description,
+        ingredients: recipe.ingredients,
+        instructions: recipe.instructions,
+        prepTime: recipe.prepTime,
+        cookTime: recipe.cookTime,
+        servings: recipe.servings,
+        imageUrl: recipe.imageUrl,
+        sourceUrl: recipe.sourceUrl,
+      });
+
+      if (result.data) {
+        setHasSaved(true);
+        showToast?.({
+          message: 'Saved to My Recipe Collection',
+          type: 'success',
+          action: {
+            label: 'View',
+            onClick: () => {
+              window.location.href = '/cookbooks';
+            },
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to save recipe:', err);
+      showToast?.({
+        message: 'Failed to save recipe. Please try again.',
+        type: 'error',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleDownloadPDF = () => {
     if (!recipe) return;
@@ -224,10 +309,20 @@ export function SharedRecipePreview({ encodedData }: SharedRecipePreviewProps) {
                   View Original
                 </a>
               )}
-              <a href="/" className="btn-primary">
-                <ChefHat size={16} />
-                Save to Recipesaurus
-              </a>
+              <button
+                className="btn-primary"
+                onClick={handleSaveRecipe}
+                disabled={isSaving || hasSaved}
+              >
+                {isSaving ? (
+                  <Loader2 size={16} className="spin" />
+                ) : hasSaved ? (
+                  <Heart size={16} fill="currentColor" />
+                ) : (
+                  <ChefHat size={16} />
+                )}
+                {hasSaved ? 'Saved!' : 'Save to Recipesaurus'}
+              </button>
             </div>
           </div>
         </div>

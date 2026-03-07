@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { Recipe, Cookbook } from '../client/types';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
@@ -86,6 +87,7 @@ const TRENDING_TAGS = ['dinner', 'quick', 'healthy', 'vegetarian', 'dessert', 'b
 
 export function DiscoveryPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const {
     recipes,
     cookbooks,
@@ -114,13 +116,25 @@ export function DiscoveryPage() {
 
   const handleSaveRecipe = async (recipe: Recipe) => {
     if (!user) {
-      // Could show login prompt
       alert('Please sign in to save recipes');
       return;
     }
     setSavingRecipeId(recipe.id);
-    await saveRecipe(recipe.id);
+    const savedId = await saveRecipe(recipe.id);
     setSavingRecipeId(null);
+
+    if (savedId) {
+      showToast({
+        message: 'Saved to My Recipe Collection',
+        type: 'success',
+        action: {
+          label: 'View',
+          onClick: () => {
+            window.location.href = '/cookbooks';
+          },
+        },
+      });
+    }
   };
 
   const handleTagClick = (tag: string) => {

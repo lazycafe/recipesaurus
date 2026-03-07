@@ -808,6 +808,99 @@ async function handleCreateRecipe(request: Request, db: D1Database): Promise<Res
   return jsonResponse({ id: recipeId }, 201, corsHeaders(origin));
 }
 
+// Helper to get or create user's recipe collection
+async function getOrCreateRecipeCollection(db: D1Database, userId: string): Promise<string> {
+  const existing = await db.prepare('SELECT id FROM cookbooks WHERE user_id = ? AND system_type = ?')
+    .bind(userId, 'collection')
+    .first<{ id: string }>();
+
+  if (existing) {
+    return existing.id;
+  }
+
+  // Create the collection for existing users who don't have one yet
+  const collectionId = generateId();
+  const now = Date.now();
+  await db.prepare(`
+    INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_system, system_type, is_public, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    collectionId,
+    userId,
+    'My Recipe Collection',
+    'All recipes you have saved',
+    null,
+    1, // system cookbook
+    'collection',
+    0, // private
+    now,
+    now
+  ).run();
+
+  return collectionId;
+}
+
+async function handleSavePreviewRecipe(request: Request, db: D1Database): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const body = await request.json() as {
+    title: string;
+    description: string;
+    ingredients: string[];
+    instructions: string[];
+    prepTime?: string;
+    cookTime?: string;
+    servings?: string;
+    imageUrl?: string;
+    sourceUrl: string;
+  };
+
+  if (!body.title || !body.ingredients?.length || !body.instructions?.length) {
+    return errorResponse('Recipe must have a title, ingredients, and instructions', 400, origin);
+  }
+
+  // Create the recipe
+  const recipeId = generateId();
+  const now = Date.now();
+
+  await db.prepare(`
+    INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    recipeId,
+    user.id,
+    user.id,
+    body.title,
+    body.description || '',
+    JSON.stringify(body.ingredients),
+    JSON.stringify(body.instructions),
+    JSON.stringify([]),
+    body.imageUrl || null,
+    body.sourceUrl,
+    body.prepTime || null,
+    body.cookTime || null,
+    body.servings || null,
+    0, // private
+    now
+  ).run();
+
+  // Add to My Recipe Collection
+  const collectionId = await getOrCreateRecipeCollection(db, user.id);
+  await db.prepare('INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)')
+    .bind(collectionId, recipeId, user.id, now)
+    .run();
+  await db.prepare('UPDATE cookbooks SET updated_at = ? WHERE id = ?')
+    .bind(now, collectionId)
+    .run();
+
+  return jsonResponse({ id: recipeId, collectionId }, 201, corsHeaders(origin));
+}
+
 async function handleDeleteRecipe(request: Request, db: D1Database, recipeId: string): Promise<Response> {
   const user = await getSessionUser(request, db);
   const origin = request.headers.get('Origin');
@@ -1102,6 +1195,22 @@ async function handleDeleteCookbook(request: Request, db: D1Database, cookbookId
     return errorResponse('Unauthorized', 401, origin);
   }
 
+  // Check if this is a system cookbook
+  const cookbook = await db.prepare('SELECT is_system FROM cookbooks WHERE id = ? AND user_id = ?')
+    .bind(cookbookId, user.id)
+    .first<{ is_system: number }>();
+
+  if (!cookbook) {
+    return errorResponse('Cookbook not found', 404, origin);
+  }
+
+  if (cookbook.is_system === 1) {
+    return errorResponse('Cannot delete system cookbooks', 403, origin);
+  }
+
+  await db.prepare('DELETE FROM cookbook_recipes WHERE cookbook_id = ?').bind(cookbookId).run();
+  await db.prepare('DELETE FROM cookbook_shares WHERE cookbook_id = ?').bind(cookbookId).run();
+  await db.prepare('DELETE FROM cookbook_share_links WHERE cookbook_id = ?').bind(cookbookId).run();
   await db.prepare('DELETE FROM cookbooks WHERE id = ? AND user_id = ?').bind(cookbookId, user.id).run();
 
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
@@ -1699,6 +1808,61 @@ async function handleDeclineInvite(request: Request, db: D1Database, inviteId: s
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
+// Discover - save a public recipe to user's collection
+async function handleDiscoverSaveRecipe(request: Request, db: D1Database, recipeId: string): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  // Get the public recipe
+  const recipe = await db.prepare('SELECT * FROM recipes WHERE id = ? AND is_public = 1')
+    .bind(recipeId)
+    .first<Recipe & { owner_id: string }>();
+
+  if (!recipe) {
+    return errorResponse('Recipe not found or not public', 404, origin);
+  }
+
+  // Create a copy of the recipe for the user
+  const newRecipeId = generateId();
+  const now = Date.now();
+
+  await db.prepare(`
+    INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    newRecipeId,
+    user.id,
+    recipe.owner_id,
+    recipe.title,
+    recipe.description,
+    recipe.ingredients,
+    recipe.instructions,
+    recipe.tags,
+    recipe.image_url,
+    recipe.source_url,
+    recipe.prep_time,
+    recipe.cook_time,
+    recipe.servings,
+    0, // private
+    now
+  ).run();
+
+  // Add to My Recipe Collection
+  const collectionId = await getOrCreateRecipeCollection(db, user.id);
+  await db.prepare('INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)')
+    .bind(collectionId, newRecipeId, user.id, now)
+    .run();
+  await db.prepare('UPDATE cookbooks SET updated_at = ? WHERE id = ?')
+    .bind(now, collectionId)
+    .run();
+
+  return jsonResponse({ id: newRecipeId }, 201, corsHeaders(origin));
+}
+
 async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
   const samples = [
     {
@@ -1879,6 +2043,9 @@ export default {
       if (path === '/api/recipes' && method === 'POST') {
         return handleCreateRecipe(request, env.DB);
       }
+      if (path === '/api/recipes/from-preview' && method === 'POST') {
+        return handleSavePreviewRecipe(request, env.DB);
+      }
       // Get cookbooks containing a recipe
       const recipeCookbooksMatch = path.match(/^\/api\/recipes\/([^/]+)\/cookbooks$/);
       if (recipeCookbooksMatch && method === 'GET') {
@@ -1954,6 +2121,12 @@ export default {
       const sharedMatch = path.match(/^\/api\/shared\/([^/]+)$/);
       if (sharedMatch && method === 'GET') {
         return handleGetSharedCookbook(request, env.DB, sharedMatch[1]);
+      }
+
+      // Discover - save recipe route
+      const discoverSaveMatch = path.match(/^\/api\/discover\/recipes\/([^/]+)\/save$/);
+      if (discoverSaveMatch && method === 'POST') {
+        return handleDiscoverSaveRecipe(request, env.DB, discoverSaveMatch[1]);
       }
 
       // Notification routes

@@ -8,6 +8,7 @@ import { RecipeProvider, useRecipes } from './context/RecipeContext';
 import { CookbookProvider, useCookbooks } from './context/CookbookContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { DiscoveryProvider } from './context/DiscoveryContext';
+import { ToastProvider } from './context/ToastContext';
 import { Header } from './components/Header';
 import { SearchFilter } from './components/SearchFilter';
 import { RecipeCard } from './components/RecipeCard';
@@ -391,7 +392,9 @@ function AppContent() {
       <CookbookProvider>
         <NotificationProvider>
           <DiscoveryProvider>
-            <RecipeApp />
+            <ToastProvider>
+              <RecipeApp />
+            </ToastProvider>
           </DiscoveryProvider>
         </NotificationProvider>
       </CookbookProvider>
@@ -414,9 +417,42 @@ function SharedCookbookWrapper() {
 }
 
 function SharedRecipePreviewRoute() {
+  const { user } = useAuth();
+  const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
   const encodedData = window.location.pathname.split('/preview/')[1];
   if (!encodedData) return <Navigate to="/" replace />;
-  return <SharedRecipePreview encodedData={encodedData} />;
+
+  return (
+    <>
+      <SharedRecipePreview
+        encodedData={encodedData}
+        isLoggedIn={!!user}
+        onSignIn={() => setAuthModal('login')}
+        onSignUp={() => setAuthModal('register')}
+      />
+      {authModal && (
+        <AuthModal
+          initialMode={authModal}
+          onClose={() => setAuthModal(null)}
+          onForgotPassword={() => {
+            setAuthModal(null);
+            setShowForgotPassword(true);
+          }}
+        />
+      )}
+      {showForgotPassword && (
+        <ForgotPasswordModal
+          onClose={() => setShowForgotPassword(false)}
+          onBackToLogin={() => {
+            setShowForgotPassword(false);
+            setAuthModal('login');
+          }}
+        />
+      )}
+    </>
+  );
 }
 
 function ResetPasswordRoute() {

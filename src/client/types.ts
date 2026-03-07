@@ -121,6 +121,17 @@ export interface IClient {
     update(id: string, data: UpdateRecipeData): Promise<ApiResponse<{ success: boolean }>>;
     delete(id: string): Promise<ApiResponse<{ success: boolean }>>;
     getCookbooksForRecipe(recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>>;
+    saveFromPreview(data: {
+      title: string;
+      description: string;
+      ingredients: string[];
+      instructions: string[];
+      prepTime?: string;
+      cookTime?: string;
+      servings?: string;
+      imageUrl?: string;
+      sourceUrl: string;
+    }): Promise<ApiResponse<{ id: string; collectionId?: string }>>;
   };
 
   cookbooks: {

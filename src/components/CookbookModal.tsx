@@ -207,7 +207,7 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
             )}
           </button>
 
-          {isEditing && onDelete && (
+          {isEditing && onDelete && !cookbook?.isSystem && (
             <button
               type="button"
               className="btn-danger-outline delete-cookbook-btn"

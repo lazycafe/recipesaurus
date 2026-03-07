@@ -56,6 +56,17 @@ export interface ICoreHandlers {
   getPublicRecipe(recipeId: string): Promise<ApiResult<{ recipe: Recipe }>>;
   getPublicCookbook(cookbookId: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   saveRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ id: string }>>;
+  savePreviewRecipe(ctx: RequestContext, data: {
+    title: string;
+    description: string;
+    ingredients: string[];
+    instructions: string[];
+    prepTime?: string;
+    cookTime?: string;
+    servings?: string;
+    imageUrl?: string;
+    sourceUrl: string;
+  }): Promise<ApiResult<{ id: string }>>;
   // Notifications
   getNotifications(ctx: RequestContext): Promise<ApiResult<{ notifications: Notification[]; unreadCount: number }>>;
   markNotificationRead(ctx: RequestContext, notificationId: string): Promise<ApiResult<{ success: boolean }>>;
@@ -185,6 +196,21 @@ export class InMemoryClient implements IClient {
 
     getCookbooksForRecipe: async (recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>> => {
       const result = await this.handlers.getCookbooksForRecipe(this.getContext(), recipeId);
+      return toApiResponse(result);
+    },
+
+    saveFromPreview: async (data: {
+      title: string;
+      description: string;
+      ingredients: string[];
+      instructions: string[];
+      prepTime?: string;
+      cookTime?: string;
+      servings?: string;
+      imageUrl?: string;
+      sourceUrl: string;
+    }): Promise<ApiResponse<{ id: string; collectionId?: string }>> => {
+      const result = await this.handlers.savePreviewRecipe(this.getContext(), data);
       return toApiResponse(result);
     },
   };

@@ -708,6 +708,21 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401 };
     }
 
+    // Check if this is a system cookbook
+    const cookbook = await this.db.get<{ is_system: number }>(
+      'SELECT is_system FROM cookbooks WHERE id = ? AND user_id = ?',
+      cookbookId,
+      user.id
+    );
+
+    if (!cookbook) {
+      return { error: 'Cookbook not found', status: 404 };
+    }
+
+    if (cookbook.is_system === 1) {
+      return { error: 'Cannot delete system cookbooks', status: 403 };
+    }
+
     await this.db.run('DELETE FROM cookbook_recipes WHERE cookbook_id = ?', cookbookId);
     await this.db.run('DELETE FROM cookbook_shares WHERE cookbook_id = ?', cookbookId);
     await this.db.run('DELETE FROM cookbook_share_links WHERE cookbook_id = ?', cookbookId);
@@ -1359,18 +1374,18 @@ export class CoreHandlers {
       );
     }
 
-    // Create "Liked Recipes" system cookbook
-    const likedCookbookId = this.crypto.generateId();
+    // Create "My Recipe Collection" system cookbook
+    const collectionId = this.crypto.generateId();
     await this.db.run(
       `INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_system, system_type, is_public, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      likedCookbookId,
+      collectionId,
       userId,
-      'Liked Recipes',
-      'Recipes you\'ve saved from around the community',
+      'My Recipe Collection',
+      'All recipes you have saved',
       null,
       1, // system cookbook
-      'liked',
+      'collection',
       0, // private
       now,
       now
@@ -1404,6 +1419,39 @@ export class CoreHandlers {
         now
       );
     }
+  }
+
+  // Get or create the user's "My Recipe Collection" system cookbook
+  private async getOrCreateRecipeCollection(userId: string): Promise<string> {
+    const existing = await this.db.get<{ id: string }>(
+      'SELECT id FROM cookbooks WHERE user_id = ? AND system_type = ?',
+      userId,
+      'collection'
+    );
+
+    if (existing) {
+      return existing.id;
+    }
+
+    // Create the collection for existing users who don't have one yet
+    const collectionId = this.crypto.generateId();
+    const now = Date.now();
+    await this.db.run(
+      `INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_system, system_type, is_public, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      collectionId,
+      userId,
+      'My Recipe Collection',
+      'All recipes you have saved',
+      null,
+      1, // system cookbook
+      'collection',
+      0, // private
+      now,
+      now
+    );
+
+    return collectionId;
   }
 
   // Discovery endpoints for public content
@@ -1539,25 +1587,80 @@ export class CoreHandlers {
       Date.now()
     );
 
-    // Add to user's "Liked Recipes" cookbook
-    const likedCookbook = await this.db.get<{ id: string }>(
-      'SELECT id FROM cookbooks WHERE user_id = ? AND system_type = ?',
+    // Add to user's "My Recipe Collection" cookbook
+    const collectionId = await this.getOrCreateRecipeCollection(user.id);
+    await this.db.run(
+      'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
+      collectionId,
+      newRecipeId,
       user.id,
-      'liked'
+      Date.now()
     );
-
-    if (likedCookbook) {
-      await this.db.run(
-        'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
-        likedCookbook.id,
-        newRecipeId,
-        user.id,
-        Date.now()
-      );
-      await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', Date.now(), likedCookbook.id);
-    }
+    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', Date.now(), collectionId);
 
     return { data: { id: newRecipeId }, status: 201 };
+  }
+
+  // Save a recipe from preview data (for shared recipe links)
+  async savePreviewRecipe(
+    ctx: RequestContext,
+    recipeData: {
+      title: string;
+      description: string;
+      ingredients: string[];
+      instructions: string[];
+      prepTime?: string;
+      cookTime?: string;
+      servings?: string;
+      imageUrl?: string;
+      sourceUrl: string;
+    }
+  ): Promise<ApiResult<{ id: string }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    if (!recipeData.title || !recipeData.ingredients?.length || !recipeData.instructions?.length) {
+      return { error: 'Recipe must have a title, ingredients, and instructions', status: 400 };
+    }
+
+    // Create the recipe
+    const recipeId = this.crypto.generateId();
+    const now = Date.now();
+
+    await this.db.run(
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      recipeId,
+      user.id,
+      user.id,
+      recipeData.title,
+      recipeData.description || '',
+      JSON.stringify(recipeData.ingredients),
+      JSON.stringify(recipeData.instructions),
+      JSON.stringify([]), // no tags from preview
+      recipeData.imageUrl || null,
+      recipeData.sourceUrl,
+      recipeData.prepTime || null,
+      recipeData.cookTime || null,
+      recipeData.servings || null,
+      0, // private
+      now
+    );
+
+    // Add to My Recipe Collection
+    const collectionId = await this.getOrCreateRecipeCollection(user.id);
+    await this.db.run(
+      'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
+      collectionId,
+      recipeId,
+      user.id,
+      now
+    );
+    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, collectionId);
+
+    return { data: { id: recipeId }, status: 201 };
   }
 
   // Get a single public recipe by ID

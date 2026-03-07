@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { DiscoveryPage } from './DiscoveryPage';
 import * as DiscoveryContext from '../context/DiscoveryContext';
 import * as AuthContext from '../context/AuthContext';
+import * as ToastContext from '../context/ToastContext';
 
 // Mock the contexts
 vi.mock('../context/DiscoveryContext', () => ({
@@ -11,6 +12,10 @@ vi.mock('../context/DiscoveryContext', () => ({
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: vi.fn(),
+}));
+
+vi.mock('../context/ToastContext', () => ({
+  useToast: vi.fn(),
 }));
 
 describe('DiscoveryPage', () => {
@@ -46,6 +51,11 @@ describe('DiscoveryPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast: vi.fn(),
+      hideToast: vi.fn(),
+    });
 
     vi.mocked(AuthContext.useAuth).mockReturnValue({
       user: { id: 'user-1', email: 'test@example.com', name: 'Test User' },

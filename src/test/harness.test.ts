@@ -93,7 +93,7 @@ describe('ReactTestHarness', () => {
       const client = harness.getClient();
       const result = await client.cookbooks.list();
 
-      expect(result.data!.owned.length).toBe(3); // Default cookbook + Liked Recipes + seeded one
+      expect(result.data!.owned.length).toBe(3); // Default cookbook + My Recipe Collection + seeded one
       expect(result.data!.owned.some(c => c.name === 'Test Cookbook')).toBe(true);
     });
   });
@@ -158,11 +158,11 @@ describe('ReactTestHarness', () => {
       expect(recipes.data!.recipes.length).toBe(3);
       expect(recipes.data!.recipes.some(r => r.title === 'Herb-Crusted Chicken')).toBe(true);
 
-      // Default cookbooks should exist (My Favorite Recipes + Liked Recipes)
+      // Default cookbooks should exist (My Favorite Recipes + My Recipe Collection)
       const cookbooks = await client.cookbooks.list();
       expect(cookbooks.data!.owned.length).toBe(2);
       expect(cookbooks.data!.owned.some(c => c.name === 'My Favorite Recipes')).toBe(true);
-      expect(cookbooks.data!.owned.some(c => c.name === 'Liked Recipes')).toBe(true);
+      expect(cookbooks.data!.owned.some(c => c.name === 'My Recipe Collection')).toBe(true);
     });
   });
 });

@@ -83,6 +83,7 @@ describe('AddToCookbookModal', () => {
         update: vi.fn(),
         delete: vi.fn(),
         getCookbooksForRecipe: mockGetCookbooksForRecipe.mockResolvedValue({ data: { cookbookIds: [] } }),
+        saveFromPreview: vi.fn(),
       },
       cookbooks: {
         list: vi.fn(),

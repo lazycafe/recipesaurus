@@ -5,6 +5,7 @@ import { PublicHomePage } from '../components/PublicHomePage';
 import { DiscoveryPage } from '../components/DiscoveryPage';
 import * as AuthContext from '../context/AuthContext';
 import * as DiscoveryContext from '../context/DiscoveryContext';
+import * as ToastContext from '../context/ToastContext';
 
 // Mock the contexts
 vi.mock('../context/AuthContext', () => ({
@@ -13,6 +14,10 @@ vi.mock('../context/AuthContext', () => ({
 
 vi.mock('../context/DiscoveryContext', () => ({
   useDiscovery: vi.fn(),
+}));
+
+vi.mock('../context/ToastContext', () => ({
+  useToast: vi.fn(),
 }));
 
 // Component that shows different content based on auth state (mirrors App.tsx logic)
@@ -52,6 +57,10 @@ describe('Home Page Routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue(mockDiscoveryContext);
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast: vi.fn(),
+      hideToast: vi.fn(),
+    });
   });
 
   describe('when not logged in', () => {

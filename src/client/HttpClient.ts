@@ -168,6 +168,20 @@ export class HttpClient implements IClient {
     getCookbooksForRecipe: (recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>> => {
       return this.transport.request('GET', `/api/recipes/${recipeId}/cookbooks`);
     },
+
+    saveFromPreview: (data: {
+      title: string;
+      description: string;
+      ingredients: string[];
+      instructions: string[];
+      prepTime?: string;
+      cookTime?: string;
+      servings?: string;
+      imageUrl?: string;
+      sourceUrl: string;
+    }): Promise<ApiResponse<{ id: string; collectionId?: string }>> => {
+      return this.transport.request('POST', '/api/recipes/from-preview', data);
+    },
   };
 
   cookbooks = {
