@@ -405,6 +405,12 @@ img {
   gap: var(--space-3);
 }
 
+.header-action-button {
+  min-width: 140px;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .user-info {
   display: flex;
   align-items: center;
@@ -464,6 +470,10 @@ img {
 }
 
 @media (max-width: 900px) {
+  .header-action-button {
+    min-width: 44px;
+  }
+
   .header-actions .btn-primary .btn-text {
     display: none;
   }

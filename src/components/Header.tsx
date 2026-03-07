@@ -54,18 +54,20 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
           <div className="header-actions">
             {user && (
               <>
-                {currentView === 'recipes' && (
-                  <button className="btn-primary" onClick={onAddRecipe}>
-                    <Plus size={18} strokeWidth={2.5} />
-                    <span className="btn-text">New Recipe</span>
-                  </button>
-                )}
-                {currentView === 'cookbooks' && (
-                  <button className="btn-primary" onClick={onAddCookbook}>
-                    <Plus size={18} strokeWidth={2.5} />
-                    <span className="btn-text">New Cookbook</span>
-                  </button>
-                )}
+                <div className="header-action-button">
+                  {currentView === 'recipes' && (
+                    <button className="btn-primary" onClick={onAddRecipe}>
+                      <Plus size={18} strokeWidth={2.5} />
+                      <span className="btn-text">New Recipe</span>
+                    </button>
+                  )}
+                  {currentView === 'cookbooks' && (
+                    <button className="btn-primary" onClick={onAddCookbook}>
+                      <Plus size={18} strokeWidth={2.5} />
+                      <span className="btn-text">New Cookbook</span>
+                    </button>
+                  )}
+                </div>
 
                 <UserMenu />
               </>
