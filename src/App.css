@@ -5143,6 +5143,53 @@ img {
   min-height: 100vh;
 }
 
+.public-header {
+  position: sticky;
+  top: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--color-border);
+  z-index: 100;
+}
+
+.public-header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-3) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.public-header-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--color-olive);
+}
+
+.public-header-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.public-header-nav .btn-text {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.public-header-nav .btn-text:hover {
+  color: var(--color-olive);
+}
+
+.public-header-nav .btn-primary {
+  padding: var(--space-2) var(--space-4);
+}
+
 .hero-section {
   padding: var(--space-16) var(--space-6);
   text-align: center;

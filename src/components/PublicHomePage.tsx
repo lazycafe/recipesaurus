@@ -179,6 +179,24 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
 
   return (
     <div className="public-home">
+      {/* Header */}
+      <header className="public-header">
+        <div className="public-header-content">
+          <div className="public-header-logo">
+            <DinoMascot size={36} />
+            <span>Recipesaurus</span>
+          </div>
+          <nav className="public-header-nav">
+            <button className="btn-text" onClick={onSignIn}>
+              Sign In
+            </button>
+            <button className="btn-primary" onClick={onSignUp}>
+              Get Started
+            </button>
+          </nav>
+        </div>
+      </header>
+
       {/* Hero Section */}
       <section className="hero-section">
         <div className="hero-content">

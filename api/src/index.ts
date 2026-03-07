@@ -319,6 +319,9 @@ async function sendVerificationEmail(
 ): Promise<boolean> {
   const verifyUrl = `${appUrl}/verify-email?token=${token}`;
 
+  console.log('Sending verification email to:', email, 'verifyUrl:', verifyUrl);
+  console.log('API key present:', !!apiKey, 'API key length:', apiKey?.length || 0);
+
   try {
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -344,8 +347,17 @@ async function sendVerificationEmail(
         `,
       }),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Resend API error:', response.status, errorText);
+    } else {
+      console.log('Verification email sent successfully to:', email);
+    }
+
     return response.ok;
-  } catch {
+  } catch (err) {
+    console.error('Failed to send verification email:', err);
     return false;
   }
 }
