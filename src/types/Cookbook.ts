@@ -4,6 +4,7 @@ export interface Cookbook {
   description?: string;
   coverImage?: string | null;
   recipeCount: number;
+  isPublic?: boolean;
   createdAt: number;
   updatedAt: number;
   isOwner: boolean;

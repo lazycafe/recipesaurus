@@ -38,8 +38,8 @@ export interface ICoreHandlers {
   deleteRecipe(ctx: RequestContext, id: string): Promise<ApiResult<{ success: boolean }>>;
   getCookbooks(ctx: RequestContext): Promise<ApiResult<{ owned: Cookbook[]; shared: Cookbook[] }>>;
   getCookbook(ctx: RequestContext, id: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
-  createCookbook(ctx: RequestContext, data: { name: string; description?: string; coverImage?: string }): Promise<ApiResult<{ id: string }>>;
-  updateCookbook(ctx: RequestContext, id: string, data: { name?: string; description?: string; coverImage?: string }): Promise<ApiResult<{ success: boolean }>>;
+  createCookbook(ctx: RequestContext, data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }): Promise<ApiResult<{ id: string }>>;
+  updateCookbook(ctx: RequestContext, id: string, data: { name?: string; description?: string; coverImage?: string; isPublic?: boolean }): Promise<ApiResult<{ success: boolean }>>;
   deleteCookbook(ctx: RequestContext, id: string): Promise<ApiResult<{ success: boolean }>>;
   addRecipeToCookbook(ctx: RequestContext, cookbookId: string, recipeId: string): Promise<ApiResult<{ success: boolean }>>;
   removeRecipeFromCookbook(ctx: RequestContext, cookbookId: string, recipeId: string): Promise<ApiResult<{ success: boolean }>>;
@@ -50,6 +50,12 @@ export interface ICoreHandlers {
   revokeShareLink(ctx: RequestContext, cookbookId: string, linkId: string): Promise<ApiResult<{ success: boolean }>>;
   getSharedCookbook(token: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   getCookbooksForRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ cookbookIds: string[] }>>;
+  // Discovery endpoints
+  getDiscoverRecipes(ctx: RequestContext, options?: { limit?: number; offset?: number; tags?: string[] }): Promise<ApiResult<{ recipes: Recipe[]; total: number }>>;
+  getDiscoverCookbooks(ctx: RequestContext, options?: { limit?: number; offset?: number }): Promise<ApiResult<{ cookbooks: Cookbook[]; total: number }>>;
+  getPublicRecipe(recipeId: string): Promise<ApiResult<{ recipe: Recipe }>>;
+  getPublicCookbook(cookbookId: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
+  saveRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ id: string }>>;
 }
 
 // In-memory token storage for testing
@@ -274,6 +280,34 @@ export class InMemoryClient implements IClient {
 
     decline: async (_inviteId: string): Promise<ApiResponse<{ success: boolean }>> => {
       return { data: { success: true } };
+    },
+  };
+
+  // Discovery - public content
+  discover = {
+    recipes: async (options?: { limit?: number; offset?: number; tags?: string[] }): Promise<ApiResponse<{ recipes: Recipe[]; total: number }>> => {
+      const result = await this.handlers.getDiscoverRecipes(this.getContext(), options);
+      return toApiResponse(result);
+    },
+
+    cookbooks: async (options?: { limit?: number; offset?: number }): Promise<ApiResponse<{ cookbooks: Cookbook[]; total: number }>> => {
+      const result = await this.handlers.getDiscoverCookbooks(this.getContext(), options);
+      return toApiResponse(result);
+    },
+
+    getRecipe: async (id: string): Promise<ApiResponse<{ recipe: Recipe }>> => {
+      const result = await this.handlers.getPublicRecipe(id);
+      return toApiResponse(result);
+    },
+
+    getCookbook: async (id: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>> => {
+      const result = await this.handlers.getPublicCookbook(id);
+      return toApiResponse(result);
+    },
+
+    saveRecipe: async (recipeId: string): Promise<ApiResponse<{ id: string }>> => {
+      const result = await this.handlers.saveRecipe(this.getContext(), recipeId);
+      return toApiResponse(result);
     },
   };
 }

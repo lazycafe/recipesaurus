@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { authApi, setStoredToken, clearStoredToken } from '../utils/api';
+import { useClient } from '../client/ClientContext';
+import { setStoredToken, clearStoredToken } from '../utils/api';
 
 interface User {
   id: string;
@@ -22,11 +23,13 @@ interface AuthContextType {
   logout: () => Promise<void>;
   verifyEmail: (token: string) => Promise<AuthResult>;
   resendVerification: (email: string) => Promise<{ success: boolean; error?: string }>;
+  devLogin: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const client = useClient();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -36,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function checkSession() {
     try {
-      const { data } = await authApi.getSession();
+      const { data } = await client.auth.getSession();
       if (data?.user) {
         setUser(data.user);
       }
@@ -48,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const login = async (email: string, password: string): Promise<AuthResult> => {
-    const { data, error } = await authApi.login(email, password);
+    const { data, error } = await client.auth.login(email, password);
 
     if (error) {
       return { success: false, error };
@@ -88,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: 'Password must contain at least one number' };
     }
 
-    const { data, error } = await authApi.register(email, name, password);
+    const { data, error } = await client.auth.register(email, name, password);
 
     if (error) {
       return { success: false, error };
@@ -110,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const verifyEmail = async (token: string): Promise<AuthResult> => {
-    const { data, error } = await authApi.verifyEmail(token);
+    const { data, error } = await client.auth.verifyEmail(token);
 
     if (error) {
       return { success: false, error };
@@ -128,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resendVerification = async (email: string): Promise<{ success: boolean; error?: string }> => {
-    const { error } = await authApi.resendVerification(email);
+    const { error } = await client.auth.resendVerification(email);
 
     if (error) {
       return { success: false, error };
@@ -138,13 +141,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await authApi.logout();
+    await client.auth.logout();
     clearStoredToken();
     setUser(null);
   };
 
+  const devLogin = () => {
+    if (import.meta.env.DEV) {
+      const devUser: User = {
+        id: 'dev-user-id',
+        email: 'dev@example.com',
+        name: 'Dev User',
+      };
+      setStoredToken('dev-token');
+      setUser(devUser);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, verifyEmail, resendVerification }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, verifyEmail, resendVerification, devLogin }}>
       {children}
     </AuthContext.Provider>
   );

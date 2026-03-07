@@ -18,6 +18,10 @@ export interface Recipe {
   prepTime?: string | null;
   cookTime?: string | null;
   servings?: string | null;
+  isPublic?: boolean;
+  ownerId?: string;
+  ownerName?: string | null;
+  isOwner?: boolean;
   createdAt: number;
   addedByUserId?: string | null;
   addedByUserName?: string | null;
@@ -29,6 +33,9 @@ export interface Cookbook {
   description?: string | null;
   coverImage?: string | null;
   recipeCount: number;
+  isSystem?: boolean;
+  systemType?: string | null;
+  isPublic?: boolean;
   createdAt: number;
   updatedAt: number;
   isOwner: boolean;
@@ -61,6 +68,7 @@ export interface CreateRecipeData {
   prepTime?: string;
   cookTime?: string;
   servings?: string;
+  isPublic?: boolean;
 }
 
 export interface UpdateRecipeData extends Partial<CreateRecipeData> {}
@@ -69,12 +77,14 @@ export interface CreateCookbookData {
   name: string;
   description?: string;
   coverImage?: string;
+  isPublic?: boolean;
 }
 
 export interface UpdateCookbookData {
   name?: string;
   description?: string;
   coverImage?: string;
+  isPublic?: boolean;
 }
 
 // API Response types
@@ -139,6 +149,14 @@ export interface IClient {
   invites: {
     accept(inviteId: string): Promise<ApiResponse<{ success: boolean; cookbookId: string; cookbookName: string }>>;
     decline(inviteId: string): Promise<ApiResponse<{ success: boolean }>>;
+  };
+
+  discover: {
+    recipes(options?: { limit?: number; offset?: number; tags?: string[] }): Promise<ApiResponse<{ recipes: Recipe[]; total: number }>>;
+    cookbooks(options?: { limit?: number; offset?: number }): Promise<ApiResponse<{ cookbooks: Cookbook[]; total: number }>>;
+    getRecipe(id: string): Promise<ApiResponse<{ recipe: Recipe }>>;
+    getCookbook(id: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>>;
+    saveRecipe(recipeId: string): Promise<ApiResponse<{ id: string }>>;
   };
 }
 

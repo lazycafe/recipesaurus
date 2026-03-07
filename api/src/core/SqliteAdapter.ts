@@ -71,6 +71,7 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
     CREATE TABLE IF NOT EXISTS recipes (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
       title TEXT NOT NULL,
       description TEXT,
       ingredients TEXT NOT NULL,
@@ -81,8 +82,10 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       prep_time TEXT,
       cook_time TEXT,
       servings TEXT,
+      is_public INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id)
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (owner_id) REFERENCES users(id)
     );
 
     CREATE TABLE IF NOT EXISTS cookbooks (
@@ -91,6 +94,9 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       name TEXT NOT NULL,
       description TEXT,
       cover_image TEXT,
+      is_system INTEGER NOT NULL DEFAULT 0,
+      system_type TEXT,
+      is_public INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id)
@@ -163,7 +169,11 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
     CREATE INDEX IF NOT EXISTS idx_recipes_user_id ON recipes(user_id);
+    CREATE INDEX IF NOT EXISTS idx_recipes_owner_id ON recipes(owner_id);
+    CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
     CREATE INDEX IF NOT EXISTS idx_cookbooks_user_id ON cookbooks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_cookbooks_is_public ON cookbooks(is_public);
+    CREATE INDEX IF NOT EXISTS idx_cookbooks_system_type ON cookbooks(system_type);
     CREATE INDEX IF NOT EXISTS idx_cookbook_recipes_cookbook_id ON cookbook_recipes(cookbook_id);
     CREATE INDEX IF NOT EXISTS idx_cookbook_recipes_recipe_id ON cookbook_recipes(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_cookbook_shares_cookbook_id ON cookbook_shares(cookbook_id);

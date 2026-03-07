@@ -19,6 +19,7 @@ export interface DbSession {
 export interface DbRecipe {
   id: string;
   user_id: string;
+  owner_id: string; // Original creator of the recipe
   title: string;
   description: string;
   ingredients: string; // JSON string
@@ -29,6 +30,7 @@ export interface DbRecipe {
   prep_time: string | null;
   cook_time: string | null;
   servings: string | null;
+  is_public: number; // 0 = private, 1 = public
   created_at: number;
 }
 
@@ -38,6 +40,9 @@ export interface DbCookbook {
   name: string;
   description: string | null;
   cover_image: string | null;
+  is_system: number; // 0 = normal, 1 = system cookbook (e.g., Liked Recipes)
+  system_type: string | null; // 'liked' for Liked Recipes
+  is_public: number; // 0 = private, 1 = public
   created_at: number;
   updated_at: number;
 }
@@ -123,6 +128,10 @@ export interface RecipeInfo {
   prepTime?: string | null;
   cookTime?: string | null;
   servings?: string | null;
+  isPublic: boolean;
+  ownerId: string;
+  ownerName?: string | null;
+  isOwner?: boolean; // true if current user is the owner
   createdAt: number;
   addedByUserId?: string | null;
   addedByUserName?: string | null;
@@ -135,6 +144,9 @@ export interface CookbookInfo {
   description?: string | null;
   coverImage?: string | null;
   recipeCount: number;
+  isSystem: boolean;
+  systemType?: string | null;
+  isPublic: boolean;
   createdAt: number;
   updatedAt: number;
   isOwner: boolean;

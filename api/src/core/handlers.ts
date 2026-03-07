@@ -132,7 +132,7 @@ function validatePassword(password: string): { valid: boolean; error?: string } 
 }
 
 // Helper to format recipe
-function formatRecipe(r: DbRecipe, addedByUserName?: string | null): RecipeInfo {
+function formatRecipe(r: DbRecipe & { owner_name?: string | null }, currentUserId?: string, addedByUserName?: string | null): RecipeInfo {
   return {
     id: r.id,
     title: r.title,
@@ -145,6 +145,10 @@ function formatRecipe(r: DbRecipe, addedByUserName?: string | null): RecipeInfo 
     prepTime: r.prep_time,
     cookTime: r.cook_time,
     servings: r.servings,
+    isPublic: r.is_public === 1,
+    ownerId: r.owner_id,
+    ownerName: r.owner_name,
+    isOwner: currentUserId ? r.owner_id === currentUserId : undefined,
     createdAt: r.created_at,
     addedByUserName,
   };
@@ -341,13 +345,17 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401 };
     }
 
-    const result = await this.db.all<DbRecipe>(
-      'SELECT * FROM recipes WHERE user_id = ? ORDER BY created_at DESC',
+    const result = await this.db.all<DbRecipe & { owner_name: string | null }>(
+      `SELECT r.*, u.name as owner_name
+       FROM recipes r
+       LEFT JOIN users u ON r.owner_id = u.id
+       WHERE r.user_id = ?
+       ORDER BY r.created_at DESC`,
       user.id
     );
 
     return {
-      data: { recipes: result.results.map(r => formatRecipe(r)) },
+      data: { recipes: result.results.map(r => formatRecipe(r, user.id)) },
       status: 200,
     };
   }
@@ -365,6 +373,7 @@ export class CoreHandlers {
       prepTime?: string;
       cookTime?: string;
       servings?: string;
+      isPublic?: boolean;
     }
   ): Promise<ApiResult<{ id: string }>> {
     const user = await this.getSessionUser(ctx);
@@ -374,10 +383,11 @@ export class CoreHandlers {
 
     const recipeId = this.crypto.generateId();
     await this.db.run(
-      `INSERT INTO recipes (id, user_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       recipeId,
       user.id,
+      user.id, // owner_id is the same as user_id when creating
       data.title,
       data.description || '',
       JSON.stringify(data.ingredients),
@@ -388,6 +398,7 @@ export class CoreHandlers {
       data.prepTime || null,
       data.cookTime || null,
       data.servings || null,
+      data.isPublic ? 1 : 0,
       Date.now()
     );
 
@@ -408,6 +419,7 @@ export class CoreHandlers {
       prepTime?: string;
       cookTime?: string;
       servings?: string;
+      isPublic?: boolean;
     }
   ): Promise<ApiResult<{ success: boolean }>> {
     const user = await this.getSessionUser(ctx);
@@ -415,13 +427,18 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401 };
     }
 
-    const existing = await this.db.get<{ id: string }>(
-      'SELECT id FROM recipes WHERE id = ? AND user_id = ?',
+    // Only the owner can update a recipe
+    const existing = await this.db.get<{ id: string; owner_id: string }>(
+      'SELECT id, owner_id FROM recipes WHERE id = ? AND user_id = ?',
       recipeId,
       user.id
     );
     if (!existing) {
       return { error: 'Recipe not found', status: 404 };
+    }
+
+    if (existing.owner_id !== user.id) {
+      return { error: 'Only the recipe owner can edit this recipe', status: 403 };
     }
 
     await this.db.run(
@@ -435,7 +452,8 @@ export class CoreHandlers {
         source_url = ?,
         prep_time = ?,
         cook_time = ?,
-        servings = ?
+        servings = ?,
+        is_public = COALESCE(?, is_public)
       WHERE id = ? AND user_id = ?`,
       data.title || null,
       data.description || null,
@@ -447,6 +465,7 @@ export class CoreHandlers {
       data.prepTime ?? null,
       data.cookTime ?? null,
       data.servings ?? null,
+      data.isPublic !== undefined ? (data.isPublic ? 1 : 0) : null,
       recipeId,
       user.id
     );
@@ -520,6 +539,9 @@ export class CoreHandlers {
       description: c.description,
       coverImage: c.cover_image || null,
       recipeCount: c.recipe_count || 0,
+      isSystem: c.is_system === 1,
+      systemType: c.system_type,
+      isPublic: c.is_public === 1,
       createdAt: c.created_at,
       updatedAt: c.updated_at,
       isOwner,
@@ -593,13 +615,16 @@ export class CoreHandlers {
           description: cookbook.description,
           coverImage: cookbook.cover_image || null,
           recipeCount,
+          isSystem: cookbook.is_system === 1,
+          systemType: cookbook.system_type,
+          isPublic: cookbook.is_public === 1,
           createdAt: cookbook.created_at,
           updatedAt: cookbook.updated_at,
           isOwner,
           ownerName,
         },
         recipes: recipes.results.map(r => ({
-          ...formatRecipe(r),
+          ...formatRecipe(r as DbRecipe & { owner_name?: string | null }, user.id),
           addedByUserId: r.added_by_user_id,
           addedByUserName: r.added_by_user_name,
         })),
@@ -610,7 +635,7 @@ export class CoreHandlers {
 
   async createCookbook(
     ctx: RequestContext,
-    data: { name: string; description?: string; coverImage?: string }
+    data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }
   ): Promise<ApiResult<{ id: string }>> {
     const user = await this.getSessionUser(ctx);
     if (!user) {
@@ -620,12 +645,15 @@ export class CoreHandlers {
     const cookbookId = this.crypto.generateId();
     const now = Date.now();
     await this.db.run(
-      'INSERT INTO cookbooks (id, user_id, name, description, cover_image, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_system, system_type, is_public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       cookbookId,
       user.id,
       data.name,
       data.description || null,
       data.coverImage || null,
+      0, // not a system cookbook
+      null,
+      data.isPublic ? 1 : 0,
       now,
       now
     );
@@ -1024,6 +1052,9 @@ export class CoreHandlers {
           description: cookbook.description,
           coverImage: cookbook.cover_image || null,
           recipeCount: recipes.results.length,
+          isSystem: cookbook.is_system === 1,
+          systemType: cookbook.system_type,
+          isPublic: cookbook.is_public === 1,
           createdAt: cookbook.created_at,
           updatedAt: cookbook.updated_at,
           isOwner: false,
@@ -1074,14 +1105,16 @@ export class CoreHandlers {
     ];
 
     const recipeIds: string[] = [];
+    const now = Date.now();
     for (const recipe of sampleRecipes) {
       const recipeId = this.crypto.generateId();
       recipeIds.push(recipeId);
       await this.db.run(
-        `INSERT INTO recipes (id, user_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         recipeId,
         userId,
+        userId, // owner_id is the same as user_id
         recipe.title,
         recipe.description,
         JSON.stringify(recipe.ingredients),
@@ -1092,21 +1125,41 @@ export class CoreHandlers {
         recipe.prepTime,
         recipe.cookTime,
         recipe.servings,
-        Date.now()
+        0, // private by default
+        now
       );
     }
 
-    // Create default cookbook
-    const cookbookId = this.crypto.generateId();
-    const now = Date.now();
+    // Create "Liked Recipes" system cookbook
+    const likedCookbookId = this.crypto.generateId();
     await this.db.run(
-      `INSERT INTO cookbooks (id, user_id, name, description, cover_image, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_system, system_type, is_public, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      likedCookbookId,
+      userId,
+      'Liked Recipes',
+      'Recipes you\'ve saved from around the community',
+      null,
+      1, // system cookbook
+      'liked',
+      0, // private
+      now,
+      now
+    );
+
+    // Create default cookbook with sample recipes
+    const cookbookId = this.crypto.generateId();
+    await this.db.run(
+      `INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_system, system_type, is_public, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       cookbookId,
       userId,
       'My Favorite Recipes',
       'A collection of recipes I love',
       null,
+      0, // not a system cookbook
+      null,
+      0, // private
       now,
       now
     );
@@ -1122,5 +1175,227 @@ export class CoreHandlers {
         now
       );
     }
+  }
+
+  // Discovery endpoints for public content
+  async getDiscoverRecipes(
+    ctx: RequestContext,
+    options?: { limit?: number; offset?: number; tags?: string[] }
+  ): Promise<ApiResult<{ recipes: RecipeInfo[]; total: number }>> {
+    const user = await this.getSessionUser(ctx);
+    const limit = options?.limit || 20;
+    const offset = options?.offset || 0;
+
+    let query = `
+      SELECT r.*, u.name as owner_name
+      FROM recipes r
+      JOIN users u ON r.owner_id = u.id
+      WHERE r.is_public = 1
+    `;
+    const params: unknown[] = [];
+
+    if (options?.tags && options.tags.length > 0) {
+      // Filter by tags (recipe must contain ALL specified tags)
+      for (const tag of options.tags) {
+        query += ` AND r.tags LIKE ?`;
+        params.push(`%"${tag}"%`);
+      }
+    }
+
+    // Get total count
+    const countResult = await this.db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM recipes r WHERE r.is_public = 1`,
+    );
+
+    query += ` ORDER BY r.created_at DESC LIMIT ? OFFSET ?`;
+    params.push(limit, offset);
+
+    const result = await this.db.all<DbRecipe & { owner_name: string }>(query, ...params);
+
+    return {
+      data: {
+        recipes: result.results.map(r => formatRecipe(r, user?.id)),
+        total: countResult?.count || 0,
+      },
+      status: 200,
+    };
+  }
+
+  async getDiscoverCookbooks(
+    ctx: RequestContext,
+    options?: { limit?: number; offset?: number }
+  ): Promise<ApiResult<{ cookbooks: CookbookInfo[]; total: number }>> {
+    const user = await this.getSessionUser(ctx);
+    const limit = options?.limit || 20;
+    const offset = options?.offset || 0;
+
+    const countResult = await this.db.get<{ count: number }>(
+      'SELECT COUNT(*) as count FROM cookbooks WHERE is_public = 1 AND is_system = 0'
+    );
+
+    const result = await this.db.all<DbCookbook & { recipe_count: number; owner_name: string }>(
+      `SELECT c.*, COUNT(cr.recipe_id) as recipe_count, u.name as owner_name
+       FROM cookbooks c
+       LEFT JOIN cookbook_recipes cr ON c.id = cr.cookbook_id
+       JOIN users u ON c.user_id = u.id
+       WHERE c.is_public = 1 AND c.is_system = 0
+       GROUP BY c.id
+       ORDER BY c.updated_at DESC
+       LIMIT ? OFFSET ?`,
+      limit,
+      offset
+    );
+
+    return {
+      data: {
+        cookbooks: result.results.map(c => ({
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          coverImage: c.cover_image || null,
+          recipeCount: c.recipe_count || 0,
+          isSystem: c.is_system === 1,
+          systemType: c.system_type,
+          isPublic: c.is_public === 1,
+          createdAt: c.created_at,
+          updatedAt: c.updated_at,
+          isOwner: user ? c.user_id === user.id : false,
+          ownerName: c.owner_name,
+        })),
+        total: countResult?.count || 0,
+      },
+      status: 200,
+    };
+  }
+
+  // Save a public recipe to user's collection (creates a copy)
+  async saveRecipe(
+    ctx: RequestContext,
+    recipeId: string
+  ): Promise<ApiResult<{ id: string }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    // Get the public recipe
+    const recipe = await this.db.get<DbRecipe>(
+      'SELECT * FROM recipes WHERE id = ? AND is_public = 1',
+      recipeId
+    );
+
+    if (!recipe) {
+      return { error: 'Recipe not found or not public', status: 404 };
+    }
+
+    // Create a copy of the recipe for the user
+    const newRecipeId = this.crypto.generateId();
+    await this.db.run(
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      newRecipeId,
+      user.id,
+      recipe.owner_id, // Keep original owner reference
+      recipe.title,
+      recipe.description,
+      recipe.ingredients,
+      recipe.instructions,
+      recipe.tags,
+      recipe.image_url,
+      recipe.source_url,
+      recipe.prep_time,
+      recipe.cook_time,
+      recipe.servings,
+      0, // saved copies are private by default
+      Date.now()
+    );
+
+    // Add to user's "Liked Recipes" cookbook
+    const likedCookbook = await this.db.get<{ id: string }>(
+      'SELECT id FROM cookbooks WHERE user_id = ? AND system_type = ?',
+      user.id,
+      'liked'
+    );
+
+    if (likedCookbook) {
+      await this.db.run(
+        'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
+        likedCookbook.id,
+        newRecipeId,
+        user.id,
+        Date.now()
+      );
+      await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', Date.now(), likedCookbook.id);
+    }
+
+    return { data: { id: newRecipeId }, status: 201 };
+  }
+
+  // Get a single public recipe by ID
+  async getPublicRecipe(recipeId: string): Promise<ApiResult<{ recipe: RecipeInfo }>> {
+    const recipe = await this.db.get<DbRecipe & { owner_name: string }>(
+      `SELECT r.*, u.name as owner_name
+       FROM recipes r
+       JOIN users u ON r.owner_id = u.id
+       WHERE r.id = ? AND r.is_public = 1`,
+      recipeId
+    );
+
+    if (!recipe) {
+      return { error: 'Recipe not found', status: 404 };
+    }
+
+    return {
+      data: { recipe: formatRecipe(recipe) },
+      status: 200,
+    };
+  }
+
+  // Get a public cookbook by ID
+  async getPublicCookbook(
+    cookbookId: string
+  ): Promise<ApiResult<{ cookbook: CookbookInfo; recipes: RecipeInfo[] }>> {
+    const cookbook = await this.db.get<DbCookbook & { owner_name: string }>(
+      `SELECT c.*, u.name as owner_name
+       FROM cookbooks c
+       JOIN users u ON c.user_id = u.id
+       WHERE c.id = ? AND c.is_public = 1 AND c.is_system = 0`,
+      cookbookId
+    );
+
+    if (!cookbook) {
+      return { error: 'Cookbook not found', status: 404 };
+    }
+
+    const recipes = await this.db.all<DbRecipe & { owner_name: string }>(
+      `SELECT r.*, u.name as owner_name
+       FROM recipes r
+       JOIN cookbook_recipes cr ON r.id = cr.recipe_id
+       JOIN users u ON r.owner_id = u.id
+       WHERE cr.cookbook_id = ?
+       ORDER BY cr.added_at DESC`,
+      cookbookId
+    );
+
+    return {
+      data: {
+        cookbook: {
+          id: cookbook.id,
+          name: cookbook.name,
+          description: cookbook.description,
+          coverImage: cookbook.cover_image || null,
+          recipeCount: recipes.results.length,
+          isSystem: cookbook.is_system === 1,
+          systemType: cookbook.system_type,
+          isPublic: cookbook.is_public === 1,
+          createdAt: cookbook.created_at,
+          updatedAt: cookbook.updated_at,
+          isOwner: false,
+          ownerName: cookbook.owner_name,
+        },
+        recipes: recipes.results.map(r => formatRecipe(r)),
+      },
+      status: 200,
+    };
   }
 }

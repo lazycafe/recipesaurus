@@ -23,6 +23,7 @@ describe('AuthModal', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
   });
 
@@ -182,6 +183,7 @@ describe('AuthModal', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: mockResendVerification,
+      devLogin: vi.fn(),
     });
 
     mockRegister.mockResolvedValue({ success: false, requiresVerification: true, email: 'test@example.com' });

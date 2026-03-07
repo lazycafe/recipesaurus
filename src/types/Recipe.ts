@@ -10,6 +10,7 @@ export interface Recipe {
   prepTime?: string;
   cookTime?: string;
   servings?: string;
+  isPublic?: boolean;
   createdAt: number;
 }
 
@@ -24,4 +25,5 @@ export interface RecipeFormData {
   cookTime: string;
   servings: string;
   sourceUrl: string;
+  isPublic: boolean;
 }

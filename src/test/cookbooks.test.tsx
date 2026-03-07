@@ -70,7 +70,7 @@ describe('Cookbooks with React components', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('My Cookbooks (1)')).toBeDefined(); // Default cookbook
+        expect(screen.getByText('My Cookbooks (2)')).toBeDefined(); // Default + Liked Recipes cookbooks
         expect(screen.getByText('Shared With Me (0)')).toBeDefined();
       });
     });
@@ -88,7 +88,7 @@ describe('Cookbooks with React components', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('My Cookbooks (3)')).toBeDefined(); // Default + 2 seeded
+        expect(screen.getByText('My Cookbooks (4)')).toBeDefined(); // Default + Liked + 2 seeded
         expect(screen.getByText('Breakfast Favorites (0 recipes)')).toBeDefined();
         expect(screen.getByText('Dinner Ideas (0 recipes)')).toBeDefined();
       });

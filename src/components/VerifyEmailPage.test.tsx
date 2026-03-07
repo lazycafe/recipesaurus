@@ -30,6 +30,7 @@ describe('VerifyEmailPage', () => {
       logout: vi.fn(),
       verifyEmail: mockVerifyEmail,
       resendVerification: mockResendVerification,
+      devLogin: vi.fn(),
     });
   });
 

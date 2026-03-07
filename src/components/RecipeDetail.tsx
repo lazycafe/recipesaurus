@@ -1,19 +1,22 @@
 import { useState } from 'react';
-import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine } from 'lucide-react';
+import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
+import { Recipe as ClientRecipe } from '../client/types';
 import { DinoMascot } from './DinoMascot';
 import { ConfirmModal } from './ConfirmModal';
 import { ModalOverlay } from './ModalOverlay';
 
 interface RecipeDetailProps {
-  recipe: Recipe;
+  recipe: Recipe | ClientRecipe;
   onClose: () => void;
   onDelete?: () => void;
   onEdit?: () => void;
+  onSave?: () => void;
   readOnly?: boolean;
+  isPublicView?: boolean;
 }
 
-export function RecipeDetail({ recipe, onClose, onDelete, onEdit, readOnly = false }: RecipeDetailProps) {
+export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOnly = false, isPublicView = false }: RecipeDetailProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleDelete = () => {
@@ -25,6 +28,9 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, readOnly = fal
     onDelete?.();
     onClose();
   };
+
+  // Type guard for ClientRecipe with owner info
+  const ownerName = 'ownerName' in recipe ? recipe.ownerName : null;
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -46,6 +52,12 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, readOnly = fal
 
           <div className="detail-info">
             <h2 className="detail-title">{recipe.title}</h2>
+            {ownerName && (
+              <p className="detail-author">
+                <User size={14} />
+                by {ownerName}
+              </p>
+            )}
             <p className="detail-description">{recipe.description}</p>
 
             <div className="detail-meta">
@@ -118,7 +130,16 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, readOnly = fal
           </section>
         </div>
 
-        {!readOnly && onEdit && onDelete && (
+        {isPublicView && onSave && (
+          <div className="detail-footer">
+            <button className="btn-primary" onClick={onSave}>
+              <Heart size={16} strokeWidth={2} />
+              <span>Save to My Recipes</span>
+            </button>
+          </div>
+        )}
+
+        {!readOnly && !isPublicView && onEdit && onDelete && (
           <div className="detail-footer">
             <button className="btn-secondary" onClick={onEdit}>
               <PenLine size={16} strokeWidth={2} />

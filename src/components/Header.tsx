@@ -1,11 +1,11 @@
-import { Plus, Book, ChefHat } from 'lucide-react';
+import { Plus, Book, ChefHat, Compass } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { DinoMascot } from './DinoMascot';
 import { useAuth } from '../context/AuthContext';
 import { UserMenu } from './UserMenu';
 
 interface HeaderProps {
-  currentView: 'recipes' | 'cookbooks';
+  currentView: 'recipes' | 'cookbooks' | 'discover';
   onAddRecipe: () => void;
   onAddCookbook: () => void;
 }
@@ -31,6 +31,13 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
                 className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
                 end
               >
+                <Compass size={18} />
+                Discover
+              </NavLink>
+              <NavLink
+                to="/recipes"
+                className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+              >
                 <ChefHat size={18} />
                 My Recipes
               </NavLink>
@@ -47,12 +54,13 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
           <div className="header-actions">
             {user && (
               <>
-                {currentView === 'recipes' ? (
+                {currentView === 'recipes' && (
                   <button className="btn-primary" onClick={onAddRecipe}>
                     <Plus size={18} strokeWidth={2.5} />
                     <span className="btn-text">New Recipe</span>
                   </button>
-                ) : (
+                )}
+                {currentView === 'cookbooks' && (
                   <button className="btn-primary" onClick={onAddCookbook}>
                     <Plus size={18} strokeWidth={2.5} />
                     <span className="btn-text">New Cookbook</span>
@@ -74,15 +82,22 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
               end
             >
+              <Compass size={20} />
+              <span>Discover</span>
+            </NavLink>
+            <NavLink
+              to="/recipes"
+              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+            >
               <ChefHat size={20} />
-              <span>My Recipes</span>
+              <span>Recipes</span>
             </NavLink>
             <NavLink
               to="/cookbooks"
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
             >
               <Book size={20} />
-              <span>Cookbooks</span>
+              <span>Books</span>
             </NavLink>
           </div>
         </nav>

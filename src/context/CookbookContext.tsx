@@ -7,8 +7,8 @@ interface CookbookContextType {
   ownedCookbooks: Cookbook[];
   sharedCookbooks: Cookbook[];
   isLoading: boolean;
-  createCookbook: (name: string, description?: string, coverImage?: string) => Promise<string | null>;
-  updateCookbook: (id: string, data: { name?: string; description?: string; coverImage?: string }) => Promise<boolean>;
+  createCookbook: (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => Promise<string | null>;
+  updateCookbook: (id: string, data: { name?: string; description?: string; coverImage?: string; isPublic?: boolean }) => Promise<boolean>;
   deleteCookbook: (id: string) => Promise<boolean>;
   leaveCookbook: (id: string) => Promise<boolean>;
   addRecipeToCookbook: (cookbookId: string, recipeId: string) => Promise<boolean>;
@@ -64,8 +64,8 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
     refreshCookbooks();
   }, [refreshCookbooks]);
 
-  const createCookbook = useCallback(async (name: string, description?: string, coverImage?: string): Promise<string | null> => {
-    const { data, error } = await cookbooksApi.create({ name, description, coverImage });
+  const createCookbook = useCallback(async (cookbookData: { name: string; description?: string; coverImage?: string; isPublic?: boolean }): Promise<string | null> => {
+    const { data, error } = await cookbooksApi.create(cookbookData);
     if (error || !data) {
       console.error('Failed to create cookbook:', error);
       return null;
@@ -74,7 +74,7 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
     return data.id;
   }, [refreshCookbooks]);
 
-  const updateCookbook = useCallback(async (id: string, data: { name?: string; description?: string; coverImage?: string }): Promise<boolean> => {
+  const updateCookbook = useCallback(async (id: string, data: { name?: string; description?: string; coverImage?: string; isPublic?: boolean }): Promise<boolean> => {
     const { error } = await cookbooksApi.update(id, data);
     if (error) {
       console.error('Failed to update cookbook:', error);

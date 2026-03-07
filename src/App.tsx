@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { ClientProvider } from './client/ClientContext';
-import { defaultClient } from './client/defaultClient';
+import { defaultClient, getClient, isDevClientEnabled } from './client/defaultClient';
+import type { IClient } from './client/types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RecipeProvider, useRecipes } from './context/RecipeContext';
 import { CookbookProvider, useCookbooks } from './context/CookbookContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { DiscoveryProvider } from './context/DiscoveryContext';
 import { Header } from './components/Header';
 import { SearchFilter } from './components/SearchFilter';
 import { RecipeCard } from './components/RecipeCard';
@@ -16,7 +18,6 @@ import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { VerifyEmailPage } from './components/VerifyEmailPage';
 import { EmptyState } from './components/EmptyState';
-import { DinoMascot } from './components/DinoMascot';
 import { CookbookList } from './components/CookbookList';
 import { CookbookModal } from './components/CookbookModal';
 import { CookbookDetailPage } from './components/CookbookDetailPage';
@@ -25,6 +26,8 @@ import { SharedCookbookView } from './components/SharedCookbookView';
 import { SettingsPage } from './components/SettingsPage';
 import { TermsPage } from './components/TermsPage';
 import { FeedbackPage } from './components/FeedbackPage';
+import { DiscoveryPage } from './components/DiscoveryPage';
+import { PublicHomePage } from './components/PublicHomePage';
 import { Recipe, RecipeFormData } from './types/Recipe';
 import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
@@ -51,25 +54,6 @@ const parseFormData = (formData: RecipeFormData) => ({
   sourceUrl: formData.sourceUrl.trim() || undefined,
 });
 
-function LandingPage({ onLogin, onRegister }: { onLogin: () => void; onRegister: () => void }) {
-  return (
-    <div className="landing">
-      <div className="landing-content">
-        <DinoMascot size={120} className="landing-mascot" />
-        <h1>Recipesaurus</h1>
-        <p>Your personal recipe collection, beautifully organized.</p>
-        <div className="landing-actions">
-          <button className="btn-primary btn-lg" onClick={onRegister}>
-            Get Started
-          </button>
-          <button className="btn-secondary btn-lg" onClick={onLogin}>
-            Sign In
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function LoadingScreen() {
   return (
@@ -202,7 +186,8 @@ function RecipeApp() {
   const [showCookbookModal, setShowCookbookModal] = useState(false);
   const [addToCookbookRecipe, setAddToCookbookRecipe] = useState<Recipe | null>(null);
 
-  const currentView = location.pathname.startsWith('/cookbooks') ? 'cookbooks' : 'recipes';
+  const currentView = location.pathname.startsWith('/cookbooks') ? 'cookbooks' :
+    location.pathname.startsWith('/recipes') ? 'recipes' : 'discover';
 
   const handleAddRecipe = async (formData: RecipeFormData) => {
     try {
@@ -233,8 +218,8 @@ function RecipeApp() {
     }
   };
 
-  const handleSaveCookbook = async (name: string, description?: string, coverImage?: string) => {
-    await createCookbook(name, description, coverImage);
+  const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => {
+    await createCookbook(data);
   };
 
   return (
@@ -251,6 +236,14 @@ function RecipeApp() {
           <Routes>
             <Route
               path="/"
+              element={<DiscoveryPage />}
+            />
+            <Route
+              path="/discover"
+              element={<Navigate to="/" replace />}
+            />
+            <Route
+              path="/recipes"
               element={
                 <RecipesView
                   onSelectRecipe={setSelectedRecipe}
@@ -259,10 +252,6 @@ function RecipeApp() {
                   onDeleteRecipe={handleDeleteRecipe}
                 />
               }
-            />
-            <Route
-              path="/recipes"
-              element={<Navigate to="/" replace />}
             />
             <Route
               path="/cookbooks"
@@ -369,9 +358,9 @@ function AppContent() {
   if (!user) {
     return (
       <>
-        <LandingPage
-          onLogin={() => setAuthModal('login')}
-          onRegister={() => setAuthModal('register')}
+        <PublicHomePage
+          onSignIn={() => setAuthModal('login')}
+          onSignUp={() => setAuthModal('register')}
         />
         {authModal && (
           <AuthModal
@@ -400,7 +389,9 @@ function AppContent() {
     <RecipeProvider>
       <CookbookProvider>
         <NotificationProvider>
-          <RecipeApp />
+          <DiscoveryProvider>
+            <RecipeApp />
+          </DiscoveryProvider>
         </NotificationProvider>
       </CookbookProvider>
     </RecipeProvider>
@@ -437,13 +428,13 @@ function VerifyEmailRoute() {
   );
 }
 
-function App() {
+function AppWithClient({ client }: { client: IClient }) {
   const isSharedRoute = window.location.pathname.startsWith('/shared/');
   const isResetPasswordRoute = window.location.pathname.startsWith('/reset-password');
   const isVerifyEmailRoute = window.location.pathname.startsWith('/verify-email');
 
   return (
-    <ClientProvider client={defaultClient}>
+    <ClientProvider client={client}>
       <AuthProvider>
         <div className="app">
           {isResetPasswordRoute ? (
@@ -459,6 +450,24 @@ function App() {
       </AuthProvider>
     </ClientProvider>
   );
+}
+
+function App() {
+  const [client, setClient] = useState<IClient | null>(
+    isDevClientEnabled() ? null : defaultClient
+  );
+
+  useEffect(() => {
+    if (isDevClientEnabled()) {
+      getClient().then(setClient);
+    }
+  }, []);
+
+  if (!client) {
+    return <LoadingScreen />;
+  }
+
+  return <AppWithClient client={client} />;
 }
 
 export default App;

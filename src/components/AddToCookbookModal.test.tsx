@@ -109,6 +109,13 @@ describe('AddToCookbookModal', () => {
         accept: vi.fn(),
         decline: vi.fn(),
       },
+      discover: {
+        recipes: vi.fn(),
+        cookbooks: vi.fn(),
+        getRecipe: vi.fn(),
+        getCookbook: vi.fn(),
+        saveRecipe: vi.fn(),
+      },
     });
   });
 

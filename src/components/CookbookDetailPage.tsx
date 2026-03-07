@@ -145,10 +145,10 @@ export function CookbookDetailPage() {
     }
   };
 
-  const handleSaveCookbook = async (name: string, description?: string, coverImage?: string) => {
+  const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => {
     if (cookbook) {
-      await updateCookbook(cookbook.id, { name, description, coverImage });
-      setCookbook({ ...cookbook, name, description, coverImage });
+      await updateCookbook(cookbook.id, data);
+      setCookbook({ ...cookbook, ...data });
       setShowEditModal(false);
     }
   };

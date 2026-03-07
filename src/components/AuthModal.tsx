@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Mail, Lock, User, Loader2, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { X, Mail, Lock, User, Loader2, Eye, EyeOff, CheckCircle, Bug } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
@@ -11,7 +11,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: AuthModalProps) {
-  const { login, register, resendVerification } = useAuth();
+  const { login, register, resendVerification, devLogin } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -266,6 +266,20 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
           <p className="auth-security-note">
             Your password is securely hashed using PBKDF2 with 100,000 iterations.
           </p>
+        )}
+
+        {import.meta.env.DEV && (
+          <button
+            type="button"
+            className="dev-login-btn"
+            onClick={() => {
+              devLogin();
+              onClose();
+            }}
+          >
+            <Bug size={16} />
+            Dev Login (skip verification)
+          </button>
         )}
       </div>
     </ModalOverlay>

@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
-import { X, PenLine, Link, Loader2, Upload, Image } from 'lucide-react';
+import { X, PenLine, Link, Loader2, Upload, Image, Sparkles } from 'lucide-react';
 import { Recipe, RecipeFormData } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
 import { ConfirmModal } from './ConfirmModal';
 import { TagInput } from './TagInput';
+import { VisibilityToggle } from './VisibilityToggle';
 
 interface AddRecipeModalProps {
   recipe?: Recipe;
@@ -144,6 +145,7 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
     cookTime: recipe?.cookTime || '',
     servings: recipe?.servings || '',
     sourceUrl: recipe?.sourceUrl || '',
+    isPublic: recipe?.isPublic || false,
   });
   const [importError, setImportError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -161,7 +163,8 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
     formData.prepTime !== (recipe?.prepTime || '') ||
     formData.cookTime !== (recipe?.cookTime || '') ||
     formData.servings !== (recipe?.servings || '') ||
-    formData.sourceUrl !== (recipe?.sourceUrl || '');
+    formData.sourceUrl !== (recipe?.sourceUrl || '') ||
+    formData.isPublic !== (recipe?.isPublic || false);
 
   const handleClose = () => {
     if (hasChanges) {
@@ -446,6 +449,21 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
               )}
             </div>
 
+            <div className="form-group visibility-section">
+              <label>Visibility</label>
+              <div className="visibility-control">
+                <VisibilityToggle
+                  isPublic={formData.isPublic}
+                  onChange={(isPublic) => setFormData(prev => ({ ...prev, isPublic }))}
+                />
+                <p className="visibility-hint">
+                  {formData.isPublic
+                    ? 'This recipe will be visible in Discover and can be saved by others.'
+                    : 'Only you can see this recipe.'}
+                </p>
+              </div>
+            </div>
+
             <button type="submit" className="btn-submit">
               {isEditing ? 'Update Recipe' : 'Save Recipe'}
             </button>
@@ -475,14 +493,17 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
               )}
             </div>
 
-            <button type="submit" className="btn-submit" disabled={isLoading}>
+            <button type="submit" className="btn-submit extract-btn" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 size={18} strokeWidth={2} className="spin" />
-                  <span>Importing...</span>
+                  <span>Extracting...</span>
                 </>
               ) : (
-                <span>Import Recipe</span>
+                <>
+                  <Sparkles size={18} />
+                  <span>Extract Recipe</span>
+                </>
               )}
             </button>
           </form>

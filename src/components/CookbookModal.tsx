@@ -4,11 +4,12 @@ import { Cookbook } from '../types/Cookbook';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
 import { ConfirmModal } from './ConfirmModal';
+import { VisibilityToggle } from './VisibilityToggle';
 
 interface CookbookModalProps {
   cookbook?: Cookbook;
   onClose: () => void;
-  onSubmit: (name: string, description?: string, coverImage?: string) => Promise<void>;
+  onSubmit: (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => Promise<void>;
   onDelete?: () => void;
 }
 
@@ -16,6 +17,7 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
   const [name, setName] = useState(cookbook?.name || '');
   const [description, setDescription] = useState(cookbook?.description || '');
   const [coverImage, setCoverImage] = useState(cookbook?.coverImage || '');
+  const [isPublic, setIsPublic] = useState(cookbook?.isPublic || false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -26,7 +28,8 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
   const hasChanges =
     name !== (cookbook?.name || '') ||
     description !== (cookbook?.description || '') ||
-    coverImage !== (cookbook?.coverImage || '');
+    coverImage !== (cookbook?.coverImage || '') ||
+    isPublic !== (cookbook?.isPublic || false);
 
   const handleClose = () => {
     if (hasChanges) {
@@ -73,7 +76,12 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
     setError('');
 
     try {
-      await onSubmit(name.trim(), description.trim() || undefined, coverImage.trim() || undefined);
+      await onSubmit({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        coverImage: coverImage.trim() || undefined,
+        isPublic,
+      });
       onClose();
     } catch {
       setError('Failed to save cookbook. Please try again.');
@@ -170,6 +178,22 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
                 <span className="upload-hint">PNG, JPG up to 5MB</span>
               </label>
             )}
+          </div>
+
+          <div className="form-group visibility-section">
+            <label>Visibility</label>
+            <div className="visibility-control">
+              <VisibilityToggle
+                isPublic={isPublic}
+                onChange={setIsPublic}
+                disabled={isLoading}
+              />
+              <p className="visibility-hint">
+                {isPublic
+                  ? 'This cookbook and its recipes will be visible in Discover.'
+                  : 'Only you and people you share with can see this cookbook.'}
+              </p>
+            </div>
           </div>
 
           <button type="submit" className="btn-submit" disabled={isLoading}>

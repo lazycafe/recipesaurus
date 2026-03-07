@@ -256,6 +256,37 @@ export class HttpClient implements IClient {
       return this.transport.request('POST', `/api/invites/${inviteId}/decline`);
     },
   };
+
+  discover = {
+    recipes: (options?: { limit?: number; offset?: number; tags?: string[] }): Promise<ApiResponse<{ recipes: Recipe[]; total: number }>> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.offset) params.set('offset', String(options.offset));
+      if (options?.tags) params.set('tags', options.tags.join(','));
+      const query = params.toString();
+      return this.transport.request('GET', `/api/discover/recipes${query ? `?${query}` : ''}`);
+    },
+
+    cookbooks: (options?: { limit?: number; offset?: number }): Promise<ApiResponse<{ cookbooks: Cookbook[]; total: number }>> => {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.offset) params.set('offset', String(options.offset));
+      const query = params.toString();
+      return this.transport.request('GET', `/api/discover/cookbooks${query ? `?${query}` : ''}`);
+    },
+
+    getRecipe: (id: string): Promise<ApiResponse<{ recipe: Recipe }>> => {
+      return this.transport.request('GET', `/api/discover/recipes/${id}`);
+    },
+
+    getCookbook: (id: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>> => {
+      return this.transport.request('GET', `/api/discover/cookbooks/${id}`);
+    },
+
+    saveRecipe: (recipeId: string): Promise<ApiResponse<{ id: string }>> => {
+      return this.transport.request('POST', `/api/discover/recipes/${recipeId}/save`);
+    },
+  };
 }
 
 // Factory function to create HTTP client with default configuration

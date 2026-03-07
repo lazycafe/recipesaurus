@@ -45,6 +45,7 @@ describe('Header', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
 
     vi.mocked(NotificationContext.useNotifications).mockReturnValue({
@@ -93,6 +94,7 @@ describe('Header', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} />);
@@ -109,6 +111,7 @@ describe('Header', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} />);
@@ -124,6 +127,7 @@ describe('Header', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} currentView="recipes" />);
@@ -139,6 +143,7 @@ describe('Header', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} currentView="cookbooks" />);
@@ -154,6 +159,7 @@ describe('Header', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
 
     const onAddRecipe = vi.fn();
@@ -172,6 +178,7 @@ describe('Header', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
 
     const onAddCookbook = vi.fn();
@@ -193,6 +200,7 @@ describe('Header', () => {
       logout,
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
 
     renderWithRouter(<Header {...defaultProps} />);
@@ -212,6 +220,7 @@ describe('Header', () => {
       logout: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
+      devLogin: vi.fn(),
     });
 
     const { container } = renderWithRouter(<Header {...defaultProps} />);
