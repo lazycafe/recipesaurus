@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users, Book } from 'lucide-react';
 import { DinoMascot } from './DinoMascot';
+import { fetchAndExtractRecipe, ExtractedRecipeData } from '../utils/recipeExtractor';
 
 interface ExtractedRecipe {
   title: string;
@@ -36,37 +37,29 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
     setShareLink(null);
 
     try {
-      // Simulate recipe extraction (in production, this would call a backend API)
-      // For demo purposes, we'll create a mock extraction
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const extracted = await fetchAndExtractRecipe(url.trim());
 
-      // Mock extracted recipe
-      const mockRecipe: ExtractedRecipe = {
-        title: 'Extracted Recipe',
-        description: 'A delicious recipe extracted from the provided URL.',
-        ingredients: [
-          '2 cups all-purpose flour',
-          '1 cup sugar',
-          '2 eggs',
-          '1/2 cup butter',
-          '1 tsp vanilla extract',
-        ],
-        instructions: [
-          'Preheat oven to 350°F (175°C).',
-          'Mix dry ingredients in a large bowl.',
-          'Add wet ingredients and stir until combined.',
-          'Pour into prepared pan and bake for 30-35 minutes.',
-          'Let cool before serving.',
-        ],
-        prepTime: '15 mins',
-        cookTime: '35 mins',
-        servings: '8',
-        sourceUrl: url,
+      // Convert to ExtractedRecipe format
+      const recipe: ExtractedRecipe = {
+        title: extracted.title || 'Untitled Recipe',
+        description: extracted.description || '',
+        ingredients: extracted.ingredients || [],
+        instructions: extracted.instructions || [],
+        prepTime: extracted.prepTime,
+        cookTime: extracted.cookTime,
+        servings: extracted.servings,
+        imageUrl: extracted.imageUrl,
+        sourceUrl: extracted.sourceUrl,
       };
 
-      setExtractedRecipe(mockRecipe);
-    } catch {
-      setError('Failed to extract recipe. Please check the URL and try again.');
+      // Validate that we got meaningful data
+      if (!recipe.title && !recipe.ingredients.length && !recipe.instructions.length) {
+        throw new Error('Could not find recipe data on this page. Try a different URL.');
+      }
+
+      setExtractedRecipe(recipe);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to extract recipe. Please check the URL and try again.');
     } finally {
       setIsExtracting(false);
     }

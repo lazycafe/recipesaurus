@@ -1,6 +1,29 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PublicHomePage } from './PublicHomePage';
+
+// Mock HTML with JSON-LD recipe data
+const mockHtmlWithRecipe = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Recipe</title>
+  <script type="application/ld+json">
+  {
+    "@type": "Recipe",
+    "name": "Test Recipe",
+    "description": "A test recipe description",
+    "recipeIngredient": ["1 cup flour", "2 eggs"],
+    "recipeInstructions": [{"text": "Mix ingredients"}, {"text": "Bake"}],
+    "prepTime": "PT15M",
+    "cookTime": "PT30M",
+    "recipeYield": "4 servings"
+  }
+  </script>
+</head>
+<body></body>
+</html>
+`;
 
 describe('PublicHomePage', () => {
   const mockOnSignUp = vi.fn();
@@ -8,6 +31,15 @@ describe('PublicHomePage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Mock fetch for recipe extraction
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ html: mockHtmlWithRecipe }),
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('renders hero section with title', () => {
@@ -98,7 +130,7 @@ describe('PublicHomePage', () => {
     fireEvent.submit(form);
 
     await waitFor(() => {
-      expect(screen.getByText('Extracted Recipe')).toBeDefined();
+      expect(screen.getByText('Test Recipe')).toBeDefined();
     }, { timeout: 3000 });
   });
 
