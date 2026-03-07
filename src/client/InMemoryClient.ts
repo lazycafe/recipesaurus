@@ -56,6 +56,14 @@ export interface ICoreHandlers {
   getPublicRecipe(recipeId: string): Promise<ApiResult<{ recipe: Recipe }>>;
   getPublicCookbook(cookbookId: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   saveRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ id: string }>>;
+  // Notifications
+  getNotifications(ctx: RequestContext): Promise<ApiResult<{ notifications: Notification[]; unreadCount: number }>>;
+  markNotificationRead(ctx: RequestContext, notificationId: string): Promise<ApiResult<{ success: boolean }>>;
+  markAllNotificationsRead(ctx: RequestContext): Promise<ApiResult<{ success: boolean }>>;
+  clearAllNotifications(ctx: RequestContext): Promise<ApiResult<{ success: boolean }>>;
+  // Invites
+  acceptInvite(ctx: RequestContext, inviteId: string): Promise<ApiResult<{ success: boolean; cookbookId: string; cookbookName: string }>>;
+  declineInvite(ctx: RequestContext, inviteId: string): Promise<ApiResult<{ success: boolean }>>;
 }
 
 // In-memory token storage for testing
@@ -253,33 +261,39 @@ export class InMemoryClient implements IClient {
     },
   };
 
-  // Notifications - stub implementation for testing
+  // Notifications
   notifications = {
     list: async (): Promise<ApiResponse<{ notifications: Notification[]; unreadCount: number }>> => {
-      return { data: { notifications: [], unreadCount: 0 } };
+      const result = await this.handlers.getNotifications(this.getContext());
+      return toApiResponse(result);
     },
 
-    markRead: async (_notificationId: string): Promise<ApiResponse<{ success: boolean }>> => {
-      return { data: { success: true } };
+    markRead: async (notificationId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      const result = await this.handlers.markNotificationRead(this.getContext(), notificationId);
+      return toApiResponse(result);
     },
 
     markAllRead: async (): Promise<ApiResponse<{ success: boolean }>> => {
-      return { data: { success: true } };
+      const result = await this.handlers.markAllNotificationsRead(this.getContext());
+      return toApiResponse(result);
     },
 
     clearAll: async (): Promise<ApiResponse<{ success: boolean }>> => {
-      return { data: { success: true } };
+      const result = await this.handlers.clearAllNotifications(this.getContext());
+      return toApiResponse(result);
     },
   };
 
-  // Invites - stub implementation for testing
+  // Invites
   invites = {
-    accept: async (_inviteId: string): Promise<ApiResponse<{ success: boolean; cookbookId: string; cookbookName: string }>> => {
-      return { data: { success: true, cookbookId: '', cookbookName: '' } };
+    accept: async (inviteId: string): Promise<ApiResponse<{ success: boolean; cookbookId: string; cookbookName: string }>> => {
+      const result = await this.handlers.acceptInvite(this.getContext(), inviteId);
+      return toApiResponse(result);
     },
 
-    decline: async (_inviteId: string): Promise<ApiResponse<{ success: boolean }>> => {
-      return { data: { success: true } };
+    decline: async (inviteId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      const result = await this.handlers.declineInvite(this.getContext(), inviteId);
+      return toApiResponse(result);
     },
   };
 

@@ -105,8 +105,13 @@ describe('Cookbooks with React components', () => {
       const sharedClient = harness.createClient();
       await sharedClient.auth.register('shared@example.com', 'Shared User', 'Password123');
 
-      // Share the cookbook
+      // Share the cookbook (creates invite)
       await ownerClient.cookbooks.shareByEmail(cookbookId, 'shared@example.com');
+
+      // Accept the invite
+      const notifications = await sharedClient.notifications.list();
+      const inviteId = notifications.data!.notifications[0].data?.inviteId!;
+      await sharedClient.invites.accept(inviteId);
 
       // Render as shared user
       const Wrapper = harness.createWrapperForClient(sharedClient);
@@ -185,8 +190,13 @@ describe('Cookbooks with React components', () => {
       const sharedClient = harness.createClient();
       await sharedClient.auth.register('shared@example.com', 'Shared User', 'Password123');
 
-      // Share the cookbook
+      // Share the cookbook (creates invite)
       await ownerClient.cookbooks.shareByEmail(cookbookId, 'shared@example.com');
+
+      // Accept the invite
+      const notifications = await sharedClient.notifications.list();
+      const inviteId = notifications.data!.notifications[0].data?.inviteId!;
+      await sharedClient.invites.accept(inviteId);
 
       // Shared user should see the cookbook when querying for the recipe
       const result = await sharedClient.recipes.getCookbooksForRecipe(recipeId);
@@ -196,7 +206,30 @@ describe('Cookbooks with React components', () => {
   });
 
   describe('Cookbook sharing', () => {
-    it('should share cookbook with another user', async () => {
+    it('should send notification when sharing cookbook with another user', async () => {
+      // Create owner
+      const ownerClient = harness.createClient();
+      await ownerClient.auth.register('owner@example.com', 'Owner', 'Password123');
+      const cookbookResult = await ownerClient.cookbooks.create({ name: 'My Cookbook' });
+      const cookbookId = cookbookResult.data!.id;
+
+      // Create recipient
+      const recipientClient = harness.createClient();
+      await recipientClient.auth.register('recipient@example.com', 'Recipient', 'Password123');
+
+      // Share creates an invite, not immediate access
+      const shareResult = await ownerClient.cookbooks.shareByEmail(cookbookId, 'recipient@example.com');
+      expect(shareResult.data!.success).toBe(true);
+
+      // Recipient should receive a notification
+      const notifications = await recipientClient.notifications.list();
+      expect(notifications.data!.notifications.length).toBe(1);
+      expect(notifications.data!.notifications[0].type).toBe('cookbook_invite');
+      expect(notifications.data!.notifications[0].message).toContain('My Cookbook');
+      expect(notifications.data!.notifications[0].data?.inviteId).toBeDefined();
+    });
+
+    it('should allow recipient to accept invite and see shared cookbook', async () => {
       // Create owner
       const ownerClient = harness.createClient();
       await ownerClient.auth.register('owner@example.com', 'Owner', 'Password123');
@@ -208,14 +241,52 @@ describe('Cookbooks with React components', () => {
       await recipientClient.auth.register('recipient@example.com', 'Recipient', 'Password123');
 
       // Share
-      const shareResult = await ownerClient.cookbooks.shareByEmail(cookbookId, 'recipient@example.com');
-      expect(shareResult.data!.success).toBe(true);
-      expect(shareResult.data!.sharedWith!.name).toBe('Recipient');
+      await ownerClient.cookbooks.shareByEmail(cookbookId, 'recipient@example.com');
 
-      // Verify recipient can see it
-      const recipientCookbooks = await recipientClient.cookbooks.list();
-      expect(recipientCookbooks.data!.shared.length).toBe(1);
-      expect(recipientCookbooks.data!.shared[0].name).toBe('My Cookbook');
+      // Before accepting, recipient doesn't have access
+      const beforeAccept = await recipientClient.cookbooks.list();
+      expect(beforeAccept.data!.shared.length).toBe(0);
+
+      // Get invite from notification
+      const notifications = await recipientClient.notifications.list();
+      const inviteId = notifications.data!.notifications[0].data?.inviteId!;
+
+      // Accept the invite
+      const acceptResult = await recipientClient.invites.accept(inviteId);
+      expect(acceptResult.data!.success).toBe(true);
+      expect(acceptResult.data!.cookbookName).toBe('My Cookbook');
+
+      // Now recipient can see it
+      const afterAccept = await recipientClient.cookbooks.list();
+      expect(afterAccept.data!.shared.length).toBe(1);
+      expect(afterAccept.data!.shared[0].name).toBe('My Cookbook');
+    });
+
+    it('should allow recipient to decline invite', async () => {
+      // Create owner
+      const ownerClient = harness.createClient();
+      await ownerClient.auth.register('owner@example.com', 'Owner', 'Password123');
+      const cookbookResult = await ownerClient.cookbooks.create({ name: 'My Cookbook' });
+      const cookbookId = cookbookResult.data!.id;
+
+      // Create recipient
+      const recipientClient = harness.createClient();
+      await recipientClient.auth.register('recipient@example.com', 'Recipient', 'Password123');
+
+      // Share
+      await ownerClient.cookbooks.shareByEmail(cookbookId, 'recipient@example.com');
+
+      // Get invite from notification
+      const notifications = await recipientClient.notifications.list();
+      const inviteId = notifications.data!.notifications[0].data?.inviteId!;
+
+      // Decline the invite
+      const declineResult = await recipientClient.invites.decline(inviteId);
+      expect(declineResult.data!.success).toBe(true);
+
+      // Recipient still doesn't have access
+      const afterDecline = await recipientClient.cookbooks.list();
+      expect(afterDecline.data!.shared.length).toBe(0);
     });
 
     it('should create share link', async () => {

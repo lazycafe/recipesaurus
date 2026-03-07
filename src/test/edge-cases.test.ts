@@ -262,7 +262,7 @@ describe('Edge cases and error handling', () => {
       expect(result.error).toContain('not found');
     });
 
-    it('should reject sharing already shared cookbook', async () => {
+    it('should reject sending duplicate invite to same user', async () => {
       // Owner creates cookbook
       const ownerClient = harness.createClient();
       await ownerClient.auth.register('owner@example.com', 'Owner', 'Password123');
@@ -277,9 +277,9 @@ describe('Edge cases and error handling', () => {
       const result1 = await ownerClient.cookbooks.shareByEmail(cookbookId, 'target@example.com');
       expect(result1.data?.success).toBe(true);
 
-      // Share second time - should fail
+      // Share second time - should fail (invite already sent)
       const result2 = await ownerClient.cookbooks.shareByEmail(cookbookId, 'target@example.com');
-      expect(result2.error).toContain('already shared');
+      expect(result2.error).toContain('already');
     });
 
     it('should remove share successfully', async () => {
@@ -295,12 +295,21 @@ describe('Edge cases and error handling', () => {
       const shareResult = await ownerClient.cookbooks.shareByEmail(cookbookId, 'target@example.com');
       const targetUserId = shareResult.data!.sharedWith!.id;
 
+      // Accept the invite
+      const notifications = await targetClient.notifications.list();
+      const inviteId = notifications.data!.notifications[0].data?.inviteId!;
+      await targetClient.invites.accept(inviteId);
+
+      // Target should see it after accepting
+      let targetList = await targetClient.cookbooks.list();
+      expect(targetList.data?.shared.length).toBe(1);
+
       // Remove share
       const removeResult = await ownerClient.cookbooks.removeShare(cookbookId, targetUserId);
       expect(removeResult.data?.success).toBe(true);
 
       // Target should no longer see it
-      const targetList = await targetClient.cookbooks.list();
+      targetList = await targetClient.cookbooks.list();
       expect(targetList.data?.shared.length).toBe(0);
     });
 
@@ -315,6 +324,11 @@ describe('Edge cases and error handling', () => {
       const targetClient = harness.createClient();
       await targetClient.auth.register('target@example.com', 'Target', 'Password123');
       await ownerClient.cookbooks.shareByEmail(cookbookId, 'target@example.com');
+
+      // Accept the invite
+      const notifications = await targetClient.notifications.list();
+      const inviteId = notifications.data!.notifications[0].data?.inviteId!;
+      await targetClient.invites.accept(inviteId);
 
       // Create share link
       await ownerClient.cookbooks.createShareLink(cookbookId);
@@ -369,8 +383,11 @@ describe('Edge cases and error handling', () => {
       });
       const recipeId = recipeResult.data!.id;
 
-      // Share cookbook
+      // Share cookbook and accept invite
       await ownerClient.cookbooks.shareByEmail(cookbookId, 'shared@example.com');
+      const notifications = await sharedClient.notifications.list();
+      const inviteId = notifications.data!.notifications[0].data?.inviteId!;
+      await sharedClient.invites.accept(inviteId);
 
       // Shared user adds recipe
       const addResult = await sharedClient.cookbooks.addRecipe(cookbookId, recipeId);
@@ -409,8 +426,13 @@ describe('Edge cases and error handling', () => {
       });
       const sharedRecipeId = sharedRecipeResult.data!.id;
 
-      // Share cookbook and add shared user's recipe
+      // Share cookbook and accept invite
       await ownerClient.cookbooks.shareByEmail(cookbookId, 'shared@example.com');
+      const notifications = await sharedClient.notifications.list();
+      const inviteId = notifications.data!.notifications[0].data?.inviteId!;
+      await sharedClient.invites.accept(inviteId);
+
+      // Add shared user's recipe
       await sharedClient.cookbooks.addRecipe(cookbookId, sharedRecipeId);
 
       // Shared user tries to remove owner's recipe - should be silent (no error but no effect)

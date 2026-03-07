@@ -11,6 +11,7 @@ import type {
   CookbookInfo,
   CookbookShareInfo,
   CookbookShareLinkInfo,
+  NotificationInfo,
 } from './types';
 
 // Constants
@@ -832,8 +833,8 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401 };
     }
 
-    const cookbook = await this.db.get<{ id: string; user_id: string }>(
-      'SELECT id, user_id FROM cookbooks WHERE id = ? AND user_id = ?',
+    const cookbook = await this.db.get<{ id: string; user_id: string; name: string }>(
+      'SELECT id, user_id, name FROM cookbooks WHERE id = ? AND user_id = ?',
       cookbookId,
       user.id
     );
@@ -854,6 +855,7 @@ export class CoreHandlers {
       return { error: 'User not found. They need to create an account first.', status: 404 };
     }
 
+    // Check if already shared
     const existingShare = await this.db.get<{ id: string }>(
       'SELECT id FROM cookbook_shares WHERE cookbook_id = ? AND shared_with_user_id = ?',
       cookbookId,
@@ -863,14 +865,49 @@ export class CoreHandlers {
       return { error: 'Cookbook is already shared with this user', status: 400 };
     }
 
-    const shareId = this.crypto.generateId();
+    // Check for existing pending invite
+    const existingInvite = await this.db.get<{ id: string }>(
+      "SELECT id FROM cookbook_invites WHERE cookbook_id = ? AND invited_user_id = ? AND status = 'pending'",
+      cookbookId,
+      targetUser.id
+    );
+    if (existingInvite) {
+      return { error: 'An invite has already been sent to this user', status: 400 };
+    }
+
+    const now = Date.now();
+    const inviteId = this.crypto.generateId();
+    const notificationId = this.crypto.generateId();
+
+    // Create the invite
     await this.db.run(
-      'INSERT INTO cookbook_shares (id, cookbook_id, shared_with_user_id, shared_by_user_id, created_at) VALUES (?, ?, ?, ?, ?)',
-      shareId,
+      'INSERT INTO cookbook_invites (id, cookbook_id, invited_user_id, invited_by_user_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      inviteId,
       cookbookId,
       targetUser.id,
       user.id,
-      Date.now()
+      'pending',
+      now
+    );
+
+    // Create a notification for the target user
+    const notificationData = JSON.stringify({
+      inviteId,
+      cookbookId,
+      cookbookName: cookbook.name,
+      invitedBy: user.name,
+    });
+
+    await this.db.run(
+      'INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      notificationId,
+      targetUser.id,
+      'cookbook_invite',
+      'Cookbook Invitation',
+      `${user.name} invited you to collaborate on "${cookbook.name}"`,
+      notificationData,
+      0,
+      now
     );
 
     return { data: { success: true, sharedWith: { id: targetUser.id, name: targetUser.name } }, status: 200 };
@@ -1064,6 +1101,198 @@ export class CoreHandlers {
       },
       status: 200,
     };
+  }
+
+  // Notification handlers
+  async getNotifications(
+    ctx: RequestContext
+  ): Promise<ApiResult<{ notifications: NotificationInfo[]; unreadCount: number }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const notifications = await this.db.all<{
+      id: string;
+      type: string;
+      title: string;
+      message: string;
+      data: string | null;
+      is_read: number;
+      created_at: number;
+    }>(
+      'SELECT id, type, title, message, data, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
+      user.id
+    );
+
+    const unreadCount = notifications.results.filter(n => n.is_read === 0).length;
+
+    return {
+      data: {
+        notifications: notifications.results.map(n => ({
+          id: n.id,
+          type: n.type as 'cookbook_invite' | 'recipe_added',
+          title: n.title,
+          message: n.message,
+          data: n.data ? JSON.parse(n.data) : null,
+          isRead: n.is_read === 1,
+          createdAt: n.created_at,
+        })),
+        unreadCount,
+      },
+      status: 200,
+    };
+  }
+
+  async markNotificationRead(
+    ctx: RequestContext,
+    notificationId: string
+  ): Promise<ApiResult<{ success: boolean }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    await this.db.run(
+      'UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?',
+      notificationId,
+      user.id
+    );
+
+    return { data: { success: true }, status: 200 };
+  }
+
+  async markAllNotificationsRead(
+    ctx: RequestContext
+  ): Promise<ApiResult<{ success: boolean }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    await this.db.run('UPDATE notifications SET is_read = 1 WHERE user_id = ?', user.id);
+
+    return { data: { success: true }, status: 200 };
+  }
+
+  async clearAllNotifications(
+    ctx: RequestContext
+  ): Promise<ApiResult<{ success: boolean }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    await this.db.run('DELETE FROM notifications WHERE user_id = ?', user.id);
+
+    return { data: { success: true }, status: 200 };
+  }
+
+  // Invite handlers
+  async acceptInvite(
+    ctx: RequestContext,
+    inviteId: string
+  ): Promise<ApiResult<{ success: boolean; cookbookId: string; cookbookName: string }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const invite = await this.db.get<{
+      id: string;
+      cookbook_id: string;
+      invited_by_user_id: string;
+      status: string;
+    }>(
+      "SELECT id, cookbook_id, invited_by_user_id, status FROM cookbook_invites WHERE id = ? AND invited_user_id = ?",
+      inviteId,
+      user.id
+    );
+
+    if (!invite) {
+      return { error: 'Invite not found', status: 404 };
+    }
+
+    if (invite.status !== 'pending') {
+      return { error: 'Invite has already been processed', status: 400 };
+    }
+
+    const cookbook = await this.db.get<{ id: string; name: string }>(
+      'SELECT id, name FROM cookbooks WHERE id = ?',
+      invite.cookbook_id
+    );
+
+    if (!cookbook) {
+      return { error: 'Cookbook no longer exists', status: 404 };
+    }
+
+    // Create the share
+    const shareId = this.crypto.generateId();
+    await this.db.run(
+      'INSERT INTO cookbook_shares (id, cookbook_id, shared_with_user_id, shared_by_user_id, created_at) VALUES (?, ?, ?, ?, ?)',
+      shareId,
+      invite.cookbook_id,
+      user.id,
+      invite.invited_by_user_id,
+      Date.now()
+    );
+
+    // Update invite status
+    await this.db.run(
+      "UPDATE cookbook_invites SET status = 'accepted' WHERE id = ?",
+      inviteId
+    );
+
+    // Mark related notification as read
+    await this.db.run(
+      "UPDATE notifications SET is_read = 1 WHERE user_id = ? AND type = 'cookbook_invite' AND data LIKE ?",
+      user.id,
+      `%"inviteId":"${inviteId}"%`
+    );
+
+    return {
+      data: { success: true, cookbookId: cookbook.id, cookbookName: cookbook.name },
+      status: 200,
+    };
+  }
+
+  async declineInvite(
+    ctx: RequestContext,
+    inviteId: string
+  ): Promise<ApiResult<{ success: boolean }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const invite = await this.db.get<{ id: string; status: string }>(
+      "SELECT id, status FROM cookbook_invites WHERE id = ? AND invited_user_id = ?",
+      inviteId,
+      user.id
+    );
+
+    if (!invite) {
+      return { error: 'Invite not found', status: 404 };
+    }
+
+    if (invite.status !== 'pending') {
+      return { error: 'Invite has already been processed', status: 400 };
+    }
+
+    // Update invite status
+    await this.db.run(
+      "UPDATE cookbook_invites SET status = 'declined' WHERE id = ?",
+      inviteId
+    );
+
+    // Delete related notification
+    await this.db.run(
+      "DELETE FROM notifications WHERE user_id = ? AND type = 'cookbook_invite' AND data LIKE ?",
+      user.id,
+      `%"inviteId":"${inviteId}"%`
+    );
+
+    return { data: { success: true }, status: 200 };
   }
 
   // Sample recipes helper

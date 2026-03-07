@@ -936,6 +936,9 @@ async function handleGetCookbooks(request: Request, db: D1Database): Promise<Res
     description: c.description,
     coverImage: c.cover_image || null,
     recipeCount: c.recipe_count || 0,
+    isSystem: c.is_system === 1,
+    systemType: c.system_type || null,
+    isPublic: c.is_public === 1,
     createdAt: c.created_at,
     updatedAt: c.updated_at,
     isOwner,
@@ -956,7 +959,7 @@ async function handleCreateCookbook(request: Request, db: D1Database): Promise<R
     return errorResponse('Unauthorized', 401, origin);
   }
 
-  const body = await request.json() as { name: string; description?: string; coverImage?: string };
+  const body = await request.json() as { name: string; description?: string; coverImage?: string; isPublic?: boolean };
 
   if (!body.name?.trim()) {
     return errorResponse('Cookbook name is required', 400, origin);
@@ -966,9 +969,20 @@ async function handleCreateCookbook(request: Request, db: D1Database): Promise<R
   const now = Date.now();
 
   await db.prepare(`
-    INSERT INTO cookbooks (id, user_id, name, description, cover_image, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(cookbookId, user.id, body.name.trim(), body.description?.trim() || null, body.coverImage?.trim() || null, now, now).run();
+    INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_system, system_type, is_public, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    cookbookId,
+    user.id,
+    body.name.trim(),
+    body.description?.trim() || null,
+    body.coverImage?.trim() || null,
+    0, // not a system cookbook
+    null,
+    body.isPublic ? 1 : 0,
+    now,
+    now
+  ).run();
 
   return jsonResponse({ id: cookbookId }, 201, corsHeaders(origin));
 }

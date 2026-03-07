@@ -169,3 +169,21 @@ export interface CookbookShareLinkInfo {
   isActive: boolean;
   createdAt: number;
 }
+
+// Notification info
+export interface NotificationInfo {
+  id: string;
+  type: 'cookbook_invite' | 'recipe_added';
+  title: string;
+  message: string;
+  data: {
+    inviteId?: string;
+    cookbookId?: string;
+    cookbookName?: string;
+    recipeId?: string;
+    invitedBy?: string;
+    addedBy?: string;
+  } | null;
+  isRead: boolean;
+  createdAt: number;
+}
