@@ -1313,23 +1313,31 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
     return errorResponse('Cookbook is already shared with this user', 400, origin);
   }
 
-  // Check if invite already exists
+  // Check if invite already exists (any status due to unique constraint)
   const existingInvite = await db.prepare(
-    'SELECT id FROM cookbook_invites WHERE cookbook_id = ? AND invited_user_id = ? AND status = ?'
-  ).bind(cookbookId, targetUser.id, 'pending').first();
-
-  if (existingInvite) {
-    return errorResponse('An invite is already pending for this user', 400, origin);
-  }
+    'SELECT id, status FROM cookbook_invites WHERE cookbook_id = ? AND invited_user_id = ?'
+  ).bind(cookbookId, targetUser.id).first<{ id: string; status: string }>();
 
   const now = Date.now();
+  let inviteId: string;
 
-  // Create invite instead of direct share
-  const inviteId = generateId();
-  await db.prepare(`
-    INSERT INTO cookbook_invites (id, cookbook_id, invited_user_id, invited_by_user_id, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(inviteId, cookbookId, targetUser.id, user.id, 'pending', now).run();
+  if (existingInvite) {
+    if (existingInvite.status === 'pending') {
+      return errorResponse('An invite has already been sent to this user', 400, origin);
+    }
+    // Reactivate declined invite
+    inviteId = existingInvite.id;
+    await db.prepare(
+      'UPDATE cookbook_invites SET status = ?, invited_by_user_id = ?, created_at = ? WHERE id = ?'
+    ).bind('pending', user.id, now, inviteId).run();
+  } else {
+    // Create new invite
+    inviteId = generateId();
+    await db.prepare(`
+      INSERT INTO cookbook_invites (id, cookbook_id, invited_user_id, invited_by_user_id, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(inviteId, cookbookId, targetUser.id, user.id, 'pending', now).run();
+  }
 
   // Create notification for the invited user
   const notificationId = generateId();
