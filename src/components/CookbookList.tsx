@@ -18,8 +18,19 @@ export function CookbookList({ onCreateCookbook }: CookbookListProps) {
 
   return (
     <div className="cookbook-list">
+      <div className="page-header">
+        <div className="page-header-title">
+          <h1>Cookbooks</h1>
+          <p className="page-subtitle">Organize your recipes into collections</p>
+        </div>
+        <button className="btn-primary" onClick={onCreateCookbook}>
+          <Plus size={18} strokeWidth={2.5} />
+          <span>New Cookbook</span>
+        </button>
+      </div>
+
       {hasShared && (
-        <div className="cookbook-header">
+        <div className="cookbook-tabs-container">
           <div className="cookbook-tabs">
             <button
               className={`cookbook-tab ${activeTab === 'owned' ? 'active' : ''}`}
@@ -58,15 +69,9 @@ export function CookbookList({ onCreateCookbook }: CookbookListProps) {
           </h2>
           <p>
             {activeTab === 'owned'
-              ? 'Organize your recipes into cookbooks.'
+              ? 'Create a cookbook to organize your recipes.'
               : 'When someone shares a cookbook with you, it will appear here.'}
           </p>
-          {activeTab === 'owned' && (
-            <button className="btn-primary" onClick={onCreateCookbook}>
-              <Plus size={18} strokeWidth={2} />
-              New Cookbook
-            </button>
-          )}
         </div>
       )}
     </div>

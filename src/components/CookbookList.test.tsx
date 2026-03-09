@@ -58,7 +58,17 @@ describe('CookbookList', () => {
     );
 
     expect(screen.getByText('No cookbooks yet')).toBeDefined();
-    expect(screen.getByText('New Cookbook')).toBeDefined();
+    expect(screen.getByText('Create a cookbook to organize your recipes.')).toBeDefined();
+  });
+
+  it('shows page header with title and New Cookbook button', () => {
+    renderWithRouter(
+      <CookbookList onCreateCookbook={() => {}} />
+    );
+
+    expect(screen.getByText('Cookbooks')).toBeDefined();
+    expect(screen.getByText('Organize your recipes into collections')).toBeDefined();
+    expect(screen.getAllByText('New Cookbook').length).toBeGreaterThanOrEqual(1);
   });
 
   it('calls onCreateCookbook when create button clicked', () => {
@@ -67,7 +77,8 @@ describe('CookbookList', () => {
       <CookbookList onCreateCookbook={onCreateCookbook} />
     );
 
-    fireEvent.click(screen.getByText('New Cookbook'));
+    const buttons = screen.getAllByRole('button', { name: /New Cookbook/i });
+    fireEvent.click(buttons[0]);
     expect(onCreateCookbook).toHaveBeenCalledOnce();
   });
 

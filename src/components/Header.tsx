@@ -1,16 +1,10 @@
-import { Plus, Book, ChefHat, Compass } from 'lucide-react';
+import { Book, Compass, UtensilsCrossed } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { DinoMascot } from './DinoMascot';
 import { useAuth } from '../context/AuthContext';
 import { UserMenu } from './UserMenu';
 
-interface HeaderProps {
-  currentView: 'recipes' | 'cookbooks' | 'discover';
-  onAddRecipe: () => void;
-  onAddCookbook: () => void;
-}
-
-export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps) {
+export function Header() {
   const { user } = useAuth();
 
   return (
@@ -35,10 +29,10 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
                 Discover
               </NavLink>
               <NavLink
-                to="/recipes"
+                to="/my-recipes"
                 className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
               >
-                <ChefHat size={18} />
+                <UtensilsCrossed size={18} />
                 My Recipes
               </NavLink>
               <NavLink
@@ -52,26 +46,7 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
           )}
 
           <div className="header-actions">
-            {user && (
-              <>
-                <div className="header-action-button">
-                  {currentView === 'recipes' && (
-                    <button className="btn-primary" onClick={onAddRecipe}>
-                      <Plus size={18} strokeWidth={2.5} />
-                      <span className="btn-text">New Recipe</span>
-                    </button>
-                  )}
-                  {currentView === 'cookbooks' && (
-                    <button className="btn-primary" onClick={onAddCookbook}>
-                      <Plus size={18} strokeWidth={2.5} />
-                      <span className="btn-text">New Cookbook</span>
-                    </button>
-                  )}
-                </div>
-
-                <UserMenu />
-              </>
-            )}
+            {user && <UserMenu />}
           </div>
         </div>
       </header>
@@ -88,18 +63,18 @@ export function Header({ currentView, onAddRecipe, onAddCookbook }: HeaderProps)
               <span>Discover</span>
             </NavLink>
             <NavLink
-              to="/recipes"
+              to="/my-recipes"
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
             >
-              <ChefHat size={20} />
-              <span>Recipes</span>
+              <UtensilsCrossed size={20} />
+              <span>My Recipes</span>
             </NavLink>
             <NavLink
               to="/cookbooks"
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
             >
               <Book size={20} />
-              <span>Books</span>
+              <span>Cookbooks</span>
             </NavLink>
           </div>
         </nav>

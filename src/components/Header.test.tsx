@@ -26,12 +26,6 @@ describe('Header', () => {
     name: 'Test User',
   };
 
-  const defaultProps = {
-    currentView: 'recipes' as const,
-    onAddRecipe: vi.fn(),
-    onAddCookbook: vi.fn(),
-  };
-
   const renderWithRouter = (ui: React.ReactElement) => {
     return render(<MemoryRouter>{ui}</MemoryRouter>);
   };
@@ -75,13 +69,13 @@ describe('Header', () => {
   });
 
   it('renders logo', () => {
-    renderWithRouter(<Header {...defaultProps} />);
+    renderWithRouter(<Header />);
     expect(screen.getByText('Recipesaurus')).toBeDefined();
   });
 
   it('hides navigation when no user', () => {
-    renderWithRouter(<Header {...defaultProps} />);
-    expect(screen.queryByText('My Recipes')).toBeNull();
+    renderWithRouter(<Header />);
+    expect(screen.queryByText('Discover')).toBeNull();
     expect(screen.queryByText('Cookbooks')).toBeNull();
   });
 
@@ -97,8 +91,8 @@ describe('Header', () => {
       devLogin: vi.fn(),
     });
 
-    renderWithRouter(<Header {...defaultProps} />);
-    expect(screen.getAllByText('My Recipes').length).toBeGreaterThan(0);
+    renderWithRouter(<Header />);
+    expect(screen.getAllByText('Discover').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cookbooks').length).toBeGreaterThan(0);
   });
 
@@ -114,80 +108,8 @@ describe('Header', () => {
       devLogin: vi.fn(),
     });
 
-    renderWithRouter(<Header {...defaultProps} />);
+    renderWithRouter(<Header />);
     expect(screen.getByText('Test User')).toBeDefined();
-  });
-
-  it('shows New Recipe button in recipes view', () => {
-    vi.mocked(AuthContext.useAuth).mockReturnValue({
-      user: mockUser,
-      isLoading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      verifyEmail: vi.fn(),
-      resendVerification: vi.fn(),
-      devLogin: vi.fn(),
-    });
-
-    renderWithRouter(<Header {...defaultProps} currentView="recipes" />);
-    expect(screen.getByText('New Recipe')).toBeDefined();
-  });
-
-  it('shows New Cookbook button in cookbooks view', () => {
-    vi.mocked(AuthContext.useAuth).mockReturnValue({
-      user: mockUser,
-      isLoading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      verifyEmail: vi.fn(),
-      resendVerification: vi.fn(),
-      devLogin: vi.fn(),
-    });
-
-    renderWithRouter(<Header {...defaultProps} currentView="cookbooks" />);
-    expect(screen.getByText('New Cookbook')).toBeDefined();
-  });
-
-  it('calls onAddRecipe when New Recipe clicked', () => {
-    vi.mocked(AuthContext.useAuth).mockReturnValue({
-      user: mockUser,
-      isLoading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      verifyEmail: vi.fn(),
-      resendVerification: vi.fn(),
-      devLogin: vi.fn(),
-    });
-
-    const onAddRecipe = vi.fn();
-    renderWithRouter(<Header {...defaultProps} onAddRecipe={onAddRecipe} />);
-
-    fireEvent.click(screen.getByText('New Recipe'));
-    expect(onAddRecipe).toHaveBeenCalledOnce();
-  });
-
-  it('calls onAddCookbook when New Cookbook clicked', () => {
-    vi.mocked(AuthContext.useAuth).mockReturnValue({
-      user: mockUser,
-      isLoading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      verifyEmail: vi.fn(),
-      resendVerification: vi.fn(),
-      devLogin: vi.fn(),
-    });
-
-    const onAddCookbook = vi.fn();
-    renderWithRouter(
-      <Header {...defaultProps} currentView="cookbooks" onAddCookbook={onAddCookbook} />
-    );
-
-    fireEvent.click(screen.getByText('New Cookbook'));
-    expect(onAddCookbook).toHaveBeenCalledOnce();
   });
 
   it('calls logout when sign out clicked in user menu', () => {
@@ -203,7 +125,7 @@ describe('Header', () => {
       devLogin: vi.fn(),
     });
 
-    renderWithRouter(<Header {...defaultProps} />);
+    renderWithRouter(<Header />);
     // Open user menu
     fireEvent.click(screen.getByLabelText('User menu'));
     // Click sign out
@@ -223,12 +145,12 @@ describe('Header', () => {
       devLogin: vi.fn(),
     });
 
-    const { container } = renderWithRouter(<Header {...defaultProps} />);
+    const { container } = renderWithRouter(<Header />);
     expect(container.querySelector('.mobile-nav')).toBeDefined();
   });
 
   it('hides mobile navigation when no user', () => {
-    const { container } = renderWithRouter(<Header {...defaultProps} />);
+    const { container } = renderWithRouter(<Header />);
     expect(container.querySelector('.mobile-nav')).toBeNull();
   });
 });
