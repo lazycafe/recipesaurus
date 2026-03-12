@@ -176,6 +176,9 @@ export interface CookbookResponse {
   description?: string;
   coverImage?: string | null;
   recipeCount: number;
+  isSystem?: boolean;
+  systemType?: string | null;
+  isPublic?: boolean;
   createdAt: number;
   updatedAt: number;
   isOwner: boolean;

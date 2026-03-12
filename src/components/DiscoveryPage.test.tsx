@@ -4,6 +4,7 @@ import { DiscoveryPage } from './DiscoveryPage';
 import * as DiscoveryContext from '../context/DiscoveryContext';
 import * as AuthContext from '../context/AuthContext';
 import * as ToastContext from '../context/ToastContext';
+import * as RecipeContext from '../context/RecipeContext';
 
 // Mock the contexts
 vi.mock('../context/DiscoveryContext', () => ({
@@ -16,6 +17,10 @@ vi.mock('../context/AuthContext', () => ({
 
 vi.mock('../context/ToastContext', () => ({
   useToast: vi.fn(),
+}));
+
+vi.mock('../context/RecipeContext', () => ({
+  useRecipes: vi.fn(),
 }));
 
 describe('DiscoveryPage', () => {
@@ -84,6 +89,16 @@ describe('DiscoveryPage', () => {
       saveRecipe: mockSaveRecipe,
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
+    });
+
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: vi.fn(),
+      getAllTags: vi.fn().mockReturnValue([]),
+      refreshRecipes: vi.fn(),
     });
   });
 

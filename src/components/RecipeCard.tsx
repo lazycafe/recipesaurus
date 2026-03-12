@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Clock, Users, X, BookPlus } from 'lucide-react';
+import { Clock, Users, X, BookPlus, User } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { ConfirmModal } from './ConfirmModal';
@@ -9,9 +9,10 @@ interface RecipeCardProps {
   onClick: () => void;
   onDelete?: () => void;
   onAddToCookbook?: () => void;
+  addedByUserName?: string | null;
 }
 
-export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook }: RecipeCardProps) {
+export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook, addedByUserName }: RecipeCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -86,6 +87,13 @@ export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook }: Recip
           </div>
         )}
       </div>
+
+      {addedByUserName && (
+        <div className="card-footer">
+          <User size={12} />
+          <span>Added by {addedByUserName}</span>
+        </div>
+      )}
 
       {showDeleteConfirm && (
         <ConfirmModal

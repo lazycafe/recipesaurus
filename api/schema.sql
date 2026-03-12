@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
   password_salt TEXT NOT NULL,
+  email_verified INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
 
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS recipes (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   ingredients TEXT NOT NULL,
@@ -31,8 +33,10 @@ CREATE TABLE IF NOT EXISTS recipes (
   prep_time TEXT,
   cook_time TEXT,
   servings TEXT,
+  is_public INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Cookbooks table

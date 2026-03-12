@@ -38,6 +38,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function checkSession() {
+    // In dev mode, check for dev token and restore dev user
+    if (import.meta.env.DEV) {
+      const storedToken = localStorage.getItem('recipesaurus_token');
+      if (storedToken === 'dev-token') {
+        setUser({
+          id: 'dev-user-id',
+          email: 'dev@example.com',
+          name: 'Dev User',
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
       const { data } = await client.auth.getSession();
       if (data?.user) {

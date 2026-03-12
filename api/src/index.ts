@@ -388,18 +388,43 @@ async function handleRegister(request: Request, db: D1Database, env: Env, ctx: E
   // Hash password
   const { hash, salt } = await hashPassword(password);
 
-  // Create user with email_verified = 0
+  // In dev mode, auto-verify users
+  const isDev = env.ENVIRONMENT === 'development';
+  const emailVerified = isDev ? 1 : 0;
+
+  // Create user
   const userId = generateId();
   await db.prepare(
     'INSERT INTO users (id, email, name, password_hash, password_salt, email_verified, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).bind(userId, normalizedEmail, name.trim(), hash, salt, 0, Date.now()).run();
+  ).bind(userId, normalizedEmail, name.trim(), hash, salt, emailVerified, Date.now()).run();
 
-  // Create verification token and send email
+  // Create default "My Recipes" cookbook for new user
+  await getOrCreateRecipeCollection(db, userId);
+
+  // Add sample recipes for new user (adds to default cookbook)
+  await addSampleRecipes(db, userId);
+
+  // In dev mode, create session and return token directly
+  if (isDev) {
+    const sessionId = generateId();
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
+    await db.prepare(
+      'INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
+    ).bind(sessionId, userId, Date.now(), expiresAt).run();
+
+    return jsonResponse(
+      {
+        user: { id: userId, email: normalizedEmail, name: name.trim() },
+        token: sessionId,
+      },
+      200,
+      corsHeaders(origin)
+    );
+  }
+
+  // Production: Create verification token and send email
   const verificationToken = await createVerificationToken(db, userId);
   await sendVerificationEmail(env.RESEND_API_KEY, normalizedEmail, name.trim(), verificationToken, env.APP_URL);
-
-  // Add sample recipes for new user
-  await addSampleRecipes(db, userId);
 
   // Notify Discord of new signup (runs in background after response)
   ctx.waitUntil(notifyDiscordNewUser(name.trim(), normalizedEmail));
@@ -415,7 +440,7 @@ async function handleRegister(request: Request, db: D1Database, env: Env, ctx: E
   );
 }
 
-async function handleLogin(request: Request, db: D1Database): Promise<Response> {
+async function handleLogin(request: Request, db: D1Database, env: Env): Promise<Response> {
   const origin = request.headers.get('Origin');
   const body = await request.json() as { email: string; password: string };
   const { email, password } = body;
@@ -450,8 +475,9 @@ async function handleLogin(request: Request, db: D1Database): Promise<Response> 
     return errorResponse('Invalid email or password', 401, origin);
   }
 
-  // Check if email is verified
-  if (!user.email_verified) {
+  // Check if email is verified (skip in dev mode)
+  const isDev = env.ENVIRONMENT === 'development';
+  if (!isDev && !user.email_verified) {
     return jsonResponse(
       {
         requiresVerification: true,
@@ -798,6 +824,7 @@ async function handleCreateRecipe(request: Request, db: D1Database): Promise<Res
   };
 
   const recipeId = generateId();
+  const now = Date.now();
   await db.prepare(`
     INSERT INTO recipes (id, user_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -814,8 +841,15 @@ async function handleCreateRecipe(request: Request, db: D1Database): Promise<Res
     body.prepTime || null,
     body.cookTime || null,
     body.servings || null,
-    Date.now()
+    now
   ).run();
+
+  // Add to user's default "My Recipes" cookbook
+  const collectionId = await getOrCreateRecipeCollection(db, user.id);
+  await db.prepare(`
+    INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at)
+    VALUES (?, ?, ?, ?)
+  `).bind(collectionId, recipeId, user.id, now).run();
 
   return jsonResponse({ id: recipeId }, 201, corsHeaders(origin));
 }
@@ -839,8 +873,8 @@ async function getOrCreateRecipeCollection(db: D1Database, userId: string): Prom
   `).bind(
     collectionId,
     userId,
-    'My Recipe Collection',
-    'All recipes you have saved',
+    'My Recipes',
+    'Your personal recipe collection',
     null,
     1, // system cookbook
     'collection',
@@ -1935,27 +1969,14 @@ async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
     ).run();
   }
 
-  // Create default cookbook
-  const cookbookId = generateId();
+  // Add all sample recipes to the default "My Recipes" cookbook
+  const collectionId = await getOrCreateRecipeCollection(db, userId);
   const now = Date.now();
-  await db.prepare(`
-    INSERT INTO cookbooks (id, user_id, name, description, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).bind(
-    cookbookId,
-    userId,
-    'My Favorite Recipes',
-    'A collection of recipes I love',
-    now,
-    now
-  ).run();
-
-  // Add all sample recipes to the cookbook
   for (const recipeId of recipeIds) {
     await db.prepare(`
       INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at)
       VALUES (?, ?, ?, ?)
-    `).bind(cookbookId, recipeId, userId, now).run();
+    `).bind(collectionId, recipeId, userId, now).run();
   }
 }
 
@@ -1981,7 +2002,7 @@ export default {
         return handleRegister(request, env.DB, env, ctx);
       }
       if (path === '/api/auth/login' && method === 'POST') {
-        return handleLogin(request, env.DB);
+        return handleLogin(request, env.DB, env);
       }
       if (path === '/api/auth/logout' && method === 'POST') {
         return handleLogout(request, env.DB);

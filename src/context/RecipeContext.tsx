@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Recipe } from '../types/Recipe';
-import { recipesApi, RecipeResponse } from '../utils/api';
+import { useClient } from '../client/ClientContext';
 import { useAuth } from './AuthContext';
+import type { Recipe as ClientRecipe } from '../client/types';
 
 interface RecipeContextType {
   recipes: Recipe[];
@@ -15,7 +16,12 @@ interface RecipeContextType {
 
 const RecipeContext = createContext<RecipeContextType | undefined>(undefined);
 
-function mapRecipeResponse(r: RecipeResponse): Recipe {
+interface ExtendedRecipe extends Recipe {
+  ownerName?: string;
+  isOwner?: boolean;
+}
+
+function mapRecipeResponse(r: ClientRecipe): ExtendedRecipe {
   return {
     id: r.id,
     title: r.title,
@@ -23,17 +29,20 @@ function mapRecipeResponse(r: RecipeResponse): Recipe {
     ingredients: r.ingredients,
     instructions: r.instructions,
     tags: r.tags,
-    imageUrl: r.imageUrl,
-    sourceUrl: r.sourceUrl,
-    prepTime: r.prepTime,
-    cookTime: r.cookTime,
-    servings: r.servings,
+    imageUrl: r.imageUrl || undefined,
+    sourceUrl: r.sourceUrl || undefined,
+    prepTime: r.prepTime || undefined,
+    cookTime: r.cookTime || undefined,
+    servings: r.servings || undefined,
     createdAt: r.createdAt,
+    ownerName: r.ownerName || undefined,
+    isOwner: r.isOwner,
   };
 }
 
 export function RecipeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const client = useClient();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -46,7 +55,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true);
     try {
-      const { data, error } = await recipesApi.getAll();
+      const { data, error } = await client.recipes.list();
       if (data?.recipes) {
         setRecipes(data.recipes.map(mapRecipeResponse));
       } else if (error) {
@@ -55,14 +64,14 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [user, client]);
 
   useEffect(() => {
     refreshRecipes();
   }, [refreshRecipes]);
 
   const addRecipe = async (recipeData: Omit<Recipe, 'id' | 'createdAt'>) => {
-    const { data, error } = await recipesApi.create({
+    const { data, error } = await client.recipes.create({
       title: recipeData.title,
       description: recipeData.description,
       ingredients: recipeData.ingredients,
@@ -73,6 +82,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
       prepTime: recipeData.prepTime,
       cookTime: recipeData.cookTime,
       servings: recipeData.servings,
+      isPublic: recipeData.isPublic,
     });
 
     if (data?.id) {
@@ -93,7 +103,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
     // Optimistic update
     setRecipes(prev => prev.map(r => r.id === id ? { ...r, ...recipeData } : r));
 
-    const { error } = await recipesApi.update(id, {
+    const { error } = await client.recipes.update(id, {
       title: recipeData.title,
       description: recipeData.description,
       ingredients: recipeData.ingredients,
@@ -117,7 +127,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
     // Optimistic update
     setRecipes(prev => prev.filter(r => r.id !== id));
 
-    const { error } = await recipesApi.delete(id);
+    const { error } = await client.recipes.delete(id);
     if (error) {
       console.error('Failed to delete recipe:', error);
       // Refresh to restore state on error

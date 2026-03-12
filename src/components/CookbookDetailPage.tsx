@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Share2, Pencil, Loader2, User, Search, ArrowLeft, Check, LogOut, X } from 'lucide-react';
+import { Share2, Pencil, Loader2, User, Search, ArrowLeft, Check, LogOut, X, Plus } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { Recipe, RecipeFormData } from '../types/Recipe';
-import { cookbooksApi, RecipeResponse, CookbookResponse } from '../utils/api';
+import { useClient } from '../client/ClientContext';
+import type { Recipe as ClientRecipe, Cookbook as ClientCookbook } from '../client/types';
 import { RecipeCard } from './RecipeCard';
 import { DinoMascot } from './DinoMascot';
 import { ConfirmModal } from './ConfirmModal';
@@ -22,7 +23,7 @@ interface CookbookRecipe extends Recipe {
   isOwner?: boolean;
 }
 
-function mapRecipeResponse(r: RecipeResponse): CookbookRecipe {
+function mapRecipeResponse(r: ClientRecipe): CookbookRecipe {
   return {
     id: r.id,
     title: r.title,
@@ -30,31 +31,34 @@ function mapRecipeResponse(r: RecipeResponse): CookbookRecipe {
     ingredients: r.ingredients,
     instructions: r.instructions,
     tags: r.tags,
-    imageUrl: r.imageUrl,
-    sourceUrl: r.sourceUrl,
-    prepTime: r.prepTime,
-    cookTime: r.cookTime,
-    servings: r.servings,
+    imageUrl: r.imageUrl || undefined,
+    sourceUrl: r.sourceUrl || undefined,
+    prepTime: r.prepTime || undefined,
+    cookTime: r.cookTime || undefined,
+    servings: r.servings || undefined,
     isPublic: r.isPublic,
     createdAt: r.createdAt,
-    addedByUserId: r.addedByUserId,
+    addedByUserId: r.addedByUserId || undefined,
     addedByUserName: r.addedByUserName,
     ownerId: r.ownerId,
     isOwner: r.isOwner,
   };
 }
 
-function mapCookbookResponse(c: CookbookResponse): Cookbook {
+function mapCookbookResponse(c: ClientCookbook): Cookbook {
   return {
     id: c.id,
     name: c.name,
-    description: c.description,
-    coverImage: c.coverImage,
+    description: c.description || undefined,
+    coverImage: c.coverImage || undefined,
     recipeCount: c.recipeCount,
+    isSystem: c.isSystem,
+    systemType: c.systemType || undefined,
+    isPublic: c.isPublic,
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
     isOwner: c.isOwner,
-    ownerName: c.ownerName,
+    ownerName: c.ownerName || undefined,
   };
 }
 
@@ -84,6 +88,7 @@ const parseFormData = (formData: RecipeFormData) => ({
 export function CookbookDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const client = useClient();
   const { createCookbook, updateCookbook, deleteCookbook, leaveCookbook } = useCookbooks();
   const { updateRecipe, deleteRecipe } = useRecipes();
 
@@ -101,6 +106,7 @@ export function CookbookDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showCreateCookbookModal, setShowCreateCookbookModal] = useState(false);
+  const [showAddRecipeModal, setShowAddRecipeModal] = useState(false);
 
   useEffect(() => {
     async function fetchCookbook() {
@@ -109,7 +115,7 @@ export function CookbookDetailPage() {
       setIsLoading(true);
       setError(null);
 
-      const { data, error } = await cookbooksApi.get(id);
+      const { data, error } = await client.cookbooks.get(id);
       if (error || !data) {
         setError('Cookbook not found');
         setIsLoading(false);
@@ -121,7 +127,7 @@ export function CookbookDetailPage() {
       setIsLoading(false);
     }
     fetchCookbook();
-  }, [id]);
+  }, [id, client]);
 
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -211,6 +217,35 @@ export function CookbookDetailPage() {
     }
   };
 
+  const handleAddRecipe = async (formData: RecipeFormData) => {
+    if (!cookbook || !id) return;
+    try {
+      // Create the recipe using client directly to get the ID
+      const { data: createData, error: createError } = await client.recipes.create(parseFormData(formData));
+
+      if (createError || !createData?.id) {
+        console.error('Failed to create recipe:', createError);
+        return;
+      }
+
+      // Add the recipe to this cookbook
+      const { error: addError } = await client.cookbooks.addRecipe(id, createData.id);
+      if (addError) {
+        console.error('Failed to add recipe to cookbook:', addError);
+      }
+
+      // Refresh the cookbook to get the updated recipe list
+      const { data } = await client.cookbooks.get(id);
+      if (data) {
+        setRecipes(data.recipes.map(mapRecipeResponse));
+      }
+
+      setShowAddRecipeModal(false);
+    } catch (error) {
+      console.error('Failed to add recipe:', error);
+    }
+  };
+
   const hasFilters = searchQuery.length > 0 || selectedTags.length > 0;
 
   if (isLoading) {
@@ -261,13 +296,17 @@ export function CookbookDetailPage() {
         </div>
 
         <div className="cookbook-detail-actions">
+          <button className="btn-primary" onClick={() => setShowAddRecipeModal(true)}>
+            <Plus size={16} />
+            New Recipe
+          </button>
           {cookbook.isOwner ? (
             <>
               <button className="btn-secondary" onClick={() => setShowEditModal(true)}>
                 <Pencil size={16} />
                 Edit
               </button>
-              <button className="btn-primary" onClick={() => setShowShareModal(true)}>
+              <button className="btn-secondary" onClick={() => setShowShareModal(true)}>
                 <Share2 size={16} />
                 Share
               </button>
@@ -331,7 +370,8 @@ export function CookbookDetailPage() {
                     recipe={recipe}
                     onClick={() => setSelectedRecipe(recipe)}
                     onDelete={recipe.isOwner ? () => setRecipeToDelete(recipe) : undefined}
-                    onAddToCookbook={recipe.isOwner ? () => setAddToCookbookRecipe(recipe) : undefined}
+                    onAddToCookbook={() => setAddToCookbookRecipe(recipe)}
+                    addedByUserName={recipe.addedByUserName}
                   />
                 ))}
               </div>
@@ -351,7 +391,11 @@ export function CookbookDetailPage() {
           <div className="empty-state">
             <DinoMascot size={80} />
             <h3>No recipes yet</h3>
-            <p>Add recipes to this cookbook from your recipe collection.</p>
+            <p>Add a recipe to get started.</p>
+            <button className="btn-primary" onClick={() => setShowAddRecipeModal(true)}>
+              <Plus size={18} strokeWidth={2.5} />
+              <span>New Recipe</span>
+            </button>
           </div>
         )}
       </div>
@@ -432,6 +476,13 @@ export function CookbookDetailPage() {
             await createCookbook(data);
             setShowCreateCookbookModal(false);
           }}
+        />
+      )}
+
+      {showAddRecipeModal && (
+        <AddRecipeModal
+          onClose={() => setShowAddRecipeModal(false)}
+          onSubmit={handleAddRecipe}
         />
       )}
     </div>

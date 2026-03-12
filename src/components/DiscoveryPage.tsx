@@ -3,9 +3,13 @@ import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp } from 'lucide-re
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useRecipes } from '../context/RecipeContext';
 import { Recipe, Cookbook } from '../client/types';
+import { Recipe as LocalRecipe, RecipeFormData } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
+import { AddRecipeModal } from './AddRecipeModal';
+import { ConfirmModal } from './ConfirmModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 interface RecipeCardCompactProps {
@@ -104,9 +108,13 @@ export function DiscoveryPage() {
     saveRecipe,
   } = useDiscovery();
 
+  const { updateRecipe, deleteRecipe } = useRecipes();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'recipes' | 'cookbooks'>('recipes');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
+  const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -125,15 +133,63 @@ export function DiscoveryPage() {
 
     if (savedId) {
       showToast({
-        message: 'Saved to My Recipe Collection',
+        message: 'Saved to My Recipes',
         type: 'success',
         action: {
           label: 'View',
           onClick: () => {
-            window.location.href = '/cookbooks';
+            window.location.href = '/my-recipes';
           },
         },
       });
+    }
+  };
+
+  const parseFormData = (formData: RecipeFormData) => ({
+    title: formData.title.trim(),
+    description: formData.description.trim(),
+    ingredients: formData.ingredients
+      .split('\n')
+      .map((i: string) => i.trim())
+      .filter(Boolean),
+    instructions: formData.instructions
+      .split('\n')
+      .map((i: string) => i.trim())
+      .filter(Boolean),
+    tags: formData.tags
+      .split(',')
+      .map((t: string) => t.trim().toLowerCase())
+      .filter(Boolean),
+    imageUrl: formData.imageUrl.trim() || undefined,
+    prepTime: formData.prepTime.trim() || undefined,
+    cookTime: formData.cookTime.trim() || undefined,
+    servings: formData.servings.trim() || undefined,
+    sourceUrl: formData.sourceUrl.trim() || undefined,
+    isPublic: formData.isPublic,
+  });
+
+  const handleUpdateRecipe = async (formData: RecipeFormData) => {
+    if (!editingRecipe) return;
+    try {
+      await updateRecipe(editingRecipe.id, parseFormData(formData));
+      setEditingRecipe(null);
+      // Refresh the discovery page data
+      loadRecipes();
+    } catch (error) {
+      console.error('Failed to update recipe:', error);
+    }
+  };
+
+  const handleDeleteRecipe = async () => {
+    if (!recipeToDelete) return;
+    try {
+      await deleteRecipe(recipeToDelete.id);
+      setRecipeToDelete(null);
+      setSelectedRecipe(null);
+      // Refresh the discovery page data
+      loadRecipes();
+    } catch (error) {
+      console.error('Failed to delete recipe:', error);
     }
   };
 
@@ -318,8 +374,40 @@ export function DiscoveryPage() {
         <RecipeDetail
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
-          onSave={() => handleSaveRecipe(selectedRecipe)}
-          isPublicView
+          onSave={!selectedRecipe.isOwner ? () => handleSaveRecipe(selectedRecipe) : undefined}
+          onEdit={selectedRecipe.isOwner ? () => {
+            setEditingRecipe(selectedRecipe);
+            setSelectedRecipe(null);
+          } : undefined}
+          onDelete={selectedRecipe.isOwner ? () => {
+            setRecipeToDelete(selectedRecipe);
+          } : undefined}
+          isPublicView={!selectedRecipe.isOwner}
+        />
+      )}
+
+      {editingRecipe && (
+        <AddRecipeModal
+          recipe={{
+            ...editingRecipe,
+            imageUrl: editingRecipe.imageUrl ?? undefined,
+            sourceUrl: editingRecipe.sourceUrl ?? undefined,
+            prepTime: editingRecipe.prepTime ?? undefined,
+            cookTime: editingRecipe.cookTime ?? undefined,
+            servings: editingRecipe.servings ?? undefined,
+          } as LocalRecipe}
+          onClose={() => setEditingRecipe(null)}
+          onSubmit={handleUpdateRecipe}
+        />
+      )}
+
+      {recipeToDelete && (
+        <ConfirmModal
+          title="Delete Recipe"
+          message={`Are you sure you want to delete "${recipeToDelete.title}"? This will remove it from all cookbooks.`}
+          confirmText="Delete"
+          onConfirm={handleDeleteRecipe}
+          onCancel={() => setRecipeToDelete(null)}
         />
       )}
     </div>

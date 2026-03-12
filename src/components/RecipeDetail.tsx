@@ -139,16 +139,20 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
           </div>
         )}
 
-        {!readOnly && !isPublicView && onEdit && onDelete && (
+        {!readOnly && !isPublicView && (onEdit || onDelete) && (
           <div className="detail-footer">
-            <button className="btn-secondary" onClick={onEdit}>
-              <PenLine size={16} strokeWidth={2} />
-              <span>Edit</span>
-            </button>
-            <button className="btn-danger" onClick={handleDelete}>
-              <Trash2 size={16} strokeWidth={2} />
-              <span>Delete</span>
-            </button>
+            {onEdit && (
+              <button className="btn-secondary" onClick={onEdit}>
+                <PenLine size={16} strokeWidth={2} />
+                <span>Edit</span>
+              </button>
+            )}
+            {onDelete && (
+              <button className="btn-danger" onClick={handleDelete}>
+                <Trash2 size={16} strokeWidth={2} />
+                <span>Delete</span>
+              </button>
+            )}
           </div>
         )}
 
