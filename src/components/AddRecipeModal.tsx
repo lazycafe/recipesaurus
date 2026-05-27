@@ -97,15 +97,15 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) {
+    if (!formData.title?.trim()) {
       setFormError('Please enter a recipe title');
       return;
     }
-    if (!formData.ingredients.trim()) {
+    if (!formData.ingredients?.trim()) {
       setFormError('Please enter at least one ingredient');
       return;
     }
-    if (!formData.instructions.trim()) {
+    if (!formData.instructions?.trim()) {
       setFormError('Please enter at least one instruction');
       return;
     }
@@ -115,14 +115,14 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
 
   const handleUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) {
+    if (!url?.trim()) {
       setImportError('Please enter a URL');
       return;
     }
     setIsLoading(true);
     setImportError(null);
     try {
-      const extracted = await fetchAndExtractRecipe(url.trim());
+      const extracted = await fetchAndExtractRecipe(url?.trim());
 
       // Pre-fill the form with extracted data (convert arrays to newline-separated strings)
       setFormData(prev => ({
