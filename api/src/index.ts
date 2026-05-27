@@ -876,7 +876,7 @@ async function getOrCreateRecipeCollection(db: D1Database, userId: string): Prom
     'My Recipes',
     'Your personal recipe collection',
     null,
-    1, // system cookbook
+    0, // not a system cookbook
     'collection',
     0, // private
     now,
