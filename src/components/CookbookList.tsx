@@ -13,8 +13,12 @@ export function CookbookList({ onCreateCookbook }: CookbookListProps) {
   const { ownedCookbooks, sharedCookbooks } = useCookbooks();
   const [activeTab, setActiveTab] = useState<'owned' | 'shared'>('owned');
 
-  const cookbooks = activeTab === 'owned' ? ownedCookbooks : sharedCookbooks;
-  const hasShared = sharedCookbooks.length > 0;
+  // Filter out system cookbooks (like "My Recipe Collection")
+  const filteredOwned = ownedCookbooks.filter(c => !c.isSystem);
+  const filteredShared = sharedCookbooks.filter(c => !c.isSystem);
+
+  const cookbooks = activeTab === 'owned' ? filteredOwned : filteredShared;
+  const hasShared = filteredShared.length > 0;
 
   return (
     <div className="cookbook-list">
@@ -38,7 +42,7 @@ export function CookbookList({ onCreateCookbook }: CookbookListProps) {
             >
               <Book size={16} />
               My Cookbooks
-              <span className="tab-count">{ownedCookbooks.length}</span>
+              <span className="tab-count">{filteredOwned.length}</span>
             </button>
             <button
               className={`cookbook-tab ${activeTab === 'shared' ? 'active' : ''}`}

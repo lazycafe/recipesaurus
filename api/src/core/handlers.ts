@@ -1601,6 +1601,100 @@ export class CoreHandlers {
     return { data: { id: newRecipeId }, status: 201 };
   }
 
+  // Save a public cookbook to user's collection (creates a copy with all recipes)
+  async saveCookbook(
+    ctx: RequestContext,
+    cookbookId: string
+  ): Promise<ApiResult<{ id: string }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    // Get the public cookbook
+    const cookbook = await this.db.get<DbCookbook>(
+      'SELECT * FROM cookbooks WHERE id = ? AND is_public = 1',
+      cookbookId
+    );
+
+    if (!cookbook) {
+      return { error: 'Cookbook not found or not public', status: 404 };
+    }
+
+    // Get all recipes in the cookbook
+    const cookbookRecipes = await this.db.all<DbRecipe>(
+      `SELECT r.* FROM recipes r
+       JOIN cookbook_recipes cr ON r.id = cr.recipe_id
+       WHERE cr.cookbook_id = ?`,
+      cookbookId
+    );
+
+    const now = Date.now();
+    const newCookbookId = this.crypto.generateId();
+
+    // Create a copy of the cookbook
+    await this.db.run(
+      `INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_public, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      newCookbookId,
+      user.id,
+      cookbook.name,
+      cookbook.description,
+      cookbook.cover_image,
+      0, // private
+      now,
+      now
+    );
+
+    // Get user's recipe collection for adding recipes there too
+    const collectionId = await this.getOrCreateRecipeCollection(user.id);
+
+    // Copy each recipe and add to both the new cookbook and user's collection
+    for (const recipe of cookbookRecipes.results) {
+      const newRecipeId = this.crypto.generateId();
+
+      await this.db.run(
+        `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        newRecipeId,
+        user.id,
+        recipe.owner_id,
+        recipe.title,
+        recipe.description,
+        recipe.ingredients,
+        recipe.instructions,
+        recipe.tags,
+        recipe.image_url,
+        recipe.source_url,
+        recipe.prep_time,
+        recipe.cook_time,
+        recipe.servings,
+        0, // private
+        now
+      );
+
+      // Add to new cookbook
+      await this.db.run(
+        'INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
+        newCookbookId,
+        newRecipeId,
+        user.id,
+        now
+      );
+
+      // Add to user's recipe collection
+      await this.db.run(
+        'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
+        collectionId,
+        newRecipeId,
+        user.id,
+        now
+      );
+    }
+
+    return { data: { id: newCookbookId }, status: 201 };
+  }
+
   // Save a recipe from preview data (for shared recipe links)
   async savePreviewRecipe(
     ctx: RequestContext,

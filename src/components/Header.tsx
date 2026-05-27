@@ -1,17 +1,40 @@
-import { Book, Compass, UtensilsCrossed } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { Book, Compass, UtensilsCrossed, Plus, ChefHat } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { DinoMascot } from './DinoMascot';
 import { useAuth } from '../context/AuthContext';
 import { UserMenu } from './UserMenu';
 
-export function Header() {
+interface HeaderProps {
+  onCreateRecipe?: () => void;
+  onCreateCookbook?: () => void;
+}
+
+export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
   const { user } = useAuth();
+  const location = useLocation();
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const createMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (createMenuRef.current && !createMenuRef.current.contains(event.target as Node)) {
+        setShowCreateMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Check if on discover page (for nav highlighting)
+  const isDiscoverPage = location.pathname.startsWith('/discover') || location.pathname === '/';
 
   return (
     <>
       <header className="header">
         <div className="header-content">
-          <NavLink to="/" className="logo-section">
+          <NavLink to="/discover/recipes" className="logo-section">
             <DinoMascot size={48} className="logo-icon" />
             <div className="logo-text">
               <h1>Recipesaurus</h1>
@@ -21,9 +44,8 @@ export function Header() {
           {user && (
             <nav className="header-nav desktop-only">
               <NavLink
-                to="/"
-                className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-                end
+                to="/discover/recipes"
+                className={() => `nav-tab ${isDiscoverPage ? 'active' : ''}`}
               >
                 <Compass size={18} />
                 Discover
@@ -46,6 +68,42 @@ export function Header() {
           )}
 
           <div className="header-actions">
+            {user && onCreateRecipe && onCreateCookbook && (
+              <div className="create-menu-container" ref={createMenuRef}>
+                <button
+                  className="btn-create"
+                  onClick={() => setShowCreateMenu(!showCreateMenu)}
+                  aria-label="Create new"
+                >
+                  <Plus size={18} />
+                  <span className="desktop-only">Create</span>
+                </button>
+                {showCreateMenu && (
+                  <div className="create-menu">
+                    <button
+                      className="create-menu-item"
+                      onClick={() => {
+                        setShowCreateMenu(false);
+                        onCreateRecipe();
+                      }}
+                    >
+                      <ChefHat size={16} />
+                      New Recipe
+                    </button>
+                    <button
+                      className="create-menu-item"
+                      onClick={() => {
+                        setShowCreateMenu(false);
+                        onCreateCookbook();
+                      }}
+                    >
+                      <Book size={16} />
+                      New Cookbook
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {user && <UserMenu />}
           </div>
         </div>
@@ -55,9 +113,8 @@ export function Header() {
         <nav className="mobile-nav">
           <div className="mobile-nav-container">
             <NavLink
-              to="/"
-              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
-              end
+              to="/discover/recipes"
+              className={() => `mobile-nav-item ${isDiscoverPage ? 'active' : ''}`}
             >
               <Compass size={20} />
               <span>Discover</span>

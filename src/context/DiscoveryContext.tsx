@@ -21,6 +21,7 @@ interface DiscoveryContextType extends DiscoveryState {
   loadMoreCookbooks: () => Promise<void>;
   setSelectedTags: (tags: string[]) => void;
   saveRecipe: (recipeId: string) => Promise<string | null>;
+  saveCookbook: (cookbookId: string) => Promise<string | null>;
   getPublicRecipe: (id: string) => Promise<Recipe | null>;
   getPublicCookbook: (id: string) => Promise<{ cookbook: Cookbook; recipes: Recipe[] } | null>;
 }
@@ -166,6 +167,31 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
 
   const saveRecipe = useCallback(async (recipeId: string): Promise<string | null> => {
     try {
+      // Check if this is a sample recipe (not in database)
+      if (recipeId.startsWith('sample-')) {
+        const sampleRecipe = SAMPLE_RECIPES.find(r => r.id === recipeId);
+        if (sampleRecipe) {
+          // Create recipe directly from sample data
+          const result = await client.recipes.create({
+            title: sampleRecipe.title,
+            description: sampleRecipe.description,
+            ingredients: sampleRecipe.ingredients,
+            instructions: sampleRecipe.instructions,
+            tags: sampleRecipe.tags,
+            imageUrl: sampleRecipe.imageUrl ?? undefined,
+            prepTime: sampleRecipe.prepTime ?? undefined,
+            cookTime: sampleRecipe.cookTime ?? undefined,
+            servings: sampleRecipe.servings ?? undefined,
+            isPublic: false,
+          });
+          if (result.data) {
+            return result.data.id;
+          }
+        }
+        return null;
+      }
+
+      // For real public recipes, use the save endpoint
       const result = await client.discover.saveRecipe(recipeId);
       if (result.data) {
         return result.data.id;
@@ -173,6 +199,68 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       return null;
     } catch (error) {
       console.error('Failed to save recipe:', error);
+      return null;
+    }
+  }, [client]);
+
+  const saveCookbook = useCallback(async (cookbookId: string): Promise<string | null> => {
+    try {
+      // Check if this is a sample cookbook (not in database)
+      if (cookbookId.startsWith('cookbook-')) {
+        const sampleCookbook = SAMPLE_COOKBOOKS.find(c => c.id === cookbookId);
+        if (sampleCookbook) {
+          // Create cookbook
+          const cookbookResult = await client.cookbooks.create({
+            name: sampleCookbook.name,
+            description: sampleCookbook.description || undefined,
+            coverImage: sampleCookbook.coverImage || undefined,
+            isPublic: false,
+          });
+
+          if (!cookbookResult.data) {
+            return null;
+          }
+
+          const newCookbookId = cookbookResult.data.id;
+
+          // Get recipe IDs for this cookbook and create each recipe
+          const recipeIds = COOKBOOK_RECIPES[cookbookId] || [];
+          for (const recipeId of recipeIds) {
+            const sampleRecipe = SAMPLE_RECIPES.find(r => r.id === recipeId);
+            if (sampleRecipe) {
+              const recipeResult = await client.recipes.create({
+                title: sampleRecipe.title,
+                description: sampleRecipe.description,
+                ingredients: sampleRecipe.ingredients,
+                instructions: sampleRecipe.instructions,
+                tags: sampleRecipe.tags,
+                imageUrl: sampleRecipe.imageUrl ?? undefined,
+                prepTime: sampleRecipe.prepTime ?? undefined,
+                cookTime: sampleRecipe.cookTime ?? undefined,
+                servings: sampleRecipe.servings ?? undefined,
+                isPublic: false,
+              });
+
+              // Add to cookbook
+              if (recipeResult.data) {
+                await client.cookbooks.addRecipe(newCookbookId, recipeResult.data.id);
+              }
+            }
+          }
+
+          return newCookbookId;
+        }
+        return null;
+      }
+
+      // For real public cookbooks, use the save endpoint
+      const result = await client.discover.saveCookbook(cookbookId);
+      if (result.data) {
+        return result.data.id;
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to save cookbook:', error);
       return null;
     }
   }, [client]);
@@ -239,6 +327,7 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         loadMoreCookbooks,
         setSelectedTags,
         saveRecipe,
+        saveCookbook,
         getPublicRecipe,
         getPublicCookbook,
       }}

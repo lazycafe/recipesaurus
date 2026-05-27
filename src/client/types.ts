@@ -168,6 +168,7 @@ export interface IClient {
     getRecipe(id: string): Promise<ApiResponse<{ recipe: Recipe }>>;
     getCookbook(id: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>>;
     saveRecipe(recipeId: string): Promise<ApiResponse<{ id: string }>>;
+    saveCookbook(cookbookId: string): Promise<ApiResponse<{ id: string }>>;
   };
 }
 

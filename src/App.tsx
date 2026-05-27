@@ -5,7 +5,8 @@ import { defaultClient, getClient, isDevClientEnabled } from './client/defaultCl
 import type { IClient } from './client/types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CookbookProvider, useCookbooks } from './context/CookbookContext';
-import { RecipeProvider } from './context/RecipeContext';
+import { RecipeProvider, useRecipes } from './context/RecipeContext';
+import type { RecipeFormData } from './types/Recipe';
 import { NotificationProvider } from './context/NotificationContext';
 import { DiscoveryProvider } from './context/DiscoveryContext';
 import { ToastProvider } from './context/ToastContext';
@@ -16,6 +17,7 @@ import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { VerifyEmailPage } from './components/VerifyEmailPage';
 import { CookbookList } from './components/CookbookList';
 import { CookbookModal } from './components/CookbookModal';
+import { AddRecipeModal } from './components/AddRecipeModal';
 import { CookbookDetailPage } from './components/CookbookDetailPage';
 import { SharedCookbookView } from './components/SharedCookbookView';
 import { SharedRecipePreview } from './components/SharedRecipePreview';
@@ -59,27 +61,57 @@ function ScrollToTop() {
 
 function RecipeApp() {
   const { createCookbook } = useCookbooks();
+  const { addRecipe } = useRecipes();
   const [showCookbookModal, setShowCookbookModal] = useState(false);
+  const [showRecipeModal, setShowRecipeModal] = useState(false);
 
   const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => {
     await createCookbook(data);
   };
 
+  const handleAddRecipe = async (formData: RecipeFormData) => {
+    await addRecipe({
+      title: formData.title.trim(),
+      description: formData.description.trim(),
+      ingredients: formData.ingredients.split('\n').map(i => i.trim()).filter(Boolean),
+      instructions: formData.instructions.split('\n').map(i => i.trim()).filter(Boolean),
+      tags: formData.tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean),
+      imageUrl: formData.imageUrl?.trim() || undefined,
+      prepTime: formData.prepTime?.trim() || undefined,
+      cookTime: formData.cookTime?.trim() || undefined,
+      servings: formData.servings?.trim() || undefined,
+      sourceUrl: formData.sourceUrl?.trim() || undefined,
+      isPublic: formData.isPublic,
+    });
+    setShowRecipeModal(false);
+  };
+
   return (
     <>
       <ScrollToTop />
-      <Header />
+      <Header
+        onCreateRecipe={() => setShowRecipeModal(true)}
+        onCreateCookbook={() => setShowCookbookModal(true)}
+      />
 
       <main className="main">
         <div className="container">
           <Routes>
             <Route
               path="/"
-              element={<DiscoveryPage />}
+              element={<Navigate to="/discover/recipes" replace />}
             />
             <Route
               path="/discover"
-              element={<Navigate to="/" replace />}
+              element={<Navigate to="/discover/recipes" replace />}
+            />
+            <Route
+              path="/discover/recipes"
+              element={<DiscoveryPage tab="recipes" />}
+            />
+            <Route
+              path="/discover/cookbooks"
+              element={<DiscoveryPage tab="cookbooks" />}
             />
             <Route
               path="/discover/cookbooks/:id"
@@ -142,6 +174,13 @@ function RecipeApp() {
         <CookbookModal
           onClose={() => setShowCookbookModal(false)}
           onSubmit={handleSaveCookbook}
+        />
+      )}
+
+      {showRecipeModal && (
+        <AddRecipeModal
+          onClose={() => setShowRecipeModal(false)}
+          onSubmit={handleAddRecipe}
         />
       )}
     </>

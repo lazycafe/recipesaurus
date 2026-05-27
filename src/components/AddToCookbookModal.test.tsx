@@ -116,6 +116,7 @@ describe('AddToCookbookModal', () => {
         getRecipe: vi.fn(),
         getCookbook: vi.fn(),
         saveRecipe: vi.fn(),
+        saveCookbook: vi.fn(),
       },
     });
   });

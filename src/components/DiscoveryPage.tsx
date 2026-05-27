@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useRecipes } from '../context/RecipeContext';
+import { useCookbooks } from '../context/CookbookContext';
 import { Recipe, Cookbook } from '../client/types';
 import { Recipe as LocalRecipe, RecipeFormData } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
@@ -62,9 +64,11 @@ function RecipeCardCompact({ recipe, onSave, onClick, isSaving }: RecipeCardComp
 interface CookbookCardCompactProps {
   cookbook: Cookbook;
   onClick: () => void;
+  onSave: () => void;
+  isSaving?: boolean;
 }
 
-function CookbookCardCompact({ cookbook, onClick }: CookbookCardCompactProps) {
+function CookbookCardCompact({ cookbook, onClick, onSave, isSaving }: CookbookCardCompactProps) {
   return (
     <article className="discovery-card cookbook-card" onClick={onClick}>
       <span className="cookbook-badge">Cookbook</span>
@@ -76,6 +80,17 @@ function CookbookCardCompact({ cookbook, onClick }: CookbookCardCompactProps) {
             <BookOpen size={48} />
           </div>
         )}
+        <button
+          className="discovery-save-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSave();
+          }}
+          disabled={isSaving}
+          aria-label="Save cookbook"
+        >
+          {isSaving ? <Loader2 size={16} className="spin" /> : <Heart size={16} />}
+        </button>
       </div>
       <div className="discovery-card-body">
         <h3 className="discovery-card-title">{cookbook.name}</h3>
@@ -93,9 +108,15 @@ function CookbookCardCompact({ cookbook, onClick }: CookbookCardCompactProps) {
 
 const TRENDING_TAGS = ['dinner', 'quick', 'healthy', 'vegetarian', 'dessert', 'breakfast', 'chicken', 'pasta'];
 
-export function DiscoveryPage() {
+interface DiscoveryPageProps {
+  tab?: 'recipes' | 'cookbooks';
+}
+
+export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
+  const { refreshCookbooks } = useCookbooks();
   const {
     recipes,
     cookbooks,
@@ -110,16 +131,17 @@ export function DiscoveryPage() {
     selectedTags,
     setSelectedTags,
     saveRecipe,
+    saveCookbook,
   } = useDiscovery();
 
-  const { updateRecipe, deleteRecipe } = useRecipes();
+  const { updateRecipe, deleteRecipe, refreshRecipes } = useRecipes();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'recipes' | 'cookbooks'>('recipes');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
+  const [savingCookbookId, setSavingCookbookId] = useState<string | null>(null);
 
   useEffect(() => {
     loadRecipes();
@@ -128,7 +150,7 @@ export function DiscoveryPage() {
 
   const handleSaveRecipe = async (recipe: Recipe) => {
     if (!user) {
-      alert('Please sign in to save recipes');
+      showToast({ message: 'Please sign in to save recipes', type: 'info' });
       return;
     }
     setSavingRecipeId(recipe.id);
@@ -136,14 +158,37 @@ export function DiscoveryPage() {
     setSavingRecipeId(null);
 
     if (savedId) {
+      // Refresh the recipes list so it shows the new recipe
+      await refreshRecipes();
       showToast({
         message: 'Saved to My Recipes',
         type: 'success',
         action: {
           label: 'View',
-          onClick: () => {
-            window.location.href = '/my-recipes';
-          },
+          onClick: () => navigate('/my-recipes'),
+        },
+      });
+    }
+  };
+
+  const handleSaveCookbook = async (cookbook: Cookbook) => {
+    if (!user) {
+      showToast({ message: 'Please sign in to save cookbooks', type: 'info' });
+      return;
+    }
+    setSavingCookbookId(cookbook.id);
+    const savedId = await saveCookbook(cookbook.id);
+    setSavingCookbookId(null);
+
+    if (savedId) {
+      // Refresh the cookbooks list so it shows the new cookbook
+      await refreshCookbooks();
+      showToast({
+        message: 'Cookbook saved to your collection',
+        type: 'success',
+        action: {
+          label: 'View',
+          onClick: () => navigate('/cookbooks'),
         },
       });
     }
@@ -275,25 +320,25 @@ export function DiscoveryPage() {
       </div>
 
       <div className="discovery-tabs">
-        <button
-          className={`tab-btn ${activeTab === 'recipes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('recipes')}
+        <NavLink
+          to="/discover/recipes"
+          className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
         >
           <ChefHat size={18} />
           Recipes
           {recipesTotal > 0 && <span className="count">({recipesTotal})</span>}
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'cookbooks' ? 'active' : ''}`}
-          onClick={() => setActiveTab('cookbooks')}
+        </NavLink>
+        <NavLink
+          to="/discover/cookbooks"
+          className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
         >
           <BookOpen size={18} />
           Cookbooks
           {cookbooksTotal > 0 && <span className="count">({cookbooksTotal})</span>}
-        </button>
+        </NavLink>
       </div>
 
-      {activeTab === 'recipes' && (
+      {tab === 'recipes' && (
         <div className="discovery-content">
           {isLoadingRecipes && recipes.length === 0 ? (
             <div className="discovery-loading">
@@ -333,7 +378,7 @@ export function DiscoveryPage() {
         </div>
       )}
 
-      {activeTab === 'cookbooks' && (
+      {tab === 'cookbooks' && (
         <div className="discovery-content">
           {isLoadingCookbooks && cookbooks.length === 0 ? (
             <div className="discovery-loading">
@@ -353,10 +398,9 @@ export function DiscoveryPage() {
                   <CookbookCardCompact
                     key={cookbook.id}
                     cookbook={cookbook}
-                    onClick={() => {
-                      // Navigate to public cookbook view
-                      window.location.href = `/discover/cookbooks/${cookbook.id}`;
-                    }}
+                    onClick={() => navigate(`/discover/cookbooks/${cookbook.id}`)}
+                    onSave={() => handleSaveCookbook(cookbook)}
+                    isSaving={savingCookbookId === cookbook.id}
                   />
                 ))}
               </div>

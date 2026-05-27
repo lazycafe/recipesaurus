@@ -87,6 +87,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -156,6 +157,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -180,6 +182,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -203,6 +206,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -233,6 +237,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -256,6 +261,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -280,6 +286,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -305,6 +312,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -330,6 +338,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -358,6 +367,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });

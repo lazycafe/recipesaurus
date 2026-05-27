@@ -1854,6 +1854,89 @@ async function handleDeclineInvite(request: Request, db: D1Database, inviteId: s
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
+// Discover - save a public cookbook to user's collection
+async function handleDiscoverSaveCookbook(request: Request, db: D1Database, cookbookId: string): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  // Get the public cookbook
+  const cookbook = await db.prepare('SELECT * FROM cookbooks WHERE id = ? AND is_public = 1')
+    .bind(cookbookId)
+    .first<{ id: string; user_id: string; name: string; description: string | null; cover_image: string | null }>();
+
+  if (!cookbook) {
+    return errorResponse('Cookbook not found or not public', 404, origin);
+  }
+
+  // Get all recipes in the cookbook
+  const { results: cookbookRecipes } = await db.prepare(`
+    SELECT r.* FROM recipes r
+    JOIN cookbook_recipes cr ON r.id = cr.recipe_id
+    WHERE cr.cookbook_id = ?
+  `).bind(cookbookId).all<Recipe & { owner_id: string }>();
+
+  const now = Date.now();
+  const newCookbookId = generateId();
+
+  // Create a copy of the cookbook
+  await db.prepare(`
+    INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_public, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    newCookbookId,
+    user.id,
+    cookbook.name,
+    cookbook.description,
+    cookbook.cover_image,
+    0, // private
+    now,
+    now
+  ).run();
+
+  // Copy each recipe and add to the new cookbook
+  for (const recipe of cookbookRecipes || []) {
+    const newRecipeId = generateId();
+
+    await db.prepare(`
+      INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      newRecipeId,
+      user.id,
+      recipe.owner_id,
+      recipe.title,
+      recipe.description,
+      recipe.ingredients,
+      recipe.instructions,
+      recipe.tags,
+      recipe.image_url,
+      recipe.source_url,
+      recipe.prep_time,
+      recipe.cook_time,
+      recipe.servings,
+      0, // private
+      now
+    ).run();
+
+    // Add to new cookbook
+    await db.prepare('INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)')
+      .bind(newCookbookId, newRecipeId, user.id, now)
+      .run();
+
+    // Also add to My Recipe Collection
+    const collectionId = await getOrCreateRecipeCollection(db, user.id);
+    await db.prepare('INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)')
+      .bind(collectionId, newRecipeId, user.id, now)
+      .run();
+  }
+
+  return jsonResponse({ id: newCookbookId }, 201, corsHeaders(origin));
+}
+
 // Discover - save a public recipe to user's collection
 async function handleDiscoverSaveRecipe(request: Request, db: D1Database, recipeId: string): Promise<Response> {
   const user = await getSessionUser(request, db);
@@ -2157,9 +2240,15 @@ export default {
       }
 
       // Discover - save recipe route
-      const discoverSaveMatch = path.match(/^\/api\/discover\/recipes\/([^/]+)\/save$/);
-      if (discoverSaveMatch && method === 'POST') {
-        return handleDiscoverSaveRecipe(request, env.DB, discoverSaveMatch[1]);
+      const discoverSaveRecipeMatch = path.match(/^\/api\/discover\/recipes\/([^/]+)\/save$/);
+      if (discoverSaveRecipeMatch && method === 'POST') {
+        return handleDiscoverSaveRecipe(request, env.DB, discoverSaveRecipeMatch[1]);
+      }
+
+      // Discover - save cookbook route
+      const discoverSaveCookbookMatch = path.match(/^\/api\/discover\/cookbooks\/([^/]+)\/save$/);
+      if (discoverSaveCookbookMatch && method === 'POST') {
+        return handleDiscoverSaveCookbook(request, env.DB, discoverSaveCookbookMatch[1]);
       }
 
       // Notification routes
