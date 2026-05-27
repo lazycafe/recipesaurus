@@ -62,40 +62,21 @@ describe('RecipeCard', () => {
     expect(screen.getByLabelText('Delete recipe')).toBeDefined();
   });
 
-  it('calls onDelete when delete clicked and confirmed', () => {
+  it('calls onDelete when delete clicked', () => {
     const onDelete = vi.fn();
+    const onClick = vi.fn();
     render(
       <RecipeCard
         recipe={mockRecipe}
-        onClick={() => {}}
+        onClick={onClick}
         onDelete={onDelete}
       />
     );
 
     fireEvent.click(screen.getByLabelText('Delete recipe'));
-    // Confirm modal should appear
-    expect(screen.getByText('Delete Recipe')).toBeDefined();
-    // Click the confirm button
-    fireEvent.click(screen.getByText('Delete'));
     expect(onDelete).toHaveBeenCalledOnce();
-  });
-
-  it('does not call onDelete when cancelled', () => {
-    const onDelete = vi.fn();
-    render(
-      <RecipeCard
-        recipe={mockRecipe}
-        onClick={() => {}}
-        onDelete={onDelete}
-      />
-    );
-
-    fireEvent.click(screen.getByLabelText('Delete recipe'));
-    // Confirm modal should appear
-    expect(screen.getByText('Delete Recipe')).toBeDefined();
-    // Click the cancel button
-    fireEvent.click(screen.getByText('Cancel'));
-    expect(onDelete).not.toHaveBeenCalled();
+    // Should not trigger card click
+    expect(onClick).not.toHaveBeenCalled();
   });
 
   it('shows add to cookbook button when onAddToCookbook provided', () => {

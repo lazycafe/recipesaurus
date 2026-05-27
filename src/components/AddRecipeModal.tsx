@@ -125,23 +125,18 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
       const extracted = await fetchAndExtractRecipe(url?.trim());
 
       // Pre-fill the form with extracted data (convert arrays to newline-separated strings)
+      // Note: We skip imageUrl as external images often have CORS/hotlinking issues
       setFormData(prev => ({
         ...prev,
         title: extracted.title || prev.title,
         description: extracted.description || prev.description,
         ingredients: extracted.ingredients?.join('\n') || prev.ingredients,
         instructions: extracted.instructions?.join('\n') || prev.instructions,
-        imageUrl: extracted.imageUrl || prev.imageUrl,
         prepTime: extracted.prepTime || prev.prepTime,
         cookTime: extracted.cookTime || prev.cookTime,
         servings: extracted.servings || prev.servings,
         sourceUrl: extracted.sourceUrl || url.trim(),
       }));
-
-      // Show extracted image in preview
-      if (extracted.imageUrl) {
-        setImagePreview(extracted.imageUrl);
-      }
 
       // Switch to manual tab for user to review/edit
       setActiveTab('manual');

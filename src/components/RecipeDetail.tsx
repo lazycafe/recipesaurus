@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { Recipe as ClientRecipe } from '../client/types';
 import { DinoMascot } from './DinoMascot';
-import { ConfirmModal } from './ConfirmModal';
 import { ModalOverlay } from './ModalOverlay';
 
 interface RecipeDetailProps {
@@ -17,16 +15,8 @@ interface RecipeDetailProps {
 }
 
 export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOnly = false, isPublicView = false }: RecipeDetailProps) {
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
   const handleDelete = () => {
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDelete = () => {
-    setShowDeleteConfirm(false);
     onDelete?.();
-    onClose();
   };
 
   // Type guard for ClientRecipe with owner info
@@ -154,16 +144,6 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
               </button>
             )}
           </div>
-        )}
-
-        {showDeleteConfirm && onDelete && (
-          <ConfirmModal
-            title="Delete Recipe"
-            message={`Are you sure you want to delete "${recipe.title}"?`}
-            confirmText="Delete"
-            onConfirm={confirmDelete}
-            onCancel={() => setShowDeleteConfirm(false)}
-          />
         )}
       </div>
     </ModalOverlay>

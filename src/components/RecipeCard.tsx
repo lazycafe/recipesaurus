@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { Clock, Users, X, BookPlus, User } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
-import { ConfirmModal } from './ConfirmModal';
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -13,15 +11,8 @@ interface RecipeCardProps {
 }
 
 export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook, addedByUserName }: RecipeCardProps) {
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setShowDeleteConfirm(true);
-  };
-
-  const confirmDelete = () => {
-    setShowDeleteConfirm(false);
     onDelete?.();
   };
 
@@ -93,16 +84,6 @@ export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook, addedBy
           <User size={12} />
           <span>Added by {addedByUserName}</span>
         </div>
-      )}
-
-      {showDeleteConfirm && (
-        <ConfirmModal
-          title="Delete Recipe"
-          message={`Are you sure you want to delete "${recipe.title}"?`}
-          confirmText="Delete"
-          onConfirm={confirmDelete}
-          onCancel={() => setShowDeleteConfirm(false)}
-        />
       )}
     </article>
   );
