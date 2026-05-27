@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, ReactNode, useRef } f
 import { useClient } from '../client/ClientContext';
 import type { Recipe, Cookbook } from '../client/types';
 import { SAMPLE_RECIPES } from '../data/sampleRecipes';
+import { SAMPLE_COOKBOOKS, COOKBOOK_RECIPES } from '../data/sampleCookbooks';
 
 interface DiscoveryState {
   recipes: Recipe[];
@@ -118,22 +119,51 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
 
   const loadCookbooks = useCallback(async (options?: { offset?: number }) => {
     setState(s => ({ ...s, isLoadingCookbooks: true }));
+    const offset = options?.offset || 0;
+
     try {
       const result = await client.discover.cookbooks({
         limit: PAGE_SIZE,
-        offset: options?.offset || 0,
+        offset,
       });
-      if (result.data) {
+
+      if (result.data && result.data.cookbooks.length > 0) {
         setState(s => ({
           ...s,
-          cookbooks: options?.offset ? [...s.cookbooks, ...result.data!.cookbooks] : result.data!.cookbooks,
+          cookbooks: offset ? [...s.cookbooks, ...result.data!.cookbooks] : result.data!.cookbooks,
           cookbooksTotal: result.data!.total,
           isLoadingCookbooks: false,
         }));
+      } else if (import.meta.env.DEV) {
+        // Use sample cookbooks in dev mode when no real data
+        const paged = SAMPLE_COOKBOOKS.slice(offset, offset + PAGE_SIZE);
+
+        await new Promise(r => setTimeout(r, 300));
+
+        setState(s => ({
+          ...s,
+          cookbooks: offset ? [...s.cookbooks, ...paged] : paged,
+          cookbooksTotal: SAMPLE_COOKBOOKS.length,
+          isLoadingCookbooks: false,
+        }));
+      } else {
+        setState(s => ({ ...s, isLoadingCookbooks: false }));
       }
     } catch (error) {
       console.error('Failed to load discover cookbooks:', error);
-      setState(s => ({ ...s, isLoadingCookbooks: false }));
+
+      if (import.meta.env.DEV) {
+        const paged = SAMPLE_COOKBOOKS.slice(offset, offset + PAGE_SIZE);
+
+        setState(s => ({
+          ...s,
+          cookbooks: offset ? [...s.cookbooks, ...paged] : paged,
+          cookbooksTotal: SAMPLE_COOKBOOKS.length,
+          isLoadingCookbooks: false,
+        }));
+      } else {
+        setState(s => ({ ...s, isLoadingCookbooks: false }));
+      }
     }
   }, [client]);
 
@@ -166,9 +196,24 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
   const getPublicRecipe = useCallback(async (id: string): Promise<Recipe | null> => {
     try {
       const result = await client.discover.getRecipe(id);
-      return result.data?.recipe || null;
+      if (result.data?.recipe) {
+        return result.data.recipe;
+      }
+
+      // Fallback to sample data in dev mode
+      if (import.meta.env.DEV) {
+        return SAMPLE_RECIPES.find(r => r.id === id) || null;
+      }
+
+      return null;
     } catch (error) {
       console.error('Failed to get public recipe:', error);
+
+      // Fallback to sample data in dev mode on error
+      if (import.meta.env.DEV) {
+        return SAMPLE_RECIPES.find(r => r.id === id) || null;
+      }
+
       return null;
     }
   }, [client]);
@@ -176,9 +221,38 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
   const getPublicCookbook = useCallback(async (id: string): Promise<{ cookbook: Cookbook; recipes: Recipe[] } | null> => {
     try {
       const result = await client.discover.getCookbook(id);
-      return result.data || null;
+      if (result.data) {
+        return result.data;
+      }
+
+      // Fallback to sample data in dev mode
+      if (import.meta.env.DEV) {
+        const cookbook = SAMPLE_COOKBOOKS.find(c => c.id === id);
+        if (cookbook) {
+          const recipeIds = COOKBOOK_RECIPES[id] || [];
+          const recipes = recipeIds
+            .map(rid => SAMPLE_RECIPES.find(r => r.id === rid))
+            .filter((r): r is Recipe => r !== undefined);
+          return { cookbook, recipes };
+        }
+      }
+
+      return null;
     } catch (error) {
       console.error('Failed to get public cookbook:', error);
+
+      // Fallback to sample data in dev mode on error
+      if (import.meta.env.DEV) {
+        const cookbook = SAMPLE_COOKBOOKS.find(c => c.id === id);
+        if (cookbook) {
+          const recipeIds = COOKBOOK_RECIPES[id] || [];
+          const recipes = recipeIds
+            .map(rid => SAMPLE_RECIPES.find(r => r.id === rid))
+            .filter((r): r is Recipe => r !== undefined);
+          return { cookbook, recipes };
+        }
+      }
+
       return null;
     }
   }, [client]);

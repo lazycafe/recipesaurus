@@ -24,6 +24,7 @@ import { TermsPage } from './components/TermsPage';
 import { FeedbackPage } from './components/FeedbackPage';
 import { DiscoveryPage } from './components/DiscoveryPage';
 import { PublicHomePage } from './components/PublicHomePage';
+import { PublicCookbookDetailPage } from './components/PublicCookbookDetailPage';
 import { MyRecipesPage } from './components/MyRecipesPage';
 import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
@@ -79,6 +80,10 @@ function RecipeApp() {
             <Route
               path="/discover"
               element={<Navigate to="/" replace />}
+            />
+            <Route
+              path="/discover/cookbooks/:id"
+              element={<PublicCookbookDetailPage />}
             />
             <Route
               path="/my-recipes"

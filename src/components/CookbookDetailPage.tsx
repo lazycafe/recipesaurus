@@ -77,11 +77,11 @@ const parseFormData = (formData: RecipeFormData) => ({
     .split(',')
     .map((t: string) => t.trim().toLowerCase())
     .filter(Boolean),
-  imageUrl: formData.imageUrl.trim() || undefined,
-  prepTime: formData.prepTime.trim() || undefined,
-  cookTime: formData.cookTime.trim() || undefined,
-  servings: formData.servings.trim() || undefined,
-  sourceUrl: formData.sourceUrl.trim() || undefined,
+  imageUrl: formData.imageUrl?.trim() || undefined,
+  prepTime: formData.prepTime?.trim() || undefined,
+  cookTime: formData.cookTime?.trim() || undefined,
+  servings: formData.servings?.trim() || undefined,
+  sourceUrl: formData.sourceUrl?.trim() || undefined,
   isPublic: formData.isPublic,
 });
 

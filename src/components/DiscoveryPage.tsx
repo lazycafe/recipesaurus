@@ -67,6 +67,7 @@ interface CookbookCardCompactProps {
 function CookbookCardCompact({ cookbook, onClick }: CookbookCardCompactProps) {
   return (
     <article className="discovery-card cookbook-card" onClick={onClick}>
+      <span className="cookbook-badge">Cookbook</span>
       <div className="discovery-card-image">
         {cookbook.coverImage ? (
           <img src={cookbook.coverImage} alt={cookbook.name} loading="lazy" />
@@ -81,7 +82,10 @@ function CookbookCardCompact({ cookbook, onClick }: CookbookCardCompactProps) {
         {cookbook.ownerName && (
           <p className="discovery-card-author">by {cookbook.ownerName}</p>
         )}
-        <p className="discovery-card-count">{cookbook.recipeCount} recipes</p>
+        <p className="discovery-card-count">
+          <BookOpen size={12} />
+          {cookbook.recipeCount} recipes
+        </p>
       </div>
     </article>
   );
@@ -160,11 +164,11 @@ export function DiscoveryPage() {
       .split(',')
       .map((t: string) => t.trim().toLowerCase())
       .filter(Boolean),
-    imageUrl: formData.imageUrl.trim() || undefined,
-    prepTime: formData.prepTime.trim() || undefined,
-    cookTime: formData.cookTime.trim() || undefined,
-    servings: formData.servings.trim() || undefined,
-    sourceUrl: formData.sourceUrl.trim() || undefined,
+    imageUrl: formData.imageUrl?.trim() || undefined,
+    prepTime: formData.prepTime?.trim() || undefined,
+    cookTime: formData.cookTime?.trim() || undefined,
+    servings: formData.servings?.trim() || undefined,
+    sourceUrl: formData.sourceUrl?.trim() || undefined,
     isPublic: formData.isPublic,
   });
 
