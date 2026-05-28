@@ -132,6 +132,8 @@ CREATE INDEX IF NOT EXISTS idx_cookbook_invites_status ON cookbook_invites(statu
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_recipes_user_id ON recipes(user_id);
+CREATE INDEX IF NOT EXISTS idx_recipes_owner_id ON recipes(owner_id);
+CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_cookbooks_user_id ON cookbooks(user_id);
 CREATE INDEX IF NOT EXISTS idx_cookbooks_is_public ON cookbooks(is_public);
