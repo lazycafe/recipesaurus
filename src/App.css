@@ -218,6 +218,12 @@ img {
   }
 }
 
+@media (max-width: 900px) {
+  .header-content {
+    grid-template-columns: 1fr auto;
+  }
+}
+
 .logo-section {
   display: flex;
   align-items: center;
