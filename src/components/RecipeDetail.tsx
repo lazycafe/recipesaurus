@@ -1,8 +1,10 @@
-import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User } from 'lucide-react';
+import { useState } from 'react';
+import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User, Share2 } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { Recipe as ClientRecipe } from '../client/types';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
+import { ShareRecipeModal } from './ShareRecipeModal';
 
 interface RecipeDetailProps {
   recipe: Recipe | ClientRecipe;
@@ -15,6 +17,8 @@ interface RecipeDetailProps {
 }
 
 export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOnly = false, isPublicView = false }: RecipeDetailProps) {
+  const [showShareModal, setShowShareModal] = useState(false);
+
   const handleDelete = () => {
     onDelete?.();
   };
@@ -88,12 +92,20 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
               </div>
             )}
 
-            {recipe.sourceUrl && (
-              <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="source-link">
-                <span>View Original</span>
-                <ExternalLink size={14} strokeWidth={2} />
-              </a>
-            )}
+            <div className="detail-actions-row">
+              {recipe.sourceUrl && (
+                <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="source-link">
+                  <span>View Original</span>
+                  <ExternalLink size={14} strokeWidth={2} />
+                </a>
+              )}
+              {!isPublicView && (
+                <button className="btn-share" onClick={() => setShowShareModal(true)}>
+                  <Share2 size={16} strokeWidth={2} />
+                  <span>Share</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -146,6 +158,13 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
           </div>
         )}
       </div>
+
+      {showShareModal && (
+        <ShareRecipeModal
+          recipe={recipe}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
     </ModalOverlay>
   );
 }
