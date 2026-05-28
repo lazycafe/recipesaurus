@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { X, Loader2, Mail, Link, Copy, Check, Trash2, Users } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Loader2, Link, Copy, Check, Trash2, Users } from 'lucide-react';
 import { Cookbook, CookbookShare, CookbookShareLink } from '../types/Cookbook';
-import { cookbooksApi } from '../utils/api';
+import { useClient } from '../client/ClientContext';
 import { ConfirmModal } from './ConfirmModal';
 import { ModalOverlay } from './ModalOverlay';
 
@@ -11,6 +11,7 @@ interface ShareCookbookModalProps {
 }
 
 export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProps) {
+  const client = useClient();
   const [activeTab, setActiveTab] = useState<'email' | 'link'>('email');
   const [email, setEmail] = useState('');
   const [shares, setShares] = useState<CookbookShare[]>([]);
@@ -23,18 +24,29 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
   const [removeShareUserId, setRemoveShareUserId] = useState<string | null>(null);
   const [revokeLinkId, setRevokeLinkId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchShares();
-  }, [cookbook.id]);
+  const getShareUrl = (token: string) => `${window.location.origin}/shared/${token}`;
 
-  const fetchShares = async () => {
+  const fetchShares = useCallback(async () => {
     setIsLoading(true);
-    const { data } = await cookbooksApi.getShares(cookbook.id);
+    const { data, error: apiError } = await client.cookbooks.getShares(cookbook.id);
     if (data) {
       setShares(data.shares);
       setLinks(data.links.filter(l => l.isActive));
+      setError('');
+    } else if (apiError) {
+      setError(apiError);
     }
     setIsLoading(false);
+  }, [client, cookbook.id]);
+
+  useEffect(() => {
+    fetchShares();
+  }, [fetchShares]);
+
+  const handleTabChange = (tab: 'email' | 'link') => {
+    setActiveTab(tab);
+    setError('');
+    setSuccess('');
   };
 
   const handleShareByEmail = async (e: React.FormEvent) => {
@@ -45,7 +57,7 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
     setError('');
     setSuccess('');
 
-    const { data, error: apiError } = await cookbooksApi.shareByEmail(cookbook.id, email.trim());
+    const { data, error: apiError } = await client.cookbooks.shareByEmail(cookbook.id, email.trim());
 
     if (apiError) {
       setError(apiError);
@@ -64,7 +76,7 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
 
   const confirmRemoveShare = async () => {
     if (!removeShareUserId) return;
-    const { error: apiError } = await cookbooksApi.removeShare(cookbook.id, removeShareUserId);
+    const { error: apiError } = await client.cookbooks.removeShare(cookbook.id, removeShareUserId);
     if (!apiError) {
       setShares(prev => prev.filter(s => s.userId !== removeShareUserId));
     }
@@ -73,7 +85,10 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
 
   const handleCreateLink = async () => {
     setIsSubmitting(true);
-    const { data, error: apiError } = await cookbooksApi.createShareLink(cookbook.id);
+    setError('');
+    setSuccess('');
+
+    const { data, error: apiError } = await client.cookbooks.createShareLink(cookbook.id);
     if (data) {
       setLinks(prev => [data, ...prev]);
     } else if (apiError) {
@@ -88,7 +103,7 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
 
   const confirmRevokeLink = async () => {
     if (!revokeLinkId) return;
-    const { error: apiError } = await cookbooksApi.revokeShareLink(cookbook.id, revokeLinkId);
+    const { error: apiError } = await client.cookbooks.revokeShareLink(cookbook.id, revokeLinkId);
     if (!apiError) {
       setLinks(prev => prev.filter(l => l.id !== revokeLinkId));
     }
@@ -96,7 +111,7 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
   };
 
   const copyToClipboard = async (token: string, linkId: string) => {
-    const url = `${window.location.origin}/shared/${token}`;
+    const url = getShareUrl(token);
     await navigator.clipboard.writeText(url);
     setCopiedLinkId(linkId);
     setTimeout(() => setCopiedLinkId(null), 2000);
@@ -114,14 +129,14 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
         <div className="share-tabs">
           <button
             className={`share-tab ${activeTab === 'email' ? 'active' : ''}`}
-            onClick={() => setActiveTab('email')}
+            onClick={() => handleTabChange('email')}
           >
             <Users size={16} />
             Share With User
           </button>
           <button
             className={`share-tab ${activeTab === 'link' ? 'active' : ''}`}
-            onClick={() => setActiveTab('link')}
+            onClick={() => handleTabChange('link')}
           >
             <Link size={16} />
             Share Link
@@ -183,6 +198,8 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
           </div>
         ) : (
           <div className="share-content">
+            {error && <div className="form-error">{error}</div>}
+
             <p className="share-link-info">
               Anyone with the link can view this cookbook without signing in.
             </p>
@@ -201,8 +218,8 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
                 <h4>Active Links</h4>
                 {links.map(link => (
                   <div key={link.id} className="share-link-item">
-                    <code className="share-link-url">
-                      {window.location.origin}/shared/{link.token.slice(0, 8)}...
+                    <code className="share-link-url" title={getShareUrl(link.token)}>
+                      {getShareUrl(link.token)}
                     </code>
                     <div className="share-link-actions">
                       <button

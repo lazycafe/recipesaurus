@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Loader2, User, ChefHat } from 'lucide-react';
-import { cookbooksApi, RecipeResponse } from '../utils/api';
+import { useClient } from '../client/ClientContext';
+import type { Recipe as ClientRecipe } from '../client/types';
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { RecipeCard } from './RecipeCard';
@@ -18,7 +19,7 @@ interface SharedCookbookViewProps {
   token: string;
 }
 
-function mapRecipeResponse(r: RecipeResponse): Recipe {
+function mapRecipeResponse(r: ClientRecipe): Recipe {
   return {
     id: r.id,
     title: r.title,
@@ -26,16 +27,17 @@ function mapRecipeResponse(r: RecipeResponse): Recipe {
     ingredients: r.ingredients,
     instructions: r.instructions,
     tags: r.tags,
-    imageUrl: r.imageUrl,
-    sourceUrl: r.sourceUrl,
-    prepTime: r.prepTime,
-    cookTime: r.cookTime,
-    servings: r.servings,
+    imageUrl: r.imageUrl || undefined,
+    sourceUrl: r.sourceUrl || undefined,
+    prepTime: r.prepTime || undefined,
+    cookTime: r.cookTime || undefined,
+    servings: r.servings || undefined,
     createdAt: r.createdAt,
   };
 }
 
 export function SharedCookbookView({ token }: SharedCookbookViewProps) {
+  const client = useClient();
   const [cookbook, setCookbook] = useState<SharedCookbook | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
@@ -45,7 +47,8 @@ export function SharedCookbookView({ token }: SharedCookbookViewProps) {
   useEffect(() => {
     async function fetchSharedCookbook() {
       setIsLoading(true);
-      const { data, error: apiError } = await cookbooksApi.getShared(token);
+      setError('');
+      const { data, error: apiError } = await client.cookbooks.getShared(token);
 
       if (apiError) {
         setError(apiError);
@@ -53,7 +56,7 @@ export function SharedCookbookView({ token }: SharedCookbookViewProps) {
         setCookbook({
           id: data.cookbook.id,
           name: data.cookbook.name,
-          description: data.cookbook.description,
+          description: data.cookbook.description || undefined,
           ownerName: data.cookbook.ownerName || 'Unknown',
           recipeCount: data.cookbook.recipeCount,
         });
@@ -64,7 +67,7 @@ export function SharedCookbookView({ token }: SharedCookbookViewProps) {
     }
 
     fetchSharedCookbook();
-  }, [token]);
+  }, [client, token]);
 
   if (isLoading) {
     return (
