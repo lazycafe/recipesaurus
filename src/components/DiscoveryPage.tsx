@@ -108,6 +108,15 @@ function CookbookCardCompact({ cookbook, onClick, onSave, isSaving }: CookbookCa
 
 const TRENDING_TAGS = ['dinner', 'quick', 'healthy', 'vegetarian', 'dessert', 'breakfast', 'chicken', 'pasta'];
 
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter(item => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
 interface DiscoveryPageProps {
   tab?: 'recipes' | 'cookbooks';
 }
@@ -250,22 +259,25 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     }
   };
 
+  const uniqueRecipes = uniqueById(recipes);
+  const uniqueCookbooks = uniqueById(cookbooks);
+
   const filteredRecipes = searchQuery
-    ? recipes.filter(r =>
+    ? uniqueRecipes.filter(r =>
         r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         r.description.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : recipes;
+    : uniqueRecipes;
 
   const filteredCookbooks = searchQuery
-    ? cookbooks.filter(c =>
+    ? uniqueCookbooks.filter(c =>
         c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         c.description?.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : cookbooks;
+    : uniqueCookbooks;
 
-  const hasMoreRecipes = recipes.length < recipesTotal;
-  const hasMoreCookbooks = cookbooks.length < cookbooksTotal;
+  const hasMoreRecipes = uniqueRecipes.length < recipesTotal;
+  const hasMoreCookbooks = uniqueCookbooks.length < cookbooksTotal;
 
   const { loadMoreRef: recipesLoadMoreRef } = useInfiniteScroll({
     onLoadMore: loadMoreRecipes,

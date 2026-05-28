@@ -665,7 +665,7 @@ export class CoreHandlers {
   async updateCookbook(
     ctx: RequestContext,
     cookbookId: string,
-    data: { name?: string; description?: string; coverImage?: string }
+    data: { name?: string; description?: string; coverImage?: string; isPublic?: boolean }
   ): Promise<ApiResult<{ success: boolean }>> {
     const user = await this.getSessionUser(ctx);
     if (!user) {
@@ -689,11 +689,13 @@ export class CoreHandlers {
         name = COALESCE(?, name),
         description = COALESCE(?, description),
         cover_image = ?,
+        is_public = COALESCE(?, is_public),
         updated_at = ?
       WHERE id = ? AND user_id = ?`,
       data.name || null,
       data.description || null,
       newCoverImage,
+      data.isPublic !== undefined ? (data.isPublic ? 1 : 0) : null,
       Date.now(),
       cookbookId,
       user.id
@@ -1479,9 +1481,19 @@ export class CoreHandlers {
       }
     }
 
+    let countQuery = `SELECT COUNT(*) as count FROM recipes r WHERE r.is_public = 1`;
+    const countParams: unknown[] = [];
+    if (options?.tags && options.tags.length > 0) {
+      for (const tag of options.tags) {
+        countQuery += ` AND r.tags LIKE ?`;
+        countParams.push(`%"${tag}"%`);
+      }
+    }
+
     // Get total count
     const countResult = await this.db.get<{ count: number }>(
-      `SELECT COUNT(*) as count FROM recipes r WHERE r.is_public = 1`,
+      countQuery,
+      ...countParams
     );
 
     query += ` ORDER BY r.created_at DESC LIMIT ? OFFSET ?`;

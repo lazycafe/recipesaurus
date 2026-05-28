@@ -27,6 +27,7 @@ interface Session {
 interface Recipe {
   id: string;
   user_id: string;
+  owner_id: string;
   title: string;
   description: string;
   ingredients: string;
@@ -37,6 +38,7 @@ interface Recipe {
   prep_time: string | null;
   cook_time: string | null;
   servings: string | null;
+  is_public: number;
   created_at: number;
 }
 
@@ -46,6 +48,9 @@ interface Cookbook {
   name: string;
   description: string | null;
   cover_image: string | null;
+  is_system: number;
+  system_type: string | null;
+  is_public: number;
   created_at: number;
   updated_at: number;
 }
@@ -841,8 +846,12 @@ async function handleGetRecipes(request: Request, db: D1Database): Promise<Respo
   }
 
   const recipes = await db.prepare(
-    'SELECT * FROM recipes WHERE user_id = ? ORDER BY created_at DESC'
-  ).bind(user.id).all<Recipe>();
+    `SELECT r.*, u.name as owner_name
+     FROM recipes r
+     LEFT JOIN users u ON r.owner_id = u.id
+     WHERE r.user_id = ?
+     ORDER BY r.created_at DESC`
+  ).bind(user.id).all<Recipe & { owner_name: string | null }>();
 
   const formattedRecipes = recipes.results.map(r => ({
     id: r.id,
@@ -856,6 +865,10 @@ async function handleGetRecipes(request: Request, db: D1Database): Promise<Respo
     prepTime: r.prep_time,
     cookTime: r.cook_time,
     servings: r.servings,
+    isPublic: r.is_public === 1,
+    ownerId: r.owner_id,
+    ownerName: r.owner_name,
+    isOwner: r.owner_id === user.id,
     createdAt: r.created_at,
   }));
 
@@ -881,15 +894,17 @@ async function handleCreateRecipe(request: Request, db: D1Database): Promise<Res
     prepTime?: string;
     cookTime?: string;
     servings?: string;
+    isPublic?: boolean;
   };
 
   const recipeId = generateId();
   const now = Date.now();
   await db.prepare(`
-    INSERT INTO recipes (id, user_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     recipeId,
+    user.id,
     user.id,
     body.title,
     body.description || '',
@@ -901,6 +916,7 @@ async function handleCreateRecipe(request: Request, db: D1Database): Promise<Res
     body.prepTime || null,
     body.cookTime || null,
     body.servings || null,
+    body.isPublic ? 1 : 0,
     now
   ).run();
 
@@ -1065,6 +1081,7 @@ async function handleUpdateRecipe(request: Request, db: D1Database, recipeId: st
     prepTime?: string;
     cookTime?: string;
     servings?: string;
+    isPublic?: boolean;
   };
 
   await db.prepare(`
@@ -1078,7 +1095,8 @@ async function handleUpdateRecipe(request: Request, db: D1Database, recipeId: st
       source_url = ?,
       prep_time = ?,
       cook_time = ?,
-      servings = ?
+      servings = ?,
+      is_public = COALESCE(?, is_public)
     WHERE id = ? AND user_id = ?
   `).bind(
     body.title || null,
@@ -1091,6 +1109,7 @@ async function handleUpdateRecipe(request: Request, db: D1Database, recipeId: st
     body.prepTime ?? null,
     body.cookTime ?? null,
     body.servings ?? null,
+    body.isPublic !== undefined ? (body.isPublic ? 1 : 0) : null,
     recipeId,
     user.id
   ).run();
@@ -1243,6 +1262,9 @@ async function handleGetCookbook(request: Request, db: D1Database, cookbookId: s
     prepTime: r.prep_time,
     cookTime: r.cook_time,
     servings: r.servings,
+    isPublic: r.is_public === 1,
+    ownerId: r.owner_id,
+    isOwner: r.owner_id === user.id,
     createdAt: r.created_at,
     addedByUserId: r.added_by_user_id,
     addedByUserName: r.added_by_user_name,
@@ -1255,6 +1277,9 @@ async function handleGetCookbook(request: Request, db: D1Database, cookbookId: s
       description: cookbook.description,
       coverImage: cookbook.cover_image,
       recipeCount: formattedRecipes.length,
+      isSystem: cookbook.is_system === 1,
+      systemType: cookbook.system_type,
+      isPublic: cookbook.is_public === 1,
       createdAt: cookbook.created_at,
       updatedAt: cookbook.updated_at,
       isOwner,
@@ -1280,15 +1305,16 @@ async function handleUpdateCookbook(request: Request, db: D1Database, cookbookId
     return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
-  const body = await request.json() as { name?: string; description?: string; coverImage?: string | null };
+  const body = await request.json() as { name?: string; description?: string; coverImage?: string | null; isPublic?: boolean };
 
   const newName = body.name?.trim() || cookbook.name;
   const newDescription = body.description !== undefined ? (body.description?.trim() || null) : cookbook.description;
   const newCoverImage = body.coverImage !== undefined ? (body.coverImage?.trim() || null) : cookbook.cover_image;
+  const newIsPublic = body.isPublic !== undefined ? (body.isPublic ? 1 : 0) : cookbook.is_public;
 
   await db.prepare(`
-    UPDATE cookbooks SET name = ?, description = ?, cover_image = ?, updated_at = ? WHERE id = ?
-  `).bind(newName, newDescription, newCoverImage, Date.now(), cookbookId).run();
+    UPDATE cookbooks SET name = ?, description = ?, cover_image = ?, is_public = ?, updated_at = ? WHERE id = ?
+  `).bind(newName, newDescription, newCoverImage, newIsPublic, Date.now(), cookbookId).run();
 
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
@@ -1914,6 +1940,187 @@ async function handleDeclineInvite(request: Request, db: D1Database, inviteId: s
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
+function parseLimitOffset(url: URL): { limit: number; offset: number } {
+  const rawLimit = Number(url.searchParams.get('limit') || '20');
+  const rawOffset = Number(url.searchParams.get('offset') || '0');
+
+  return {
+    limit: Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 20, 1), 50),
+    offset: Math.max(Number.isFinite(rawOffset) ? rawOffset : 0, 0),
+  };
+}
+
+function formatPublicRecipe(
+  recipe: Recipe & { owner_name: string | null },
+  currentUserId?: string
+) {
+  return {
+    id: recipe.id,
+    title: recipe.title,
+    description: recipe.description,
+    ingredients: JSON.parse(recipe.ingredients),
+    instructions: JSON.parse(recipe.instructions),
+    tags: recipe.tags ? JSON.parse(recipe.tags) : [],
+    imageUrl: recipe.image_url,
+    sourceUrl: recipe.source_url,
+    prepTime: recipe.prep_time,
+    cookTime: recipe.cook_time,
+    servings: recipe.servings,
+    isPublic: recipe.is_public === 1,
+    ownerId: recipe.owner_id,
+    ownerName: recipe.owner_name,
+    isOwner: currentUserId ? recipe.owner_id === currentUserId : false,
+    createdAt: recipe.created_at,
+  };
+}
+
+async function handleDiscoverRecipes(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+  const url = new URL(request.url);
+  const { limit, offset } = parseLimitOffset(url);
+  const tags = (url.searchParams.get('tags') || '')
+    .split(',')
+    .map(tag => tag.trim().toLowerCase())
+    .filter(Boolean);
+
+  let whereClause = 'WHERE r.is_public = 1';
+  const params: string[] = [];
+  for (const tag of tags) {
+    whereClause += ' AND r.tags LIKE ?';
+    params.push(`%"${tag}"%`);
+  }
+
+  const count = await db.prepare(
+    `SELECT COUNT(*) as count FROM recipes r ${whereClause}`
+  ).bind(...params).first<{ count: number }>();
+
+  const recipes = await db.prepare(
+    `SELECT r.*, u.name as owner_name
+     FROM recipes r
+     JOIN users u ON r.owner_id = u.id
+     ${whereClause}
+     ORDER BY r.created_at DESC
+     LIMIT ? OFFSET ?`
+  ).bind(...params, limit, offset).all<Recipe & { owner_name: string | null }>();
+
+  return jsonResponse(
+    {
+      recipes: recipes.results.map(recipe => formatPublicRecipe(recipe, user?.id)),
+      total: count?.count || 0,
+    },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+async function handleDiscoverCookbooks(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+  const url = new URL(request.url);
+  const { limit, offset } = parseLimitOffset(url);
+
+  const count = await db.prepare(
+    'SELECT COUNT(*) as count FROM cookbooks WHERE is_public = 1 AND is_system = 0'
+  ).first<{ count: number }>();
+
+  const cookbooks = await db.prepare(
+    `SELECT c.*, COUNT(DISTINCT cr.recipe_id) as recipe_count, u.name as owner_name
+     FROM cookbooks c
+     LEFT JOIN cookbook_recipes cr ON c.id = cr.cookbook_id
+     JOIN users u ON c.user_id = u.id
+     WHERE c.is_public = 1 AND c.is_system = 0
+     GROUP BY c.id
+     ORDER BY c.updated_at DESC
+     LIMIT ? OFFSET ?`
+  ).bind(limit, offset).all<Cookbook & { recipe_count: number; owner_name: string }>();
+
+  return jsonResponse(
+    {
+      cookbooks: cookbooks.results.map(cookbook => ({
+        id: cookbook.id,
+        name: cookbook.name,
+        description: cookbook.description,
+        coverImage: cookbook.cover_image || null,
+        recipeCount: cookbook.recipe_count || 0,
+        isSystem: cookbook.is_system === 1,
+        systemType: cookbook.system_type,
+        isPublic: cookbook.is_public === 1,
+        createdAt: cookbook.created_at,
+        updatedAt: cookbook.updated_at,
+        isOwner: user ? cookbook.user_id === user.id : false,
+        ownerName: cookbook.owner_name,
+      })),
+      total: count?.count || 0,
+    },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+async function handleDiscoverRecipe(request: Request, db: D1Database, recipeId: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+  const recipe = await db.prepare(
+    `SELECT r.*, u.name as owner_name
+     FROM recipes r
+     JOIN users u ON r.owner_id = u.id
+     WHERE r.id = ? AND r.is_public = 1`
+  ).bind(recipeId).first<Recipe & { owner_name: string | null }>();
+
+  if (!recipe) {
+    return errorResponse('Recipe not found', 404, origin);
+  }
+
+  return jsonResponse({ recipe: formatPublicRecipe(recipe, user?.id) }, 200, corsHeaders(origin));
+}
+
+async function handleDiscoverCookbook(request: Request, db: D1Database, cookbookId: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+  const cookbook = await db.prepare(
+    `SELECT c.*, u.name as owner_name
+     FROM cookbooks c
+     JOIN users u ON c.user_id = u.id
+     WHERE c.id = ? AND c.is_public = 1 AND c.is_system = 0`
+  ).bind(cookbookId).first<Cookbook & { owner_name: string }>();
+
+  if (!cookbook) {
+    return errorResponse('Cookbook not found', 404, origin);
+  }
+
+  const recipes = await db.prepare(
+    `SELECT r.*, u.name as owner_name
+     FROM recipes r
+     JOIN cookbook_recipes cr ON r.id = cr.recipe_id
+     JOIN users u ON r.owner_id = u.id
+     WHERE cr.cookbook_id = ?
+     ORDER BY cr.added_at DESC`
+  ).bind(cookbookId).all<Recipe & { owner_name: string | null }>();
+
+  return jsonResponse(
+    {
+      cookbook: {
+        id: cookbook.id,
+        name: cookbook.name,
+        description: cookbook.description,
+        coverImage: cookbook.cover_image || null,
+        recipeCount: recipes.results.length,
+        isSystem: cookbook.is_system === 1,
+        systemType: cookbook.system_type,
+        isPublic: cookbook.is_public === 1,
+        createdAt: cookbook.created_at,
+        updatedAt: cookbook.updated_at,
+        isOwner: user ? cookbook.user_id === user.id : false,
+        ownerName: cookbook.owner_name,
+      },
+      recipes: recipes.results.map(recipe => formatPublicRecipe(recipe, user?.id)),
+    },
+    200,
+    corsHeaders(origin)
+  );
+}
+
 // Discover - save a public cookbook to user's collection
 async function handleDiscoverSaveCookbook(request: Request, db: D1Database, cookbookId: string): Promise<Response> {
   const user = await getSessionUser(request, db);
@@ -2094,10 +2301,11 @@ async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
     const recipeId = generateId();
     recipeIds.push(recipeId);
     await db.prepare(`
-      INSERT INTO recipes (id, user_id, title, description, ingredients, instructions, tags, prep_time, cook_time, servings, image_url, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, prep_time, cook_time, servings, image_url, is_public, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       recipeId,
+      userId,
       userId,
       recipe.title,
       recipe.description,
@@ -2108,6 +2316,7 @@ async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
       recipe.cookTime,
       recipe.servings,
       recipe.imageUrl,
+      0,
       Date.now() - Math.random() * 86400000 * 3
     ).run();
   }
@@ -2300,6 +2509,24 @@ export default {
       const sharedMatch = path.match(/^\/api\/shared\/([^/]+)$/);
       if (sharedMatch && method === 'GET') {
         return handleGetSharedCookbook(request, env.DB, sharedMatch[1]);
+      }
+
+      // Discover - list public recipes and cookbooks
+      if (path === '/api/discover/recipes' && method === 'GET') {
+        return handleDiscoverRecipes(request, env.DB);
+      }
+      if (path === '/api/discover/cookbooks' && method === 'GET') {
+        return handleDiscoverCookbooks(request, env.DB);
+      }
+
+      // Discover - public detail routes
+      const discoverRecipeMatch = path.match(/^\/api\/discover\/recipes\/([^/]+)$/);
+      if (discoverRecipeMatch && method === 'GET') {
+        return handleDiscoverRecipe(request, env.DB, discoverRecipeMatch[1]);
+      }
+      const discoverCookbookMatch = path.match(/^\/api\/discover\/cookbooks\/([^/]+)$/);
+      if (discoverCookbookMatch && method === 'GET') {
+        return handleDiscoverCookbook(request, env.DB, discoverCookbookMatch[1]);
       }
 
       // Discover - save recipe route

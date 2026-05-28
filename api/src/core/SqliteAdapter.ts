@@ -46,8 +46,11 @@ export class SqliteAdapter implements IDatabaseAdapter {
 
 // Helper to create an in-memory SQLite database with schema
 export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
+  const maybeProcess = (globalThis as { process?: { cwd?: () => string; versions?: { node?: string } } }).process;
   const SQL = await initSqlJs({
-    locateFile: () => `/sql-wasm.wasm`,
+    locateFile: () => maybeProcess?.versions?.node
+      ? `${maybeProcess.cwd?.() || '.'}/node_modules/sql.js/dist/sql-wasm.wasm`
+      : '/sql-wasm.wasm',
   });
   const db = new SQL.Database();
 

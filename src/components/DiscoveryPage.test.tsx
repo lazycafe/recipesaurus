@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
 import { DiscoveryPage } from './DiscoveryPage';
 import * as DiscoveryContext from '../context/DiscoveryContext';
 import * as AuthContext from '../context/AuthContext';
 import * as ToastContext from '../context/ToastContext';
 import * as RecipeContext from '../context/RecipeContext';
+import * as CookbookContext from '../context/CookbookContext';
 
 // Mock the contexts
 vi.mock('../context/DiscoveryContext', () => ({
@@ -22,6 +25,18 @@ vi.mock('../context/ToastContext', () => ({
 vi.mock('../context/RecipeContext', () => ({
   useRecipes: vi.fn(),
 }));
+
+vi.mock('../context/CookbookContext', () => ({
+  useCookbooks: vi.fn(),
+}));
+
+function renderWithRouter(ui: ReactElement) {
+  return render(
+    <MemoryRouter>
+      {ui}
+    </MemoryRouter>
+  );
+}
 
 describe('DiscoveryPage', () => {
   const mockLoadRecipes = vi.fn();
@@ -101,20 +116,33 @@ describe('DiscoveryPage', () => {
       getAllTags: vi.fn().mockReturnValue([]),
       refreshRecipes: vi.fn(),
     });
+
+    vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
+      ownedCookbooks: [],
+      sharedCookbooks: [],
+      isLoading: false,
+      createCookbook: vi.fn(),
+      updateCookbook: vi.fn(),
+      deleteCookbook: vi.fn(),
+      leaveCookbook: vi.fn(),
+      addRecipeToCookbook: vi.fn(),
+      removeRecipeFromCookbook: vi.fn(),
+      refreshCookbooks: vi.fn(),
+    });
   });
 
   it('renders Discover header', () => {
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('Discover')).toBeDefined();
   });
 
   it('renders search input', () => {
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(screen.getByPlaceholderText('Search recipes and cookbooks...')).toBeDefined();
   });
 
   it('renders trending tags', () => {
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('Trending:')).toBeDefined();
     expect(screen.getByText('dinner')).toBeDefined();
     expect(screen.getByText('quick')).toBeDefined();
@@ -122,23 +150,23 @@ describe('DiscoveryPage', () => {
   });
 
   it('renders Recipes and Cookbooks tabs', () => {
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('Recipes')).toBeDefined();
     expect(screen.getByText('Cookbooks')).toBeDefined();
   });
 
   it('loads recipes on mount', () => {
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(mockLoadRecipes).toHaveBeenCalled();
   });
 
   it('loads cookbooks on mount', () => {
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(mockLoadCookbooks).toHaveBeenCalled();
   });
 
   it('shows empty state when no recipes', () => {
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('No recipes found')).toBeDefined();
   });
 
@@ -162,9 +190,33 @@ describe('DiscoveryPage', () => {
       getPublicCookbook: vi.fn(),
     });
 
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('Test Recipe')).toBeDefined();
     expect(screen.getByText('by Test Chef')).toBeDefined();
+  });
+
+  it('renders duplicate recipes only once', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [mockRecipe, { ...mockRecipe }],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+    expect(screen.getAllByText('Test Recipe')).toHaveLength(1);
   });
 
   it('shows loading state for recipes', () => {
@@ -187,11 +239,11 @@ describe('DiscoveryPage', () => {
       getPublicCookbook: vi.fn(),
     });
 
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('Loading recipes...')).toBeDefined();
   });
 
-  it('switches to cookbooks tab when clicked', () => {
+  it('shows cookbooks on the cookbooks tab', () => {
     vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
       recipes: [],
       cookbooks: [mockCookbook],
@@ -211,13 +263,36 @@ describe('DiscoveryPage', () => {
       getPublicCookbook: vi.fn(),
     });
 
-    render(<DiscoveryPage />);
-    fireEvent.click(screen.getByText('Cookbooks'));
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
     expect(screen.getByText('Test Cookbook')).toBeDefined();
   });
 
+  it('renders duplicate cookbooks only once', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [],
+      cookbooks: [mockCookbook, { ...mockCookbook }],
+      recipesTotal: 0,
+      cookbooksTotal: 1,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      saveCookbook: vi.fn(),
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+    expect(screen.getAllByText('Test Cookbook')).toHaveLength(1);
+  });
+
   it('toggles tag filter when clicked', () => {
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     fireEvent.click(screen.getByText('dinner'));
     expect(mockSetSelectedTags).toHaveBeenCalledWith(['dinner']);
   });
@@ -242,7 +317,7 @@ describe('DiscoveryPage', () => {
       getPublicCookbook: vi.fn(),
     });
 
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('Clear')).toBeDefined();
   });
 
@@ -266,7 +341,7 @@ describe('DiscoveryPage', () => {
       getPublicCookbook: vi.fn(),
     });
 
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     fireEvent.click(screen.getByText('Clear'));
     expect(mockSetSelectedTags).toHaveBeenCalledWith([]);
   });
@@ -291,7 +366,7 @@ describe('DiscoveryPage', () => {
       getPublicCookbook: vi.fn(),
     });
 
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     // Infinite scroll uses a sentinel element instead of a button
     const sentinel = document.querySelector('.infinite-scroll-sentinel');
     expect(sentinel).toBeDefined();
@@ -317,7 +392,7 @@ describe('DiscoveryPage', () => {
       getPublicCookbook: vi.fn(),
     });
 
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     // The infinite scroll sentinel is present for triggering loadMore
     const sentinel = document.querySelector('.infinite-scroll-sentinel');
     expect(sentinel).not.toBeNull();
@@ -343,7 +418,7 @@ describe('DiscoveryPage', () => {
       getPublicCookbook: vi.fn(),
     });
 
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
 
     const searchInput = screen.getByPlaceholderText('Search recipes and cookbooks...');
     fireEvent.change(searchInput, { target: { value: 'Pasta' } });
@@ -372,7 +447,7 @@ describe('DiscoveryPage', () => {
       getPublicCookbook: vi.fn(),
     });
 
-    render(<DiscoveryPage />);
+    renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('(25)')).toBeDefined();
     expect(screen.getByText('(10)')).toBeDefined();
   });

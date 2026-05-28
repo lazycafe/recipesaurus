@@ -6,6 +6,8 @@ import { DiscoveryPage } from '../components/DiscoveryPage';
 import * as AuthContext from '../context/AuthContext';
 import * as DiscoveryContext from '../context/DiscoveryContext';
 import * as ToastContext from '../context/ToastContext';
+import * as RecipeContext from '../context/RecipeContext';
+import * as CookbookContext from '../context/CookbookContext';
 
 // Mock the contexts
 vi.mock('../context/AuthContext', () => ({
@@ -18,6 +20,14 @@ vi.mock('../context/DiscoveryContext', () => ({
 
 vi.mock('../context/ToastContext', () => ({
   useToast: vi.fn(),
+}));
+
+vi.mock('../context/RecipeContext', () => ({
+  useRecipes: vi.fn(),
+}));
+
+vi.mock('../context/CookbookContext', () => ({
+  useCookbooks: vi.fn(),
 }));
 
 // Component that shows different content based on auth state (mirrors App.tsx logic)
@@ -61,6 +71,27 @@ describe('Home Page Routing', () => {
     vi.mocked(ToastContext.useToast).mockReturnValue({
       showToast: vi.fn(),
       hideToast: vi.fn(),
+    });
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: vi.fn(),
+      getAllTags: vi.fn().mockReturnValue([]),
+      refreshRecipes: vi.fn(),
+    });
+    vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
+      ownedCookbooks: [],
+      sharedCookbooks: [],
+      isLoading: false,
+      createCookbook: vi.fn(),
+      updateCookbook: vi.fn(),
+      deleteCookbook: vi.fn(),
+      leaveCookbook: vi.fn(),
+      addRecipeToCookbook: vi.fn(),
+      removeRecipeFromCookbook: vi.fn(),
+      refreshCookbooks: vi.fn(),
     });
   });
 
@@ -217,8 +248,8 @@ describe('Home Page Routing', () => {
         </MemoryRouter>
       );
 
-      expect(screen.getByRole('button', { name: /Recipes/i })).toBeDefined();
-      expect(screen.getByRole('button', { name: /Cookbooks/i })).toBeDefined();
+      expect(screen.getByRole('link', { name: /Recipes/i })).toBeDefined();
+      expect(screen.getByRole('link', { name: /Cookbooks/i })).toBeDefined();
     });
 
     it('does not show public home page content', () => {

@@ -38,6 +38,20 @@ export function useDiscovery() {
 
 const PAGE_SIZE = 12;
 
+function mergeUniqueById<T extends { id: string }>(current: T[], next: T[]): T[] {
+  const seen = new Set(current.map(item => item.id));
+  const uniqueNext = next.filter(item => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+  return [...current, ...uniqueNext];
+}
+
+function shouldUseSampleFallback<T>(items: T[], total: number, offset: number): boolean {
+  return offset === 0 && items.length === 0 && total === 0;
+}
+
 // Filter sample recipes by tags
 function filterSampleRecipes(tags: string[]): Recipe[] {
   if (tags.length === 0) return SAMPLE_RECIPES;
@@ -57,12 +71,26 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
     isLoadingCookbooks: false,
     selectedTags: [],
   });
-  const useSampleData = useRef(false);
+  const useSampleRecipes = useRef(false);
+  const useSampleCookbooks = useRef(false);
 
   const loadRecipes = useCallback(async (options?: { offset?: number; tags?: string[] }) => {
     setState(s => ({ ...s, isLoadingRecipes: true }));
     const offset = options?.offset || 0;
     const tags = options?.tags ?? state.selectedTags;
+
+    if (offset > 0 && useSampleRecipes.current) {
+      const filtered = filterSampleRecipes(tags);
+      const paged = filtered.slice(offset, offset + PAGE_SIZE);
+
+      setState(s => ({
+        ...s,
+        recipes: mergeUniqueById(s.recipes, paged),
+        recipesTotal: filtered.length,
+        isLoadingRecipes: false,
+      }));
+      return;
+    }
 
     try {
       const result = await client.discover.recipes({
@@ -71,23 +99,26 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         tags,
       });
 
-      if (result.data && result.data.recipes.length > 0) {
-        useSampleData.current = false;
+      if (
+        result.data &&
+        !shouldUseSampleFallback(result.data.recipes, result.data.total, offset)
+      ) {
+        useSampleRecipes.current = false;
         setState(s => ({
           ...s,
-          recipes: offset ? [...s.recipes, ...result.data!.recipes] : result.data!.recipes,
+          recipes: offset ? mergeUniqueById(s.recipes, result.data!.recipes) : mergeUniqueById([], result.data!.recipes),
           recipesTotal: result.data!.total,
           isLoadingRecipes: false,
         }));
       } else {
         // Use sample data when no real data from API
-        useSampleData.current = true;
+        useSampleRecipes.current = true;
         const filtered = filterSampleRecipes(tags);
         const paged = filtered.slice(offset, offset + PAGE_SIZE);
 
         setState(s => ({
           ...s,
-          recipes: offset ? [...s.recipes, ...paged] : paged,
+          recipes: offset ? mergeUniqueById(s.recipes, paged) : mergeUniqueById([], paged),
           recipesTotal: filtered.length,
           isLoadingRecipes: false,
         }));
@@ -96,13 +127,13 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       console.error('Failed to load discover recipes:', error);
 
       // Fallback to sample data on error
-      useSampleData.current = true;
+      useSampleRecipes.current = true;
       const filtered = filterSampleRecipes(tags);
       const paged = filtered.slice(offset, offset + PAGE_SIZE);
 
       setState(s => ({
         ...s,
-        recipes: offset ? [...s.recipes, ...paged] : paged,
+        recipes: offset ? mergeUniqueById(s.recipes, paged) : mergeUniqueById([], paged),
         recipesTotal: filtered.length,
         isLoadingRecipes: false,
       }));
@@ -113,26 +144,43 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
     setState(s => ({ ...s, isLoadingCookbooks: true }));
     const offset = options?.offset || 0;
 
+    if (offset > 0 && useSampleCookbooks.current) {
+      const paged = SAMPLE_COOKBOOKS.slice(offset, offset + PAGE_SIZE);
+
+      setState(s => ({
+        ...s,
+        cookbooks: mergeUniqueById(s.cookbooks, paged),
+        cookbooksTotal: SAMPLE_COOKBOOKS.length,
+        isLoadingCookbooks: false,
+      }));
+      return;
+    }
+
     try {
       const result = await client.discover.cookbooks({
         limit: PAGE_SIZE,
         offset,
       });
 
-      if (result.data && result.data.cookbooks.length > 0) {
+      if (
+        result.data &&
+        !shouldUseSampleFallback(result.data.cookbooks, result.data.total, offset)
+      ) {
+        useSampleCookbooks.current = false;
         setState(s => ({
           ...s,
-          cookbooks: offset ? [...s.cookbooks, ...result.data!.cookbooks] : result.data!.cookbooks,
+          cookbooks: offset ? mergeUniqueById(s.cookbooks, result.data!.cookbooks) : mergeUniqueById([], result.data!.cookbooks),
           cookbooksTotal: result.data!.total,
           isLoadingCookbooks: false,
         }));
       } else {
         // Use sample cookbooks when no real data from API
+        useSampleCookbooks.current = true;
         const paged = SAMPLE_COOKBOOKS.slice(offset, offset + PAGE_SIZE);
 
         setState(s => ({
           ...s,
-          cookbooks: offset ? [...s.cookbooks, ...paged] : paged,
+          cookbooks: offset ? mergeUniqueById(s.cookbooks, paged) : mergeUniqueById([], paged),
           cookbooksTotal: SAMPLE_COOKBOOKS.length,
           isLoadingCookbooks: false,
         }));
@@ -141,11 +189,12 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       console.error('Failed to load discover cookbooks:', error);
 
       // Fallback to sample cookbooks on error
+      useSampleCookbooks.current = true;
       const paged = SAMPLE_COOKBOOKS.slice(offset, offset + PAGE_SIZE);
 
       setState(s => ({
         ...s,
-        cookbooks: offset ? [...s.cookbooks, ...paged] : paged,
+        cookbooks: offset ? mergeUniqueById(s.cookbooks, paged) : mergeUniqueById([], paged),
         cookbooksTotal: SAMPLE_COOKBOOKS.length,
         isLoadingCookbooks: false,
       }));

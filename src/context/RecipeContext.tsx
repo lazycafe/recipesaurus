@@ -34,6 +34,7 @@ function mapRecipeResponse(r: ClientRecipe): ExtendedRecipe {
     prepTime: r.prepTime || undefined,
     cookTime: r.cookTime || undefined,
     servings: r.servings || undefined,
+    isPublic: r.isPublic,
     createdAt: r.createdAt,
     ownerName: r.ownerName || undefined,
     isOwner: r.isOwner,
@@ -114,6 +115,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
       prepTime: recipeData.prepTime,
       cookTime: recipeData.cookTime,
       servings: recipeData.servings,
+      isPublic: recipeData.isPublic,
     });
 
     if (error) {
