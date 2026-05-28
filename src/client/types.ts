@@ -57,6 +57,23 @@ export interface CookbookShareLink {
   createdAt: number;
 }
 
+export interface RecipeSharePayload {
+  title: string;
+  description?: string | null;
+  ingredients: string[];
+  instructions: string[];
+  prepTime?: string | null;
+  cookTime?: string | null;
+  servings?: string | null;
+  imageUrl?: string | null;
+  sourceUrl?: string | null;
+}
+
+export interface RecipeShareLink {
+  token: string;
+  createdAt: number;
+}
+
 export interface CreateRecipeData {
   title: string;
   description: string;
@@ -121,6 +138,8 @@ export interface IClient {
     update(id: string, data: UpdateRecipeData): Promise<ApiResponse<{ success: boolean }>>;
     delete(id: string): Promise<ApiResponse<{ success: boolean }>>;
     getCookbooksForRecipe(recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>>;
+    createShareLink(data: RecipeSharePayload): Promise<ApiResponse<RecipeShareLink>>;
+    getShared(token: string): Promise<ApiResponse<{ recipe: RecipeSharePayload }>>;
     saveFromPreview(data: {
       title: string;
       description: string;

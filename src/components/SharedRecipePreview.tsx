@@ -8,28 +8,38 @@ import { useToast } from '../context/ToastContext';
 
 interface PreviewRecipe {
   title: string;
-  description: string;
+  description?: string | null;
   ingredients: string[];
   instructions: string[];
-  prepTime?: string;
-  cookTime?: string;
-  servings?: string;
-  imageUrl?: string;
-  sourceUrl: string;
+  prepTime?: string | null;
+  cookTime?: string | null;
+  servings?: string | null;
+  imageUrl?: string | null;
+  sourceUrl?: string | null;
 }
 
 interface SharedRecipePreviewProps {
-  encodedData: string;
+  encodedData?: string;
+  shareToken?: string;
   isLoggedIn?: boolean;
+  isAuthLoading?: boolean;
   onSignIn?: () => void;
   onSignUp?: () => void;
 }
 
-export function SharedRecipePreview({ encodedData, isLoggedIn, onSignUp }: SharedRecipePreviewProps) {
+export function SharedRecipePreview({
+  encodedData,
+  shareToken,
+  isLoggedIn = false,
+  isAuthLoading = false,
+  onSignUp,
+}: SharedRecipePreviewProps) {
   const [recipe, setRecipe] = useState<PreviewRecipe | null>(null);
   const [error, setError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // These will only be available when rendered within the logged-in app context
   let client: ReturnType<typeof useClient> | null = null;
@@ -49,32 +59,74 @@ export function SharedRecipePreview({ encodedData, isLoggedIn, onSignUp }: Share
   }
 
   useEffect(() => {
-    try {
-      const decompressed = decompressFromEncodedURIComponent(encodedData);
-      if (decompressed) {
-        const data = JSON.parse(decompressed);
-        setRecipe(data);
-      } else {
-        setError(true);
+    let cancelled = false;
+
+    const loadRecipe = async () => {
+      setIsLoading(true);
+      setError(false);
+
+      try {
+        if (shareToken) {
+          if (!client) {
+            throw new Error('Recipe sharing client is unavailable');
+          }
+          const result = await client.recipes.getShared(shareToken);
+          if (!result.data) {
+            throw new Error(result.error || 'Share link not found');
+          }
+          if (!cancelled) {
+            setRecipe(result.data.recipe);
+          }
+        } else if (encodedData) {
+          const decompressed = decompressFromEncodedURIComponent(encodedData);
+          if (!decompressed) {
+            throw new Error('Invalid preview data');
+          }
+          const data = JSON.parse(decompressed);
+          if (!cancelled) {
+            setRecipe(data);
+          }
+        } else {
+          throw new Error('Missing preview data');
+        }
+      } catch {
+        if (!cancelled) {
+          setError(true);
+          setRecipe(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
-    } catch {
-      setError(true);
-    }
-  }, [encodedData]);
+    };
+
+    loadRecipe();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [encodedData, shareToken, client]);
 
   // Check for pending save after login
   useEffect(() => {
-    if (isLoggedIn && recipe && client) {
+    if (!isAuthLoading && isLoggedIn && recipe && client) {
       const pendingRecipe = sessionStorage.getItem('pendingSaveRecipe');
       if (pendingRecipe) {
         sessionStorage.removeItem('pendingSaveRecipe');
         handleSaveRecipe();
       }
     }
-  }, [isLoggedIn, recipe, client]);
+  }, [isAuthLoading, isLoggedIn, recipe, client]);
 
   const handleSaveRecipe = async () => {
     if (!recipe) return;
+
+    setSaveError('');
+
+    if (isAuthLoading) {
+      return;
+    }
 
     if (!isLoggedIn) {
       // Store pending action and show auth modal
@@ -83,39 +135,46 @@ export function SharedRecipePreview({ encodedData, isLoggedIn, onSignUp }: Share
       return;
     }
 
-    if (!client) return;
+    if (!client) {
+      setSaveError('Unable to save recipe right now. Please try again.');
+      return;
+    }
 
     setIsSaving(true);
     try {
       const result = await client.recipes.saveFromPreview({
         title: recipe.title,
-        description: recipe.description,
+        description: recipe.description || '',
         ingredients: recipe.ingredients,
         instructions: recipe.instructions,
-        prepTime: recipe.prepTime,
-        cookTime: recipe.cookTime,
-        servings: recipe.servings,
-        imageUrl: recipe.imageUrl,
-        sourceUrl: recipe.sourceUrl,
+        prepTime: recipe.prepTime || undefined,
+        cookTime: recipe.cookTime || undefined,
+        servings: recipe.servings || undefined,
+        imageUrl: recipe.imageUrl || undefined,
+        sourceUrl: recipe.sourceUrl || '',
       });
 
-      if (result.data) {
-        setHasSaved(true);
-        showToast?.({
-          message: 'Saved to My Recipe Collection',
-          type: 'success',
-          action: {
-            label: 'View',
-            onClick: () => {
-              window.location.href = '/cookbooks';
-            },
-          },
-        });
+      if (result.error) {
+        throw new Error(result.error);
       }
+
+      setHasSaved(true);
+      showToast?.({
+        message: 'Saved to My Recipe Collection',
+        type: 'success',
+        action: {
+          label: 'View',
+          onClick: () => {
+            window.location.href = '/cookbooks';
+          },
+        },
+      });
     } catch (err) {
       console.error('Failed to save recipe:', err);
+      const message = err instanceof Error ? err.message : 'Failed to save recipe. Please try again.';
+      setSaveError(message);
       showToast?.({
-        message: 'Failed to save recipe. Please try again.',
+        message,
         type: 'error',
       });
     } finally {
@@ -211,14 +270,25 @@ export function SharedRecipePreview({ encodedData, isLoggedIn, onSignUp }: Share
     }
     doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(`Source: ${recipe.sourceUrl}`, margin, yPos);
-    yPos += 10;
+    if (recipe.sourceUrl) {
+      doc.text(`Source: ${recipe.sourceUrl}`, margin, yPos);
+      yPos += 10;
+    }
     doc.text('Generated by Recipesaurus', margin, yPos);
 
     // Download
     const filename = recipe.title.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
     doc.save(`${filename}_Recipe.pdf`);
   };
+
+  if (isLoading) {
+    return (
+      <div className="shared-view shared-error">
+        <Loader2 size={40} className="spin" />
+        <h1>Loading Recipe</h1>
+      </div>
+    );
+  }
 
   if (error || !recipe) {
     return (
@@ -294,6 +364,7 @@ export function SharedRecipePreview({ encodedData, isLoggedIn, onSignUp }: Share
             </div>
 
             <div className="preview-actions">
+              {saveError && <div className="form-error">{saveError}</div>}
               <button className="btn-secondary" onClick={handleDownloadPDF}>
                 <Download size={16} />
                 Download PDF
@@ -312,9 +383,9 @@ export function SharedRecipePreview({ encodedData, isLoggedIn, onSignUp }: Share
               <button
                 className="btn-primary"
                 onClick={handleSaveRecipe}
-                disabled={isSaving || hasSaved}
+                disabled={isAuthLoading || isSaving || hasSaved}
               >
-                {isSaving ? (
+                {isAuthLoading || isSaving ? (
                   <Loader2 size={16} className="spin" />
                 ) : hasSaved ? (
                   <Heart size={16} fill="currentColor" />

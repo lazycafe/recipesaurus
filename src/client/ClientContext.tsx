@@ -23,3 +23,7 @@ export function useClient(): IClient {
   }
   return client;
 }
+
+export function useOptionalClient(): IClient | null {
+  return useContext(ClientContext);
+}

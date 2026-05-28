@@ -255,19 +255,32 @@ function SharedCookbookWrapper() {
   return <SharedCookbookView token={token} />;
 }
 
+export function getSharedRecipePreviewData(pathname: string = window.location.pathname): string | null {
+  const match = pathname.match(/^\/(?:preview|recipe)\/(.+)$/);
+  return match?.[1] ?? null;
+}
+
+export function getSharedRecipeToken(pathname: string = window.location.pathname): string | null {
+  const match = pathname.match(/^\/shared-recipe\/([^/]+)$/);
+  return match?.[1] ?? null;
+}
+
 function SharedRecipePreviewRoute() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const encodedData = window.location.pathname.split('/preview/')[1];
-  if (!encodedData) return <Navigate to="/" replace />;
+  const encodedData = getSharedRecipePreviewData();
+  const shareToken = getSharedRecipeToken();
+  if (!encodedData && !shareToken) return <Navigate to="/" replace />;
 
   return (
     <>
       <SharedRecipePreview
-        encodedData={encodedData}
+        encodedData={encodedData ?? undefined}
+        shareToken={shareToken ?? undefined}
         isLoggedIn={!!user}
+        isAuthLoading={isLoading}
         onSignIn={() => setAuthModal('login')}
         onSignUp={() => setAuthModal('register')}
       />
@@ -312,7 +325,7 @@ function VerifyEmailRoute() {
 
 function AppWithClient({ client }: { client: IClient }) {
   const isSharedRoute = window.location.pathname.startsWith('/shared/');
-  const isPreviewRoute = window.location.pathname.startsWith('/preview/');
+  const isPreviewRoute = getSharedRecipePreviewData() !== null || getSharedRecipeToken() !== null;
   const isResetPasswordRoute = window.location.pathname.startsWith('/reset-password');
   const isVerifyEmailRoute = window.location.pathname.startsWith('/verify-email');
 

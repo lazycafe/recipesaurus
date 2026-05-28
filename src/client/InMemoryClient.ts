@@ -7,6 +7,8 @@ import type {
   Cookbook,
   CookbookShare,
   CookbookShareLink,
+  RecipeShareLink,
+  RecipeSharePayload,
   CreateRecipeData,
   UpdateRecipeData,
   CreateCookbookData,
@@ -36,6 +38,8 @@ export interface ICoreHandlers {
   createRecipe(ctx: RequestContext, data: CreateRecipeData): Promise<ApiResult<{ id: string }>>;
   updateRecipe(ctx: RequestContext, id: string, data: Partial<CreateRecipeData>): Promise<ApiResult<{ success: boolean }>>;
   deleteRecipe(ctx: RequestContext, id: string): Promise<ApiResult<{ success: boolean }>>;
+  createRecipeShareLink(ctx: RequestContext, data: RecipeSharePayload): Promise<ApiResult<RecipeShareLink>>;
+  getSharedRecipe(token: string): Promise<ApiResult<{ recipe: RecipeSharePayload }>>;
   getCookbooks(ctx: RequestContext): Promise<ApiResult<{ owned: Cookbook[]; shared: Cookbook[] }>>;
   getCookbook(ctx: RequestContext, id: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   createCookbook(ctx: RequestContext, data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }): Promise<ApiResult<{ id: string }>>;
@@ -197,6 +201,16 @@ export class InMemoryClient implements IClient {
 
     getCookbooksForRecipe: async (recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>> => {
       const result = await this.handlers.getCookbooksForRecipe(this.getContext(), recipeId);
+      return toApiResponse(result);
+    },
+
+    createShareLink: async (data: RecipeSharePayload): Promise<ApiResponse<RecipeShareLink>> => {
+      const result = await this.handlers.createRecipeShareLink(this.getContext(), data);
+      return toApiResponse(result);
+    },
+
+    getShared: async (token: string): Promise<ApiResponse<{ recipe: RecipeSharePayload }>> => {
+      const result = await this.handlers.getSharedRecipe(token);
       return toApiResponse(result);
     },
 

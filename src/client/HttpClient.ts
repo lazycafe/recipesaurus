@@ -8,6 +8,8 @@ import type {
   Cookbook,
   CookbookShare,
   CookbookShareLink,
+  RecipeShareLink,
+  RecipeSharePayload,
   CreateRecipeData,
   UpdateRecipeData,
   CreateCookbookData,
@@ -167,6 +169,14 @@ export class HttpClient implements IClient {
 
     getCookbooksForRecipe: (recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>> => {
       return this.transport.request('GET', `/api/recipes/${recipeId}/cookbooks`);
+    },
+
+    createShareLink: (data: RecipeSharePayload): Promise<ApiResponse<RecipeShareLink>> => {
+      return this.transport.request('POST', '/api/recipe-shares', data);
+    },
+
+    getShared: (token: string): Promise<ApiResponse<{ recipe: RecipeSharePayload }>> => {
+      return this.transport.request('GET', `/api/recipe-shares/${token}`);
     },
 
     saveFromPreview: (data: {

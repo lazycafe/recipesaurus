@@ -9,6 +9,8 @@ export type {
   Cookbook,
   CookbookShare,
   CookbookShareLink,
+  RecipeShareLink,
+  RecipeSharePayload,
   CreateRecipeData,
   UpdateRecipeData,
   CreateCookbookData,
@@ -17,4 +19,4 @@ export type {
 
 export { HttpClient, HttpTransport, LocalStorageTokenStorage, createHttpClient } from './HttpClient';
 export { InMemoryClient, InMemoryTokenStorage } from './InMemoryClient';
-export { ClientProvider, useClient } from './ClientContext';
+export { ClientProvider, useClient, useOptionalClient } from './ClientContext';

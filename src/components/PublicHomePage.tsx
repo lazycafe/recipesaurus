@@ -3,7 +3,8 @@ import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users,
 import { DinoMascot } from './DinoMascot';
 import { fetchAndExtractRecipe } from '../utils/recipeExtractor';
 import { jsPDF } from 'jspdf';
-import { compressToEncodedURIComponent } from 'lz-string';
+import { useOptionalClient } from '../client/ClientContext';
+import { defaultClient } from '../client/defaultClient';
 
 interface ExtractedRecipe {
   title: string;
@@ -28,6 +29,8 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
   const [extractedRecipe, setExtractedRecipe] = useState<ExtractedRecipe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const client = useOptionalClient() ?? defaultClient;
 
   const handleExtract = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,17 +167,26 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
     doc.save(`${filename}_Recipe.pdf`);
   };
 
-  const handleShareLink = () => {
+  const handleShareLink = async () => {
     if (!extractedRecipe) return;
 
-    // Compress recipe data and encode in URL
-    const recipeData = JSON.stringify(extractedRecipe);
-    const compressed = compressToEncodedURIComponent(recipeData);
-    const link = `${window.location.origin}/preview/${compressed}`;
-    setShareLink(link);
+    setIsSharing(true);
+    setError(null);
 
-    // Copy to clipboard
-    navigator.clipboard.writeText(link).catch(() => {});
+    try {
+      const { data, error: apiError } = await client.recipes.createShareLink(extractedRecipe);
+      if (!data) {
+        throw new Error(apiError || 'Unable to create share link');
+      }
+
+      const link = `${window.location.origin}/shared-recipe/${data.token}`;
+      setShareLink(link);
+      navigator.clipboard.writeText(link).catch(() => {});
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to create share link');
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   return (
@@ -295,8 +307,8 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
                 <Download size={16} />
                 Download
               </button>
-              <button className="btn-secondary" onClick={handleShareLink}>
-                <Share2 size={16} />
+              <button className="btn-secondary" onClick={handleShareLink} disabled={isSharing}>
+                {isSharing ? <Loader2 size={16} className="spin" /> : <Share2 size={16} />}
                 Share Link
               </button>
               <button className="btn-primary" onClick={onSignUp}>

@@ -71,6 +71,25 @@ interface CookbookShareLink {
   created_at: number;
 }
 
+interface RecipeSharePayload {
+  title: string;
+  description?: string | null;
+  ingredients: string[];
+  instructions: string[];
+  prepTime?: string | null;
+  cookTime?: string | null;
+  servings?: string | null;
+  imageUrl?: string | null;
+  sourceUrl?: string | null;
+}
+
+interface RecipeShareLink {
+  id: string;
+  token: string;
+  recipe_data: string;
+  created_at: number;
+}
+
 interface PasswordResetToken {
   id: string;
   user_id: string;
@@ -93,6 +112,8 @@ const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
 const ATTEMPT_WINDOW = 15 * 60 * 1000; // 15 minutes
+const MAX_RECIPE_SHARE_BYTES = 64 * 1024;
+const MAX_RECIPE_SHARE_ITEMS = 250;
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -119,6 +140,39 @@ function generateId(): string {
 
 function generateSalt(): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+}
+
+function normalizeOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .slice(0, MAX_RECIPE_SHARE_ITEMS);
+}
+
+function normalizeRecipeSharePayload(data: RecipeSharePayload): RecipeSharePayload | null {
+  const recipe: RecipeSharePayload = {
+    title: normalizeOptionalString(data.title) || '',
+    description: normalizeOptionalString(data.description),
+    ingredients: normalizeStringList(data.ingredients),
+    instructions: normalizeStringList(data.instructions),
+    prepTime: normalizeOptionalString(data.prepTime),
+    cookTime: normalizeOptionalString(data.cookTime),
+    servings: normalizeOptionalString(data.servings),
+    imageUrl: normalizeOptionalString(data.imageUrl),
+    sourceUrl: normalizeOptionalString(data.sourceUrl),
+  };
+
+  if (!recipe.title || recipe.ingredients.length === 0 || recipe.instructions.length === 0) {
+    return null;
+  }
+
+  return recipe;
 }
 
 async function deriveKey(password: string, salt: Uint8Array): Promise<ArrayBuffer> {
@@ -1054,6 +1108,45 @@ async function handleGetCookbooksForRecipe(request: Request, db: D1Database, rec
   `).bind(user.id, recipeId, user.id).all<{ cookbook_id: string }>();
 
   return jsonResponse({ cookbookIds: result.results.map(r => r.cookbook_id) }, 200, corsHeaders(origin));
+}
+
+async function handleCreateRecipeShareLink(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const body = await request.json() as RecipeSharePayload;
+  const recipe = normalizeRecipeSharePayload(body);
+
+  if (!recipe) {
+    return errorResponse('Recipe must have a title, ingredients, and instructions', 400, origin);
+  }
+
+  const recipeData = JSON.stringify(recipe);
+  if (recipeData.length > MAX_RECIPE_SHARE_BYTES) {
+    return errorResponse('Recipe is too large to share', 413, origin);
+  }
+
+  const id = generateId();
+  const token = generateId();
+  const createdAt = Date.now();
+
+  await db.prepare(`
+    INSERT INTO recipe_share_links (id, token, recipe_data, created_at)
+    VALUES (?, ?, ?, ?)
+  `).bind(id, token, recipeData, createdAt).run();
+
+  return jsonResponse({ token, createdAt }, 201, corsHeaders(origin));
+}
+
+async function handleGetSharedRecipe(request: Request, db: D1Database, token: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const link = await db.prepare('SELECT * FROM recipe_share_links WHERE token = ?')
+    .bind(token)
+    .first<RecipeShareLink>();
+
+  if (!link) {
+    return errorResponse('Share link not found', 404, origin);
+  }
+
+  return jsonResponse({ recipe: JSON.parse(link.recipe_data) }, 200, corsHeaders(origin));
 }
 
 async function handleUpdateRecipe(request: Request, db: D1Database, recipeId: string): Promise<Response> {
@@ -2433,6 +2526,13 @@ export default {
       }
       if (path === '/api/recipes/from-preview' && method === 'POST') {
         return handleSavePreviewRecipe(request, env.DB);
+      }
+      if (path === '/api/recipe-shares' && method === 'POST') {
+        return handleCreateRecipeShareLink(request, env.DB);
+      }
+      const recipeShareMatch = path.match(/^\/api\/recipe-shares\/([^/]+)$/);
+      if (recipeShareMatch && method === 'GET') {
+        return handleGetSharedRecipe(request, env.DB, recipeShareMatch[1]);
       }
       // Get cookbooks containing a recipe
       const recipeCookbooksMatch = path.match(/^\/api\/recipes\/([^/]+)\/cookbooks$/);
