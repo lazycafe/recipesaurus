@@ -100,7 +100,7 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
                 </a>
               )}
               {!isPublicView && (
-                <button className="btn-share" onClick={() => setShowShareModal(true)}>
+                <button className="btn-secondary" onClick={() => setShowShareModal(true)}>
                   <Share2 size={16} strokeWidth={2} />
                   <span>Share</span>
                 </button>
