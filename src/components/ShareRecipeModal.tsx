@@ -28,7 +28,7 @@ export function ShareRecipeModal({ recipe, onClose }: ShareRecipeModalProps) {
       sourceUrl: recipe.sourceUrl || '',
     };
     const encoded = compressToEncodedURIComponent(JSON.stringify(shareData));
-    return `${window.location.origin}/recipe/${encoded}`;
+    return `${window.location.origin}/preview/${encoded}`;
   };
 
   const handleCopyLink = async () => {
