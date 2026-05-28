@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, Mail, Link, Copy, Check, Trash2 } from 'lucide-react';
+import { X, Loader2, Mail, Link, Copy, Check, Trash2, Users } from 'lucide-react';
 import { Cookbook, CookbookShare, CookbookShareLink } from '../types/Cookbook';
 import { cookbooksApi } from '../utils/api';
 import { ConfirmModal } from './ConfirmModal';
@@ -116,8 +116,8 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
             className={`share-tab ${activeTab === 'email' ? 'active' : ''}`}
             onClick={() => setActiveTab('email')}
           >
-            <Mail size={16} />
-            Share by Email
+            <Users size={16} />
+            Share With User
           </button>
           <button
             className={`share-tab ${activeTab === 'link' ? 'active' : ''}`}
