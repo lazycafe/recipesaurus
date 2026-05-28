@@ -70,6 +70,13 @@ export interface DbCookbookShareLink {
   created_at: number;
 }
 
+export interface DbRecipeShareLink {
+  id: string;
+  token: string;
+  recipe_data: string;
+  created_at: number;
+}
+
 export interface DbLoginAttempt {
   id: string;
   email: string;
@@ -167,6 +174,23 @@ export interface CookbookShareLinkInfo {
   id: string;
   token: string;
   isActive: boolean;
+  createdAt: number;
+}
+
+export interface RecipeSharePayload {
+  title: string;
+  description?: string | null;
+  ingredients: string[];
+  instructions: string[];
+  prepTime?: string | null;
+  cookTime?: string | null;
+  servings?: string | null;
+  imageUrl?: string | null;
+  sourceUrl?: string | null;
+}
+
+export interface RecipeShareLinkInfo {
+  token: string;
   createdAt: number;
 }
 

@@ -83,6 +83,8 @@ describe('AddToCookbookModal', () => {
         update: vi.fn(),
         delete: vi.fn(),
         getCookbooksForRecipe: mockGetCookbooksForRecipe.mockResolvedValue({ data: { cookbookIds: [] } }),
+        createShareLink: vi.fn(),
+        getShared: vi.fn(),
         saveFromPreview: vi.fn(),
       },
       cookbooks: {

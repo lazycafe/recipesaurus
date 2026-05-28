@@ -260,18 +260,25 @@ export function getSharedRecipePreviewData(pathname: string = window.location.pa
   return match?.[1] ?? null;
 }
 
+export function getSharedRecipeToken(pathname: string = window.location.pathname): string | null {
+  const match = pathname.match(/^\/shared-recipe\/([^/]+)$/);
+  return match?.[1] ?? null;
+}
+
 function SharedRecipePreviewRoute() {
   const { user } = useAuth();
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const encodedData = getSharedRecipePreviewData();
-  if (!encodedData) return <Navigate to="/" replace />;
+  const shareToken = getSharedRecipeToken();
+  if (!encodedData && !shareToken) return <Navigate to="/" replace />;
 
   return (
     <>
       <SharedRecipePreview
-        encodedData={encodedData}
+        encodedData={encodedData ?? undefined}
+        shareToken={shareToken ?? undefined}
         isLoggedIn={!!user}
         onSignIn={() => setAuthModal('login')}
         onSignUp={() => setAuthModal('register')}
@@ -317,7 +324,7 @@ function VerifyEmailRoute() {
 
 function AppWithClient({ client }: { client: IClient }) {
   const isSharedRoute = window.location.pathname.startsWith('/shared/');
-  const isPreviewRoute = getSharedRecipePreviewData() !== null;
+  const isPreviewRoute = getSharedRecipePreviewData() !== null || getSharedRecipeToken() !== null;
   const isResetPasswordRoute = window.location.pathname.startsWith('/reset-password');
   const isVerifyEmailRoute = window.location.pathname.startsWith('/verify-email');
 

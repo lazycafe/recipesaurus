@@ -134,6 +134,13 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       FOREIGN KEY (cookbook_id) REFERENCES cookbooks(id)
     );
 
+    CREATE TABLE IF NOT EXISTS recipe_share_links (
+      id TEXT PRIMARY KEY,
+      token TEXT UNIQUE NOT NULL,
+      recipe_data TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS login_attempts (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL,
@@ -181,6 +188,8 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
     CREATE INDEX IF NOT EXISTS idx_cookbook_shares_cookbook_id ON cookbook_shares(cookbook_id);
     CREATE INDEX IF NOT EXISTS idx_cookbook_shares_shared_with ON cookbook_shares(shared_with_user_id);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email);
+    CREATE INDEX IF NOT EXISTS idx_recipe_share_links_token ON recipe_share_links(token);
+    CREATE INDEX IF NOT EXISTS idx_recipe_share_links_created_at ON recipe_share_links(created_at);
   `);
 
   return db;

@@ -11,12 +11,15 @@ export type {
   DbCookbookRecipe,
   DbCookbookShare,
   DbCookbookShareLink,
+  DbRecipeShareLink,
   DbLoginAttempt,
   UserInfo,
   RecipeInfo,
   CookbookInfo,
   CookbookShareInfo,
   CookbookShareLinkInfo,
+  RecipeSharePayload,
+  RecipeShareLinkInfo,
 } from './types';
 
 export { CoreHandlers, webCryptoProvider } from './handlers';

@@ -12,6 +12,9 @@ import type {
   CookbookShareInfo,
   CookbookShareLinkInfo,
   NotificationInfo,
+  DbRecipeShareLink,
+  RecipeSharePayload,
+  RecipeShareLinkInfo,
 } from './types';
 
 // Constants
@@ -153,6 +156,42 @@ function formatRecipe(r: DbRecipe & { owner_name?: string | null }, currentUserI
     createdAt: r.created_at,
     addedByUserName,
   };
+}
+
+const MAX_RECIPE_SHARE_BYTES = 64 * 1024;
+const MAX_RECIPE_SHARE_ITEMS = 250;
+
+function normalizeOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .slice(0, MAX_RECIPE_SHARE_ITEMS);
+}
+
+function normalizeRecipeSharePayload(data: RecipeSharePayload): RecipeSharePayload | null {
+  const recipe: RecipeSharePayload = {
+    title: normalizeOptionalString(data.title) || '',
+    description: normalizeOptionalString(data.description),
+    ingredients: normalizeStringList(data.ingredients),
+    instructions: normalizeStringList(data.instructions),
+    prepTime: normalizeOptionalString(data.prepTime),
+    cookTime: normalizeOptionalString(data.cookTime),
+    servings: normalizeOptionalString(data.servings),
+    imageUrl: normalizeOptionalString(data.imageUrl),
+    sourceUrl: normalizeOptionalString(data.sourceUrl),
+  };
+
+  if (!recipe.title || recipe.ingredients.length === 0 || recipe.instructions.length === 0) {
+    return null;
+  }
+
+  return recipe;
 }
 
 // Core handler class
@@ -503,6 +542,48 @@ export class CoreHandlers {
     );
 
     return { data: { cookbookIds: result.results.map(r => r.cookbook_id) }, status: 200 };
+  }
+
+  async createRecipeShareLink(
+    _ctx: RequestContext,
+    data: RecipeSharePayload
+  ): Promise<ApiResult<RecipeShareLinkInfo>> {
+    const recipe = normalizeRecipeSharePayload(data);
+    if (!recipe) {
+      return { error: 'Recipe must have a title, ingredients, and instructions', status: 400 };
+    }
+
+    const recipeData = JSON.stringify(recipe);
+    if (recipeData.length > MAX_RECIPE_SHARE_BYTES) {
+      return { error: 'Recipe is too large to share', status: 413 };
+    }
+
+    const id = this.crypto.generateId();
+    const token = this.crypto.generateId();
+    const createdAt = Date.now();
+
+    await this.db.run(
+      'INSERT INTO recipe_share_links (id, token, recipe_data, created_at) VALUES (?, ?, ?, ?)',
+      id,
+      token,
+      recipeData,
+      createdAt
+    );
+
+    return { data: { token, createdAt }, status: 201 };
+  }
+
+  async getSharedRecipe(token: string): Promise<ApiResult<{ recipe: RecipeSharePayload }>> {
+    const link = await this.db.get<DbRecipeShareLink>(
+      'SELECT * FROM recipe_share_links WHERE token = ?',
+      token
+    );
+
+    if (!link) {
+      return { error: 'Share link not found', status: 404 };
+    }
+
+    return { data: { recipe: JSON.parse(link.recipe_data) }, status: 200 };
   }
 
   // Cookbook handlers

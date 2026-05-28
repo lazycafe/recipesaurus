@@ -89,6 +89,14 @@ CREATE TABLE IF NOT EXISTS cookbook_share_links (
   FOREIGN KEY (cookbook_id) REFERENCES cookbooks(id) ON DELETE CASCADE
 );
 
+-- Link-based recipe sharing (public access)
+CREATE TABLE IF NOT EXISTS recipe_share_links (
+  id TEXT PRIMARY KEY,
+  token TEXT UNIQUE NOT NULL,
+  recipe_data TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
 -- Notifications table
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
@@ -134,3 +142,5 @@ CREATE INDEX IF NOT EXISTS idx_cookbook_shares_cookbook_id ON cookbook_shares(co
 CREATE INDEX IF NOT EXISTS idx_cookbook_shares_shared_with ON cookbook_shares(shared_with_user_id);
 CREATE INDEX IF NOT EXISTS idx_cookbook_share_links_token ON cookbook_share_links(token);
 CREATE INDEX IF NOT EXISTS idx_cookbook_share_links_cookbook_id ON cookbook_share_links(cookbook_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_share_links_token ON recipe_share_links(token);
+CREATE INDEX IF NOT EXISTS idx_recipe_share_links_created_at ON recipe_share_links(created_at);
