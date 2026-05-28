@@ -109,7 +109,7 @@ describe('FeedbackPage', () => {
     expect(screen.getByText(/Your feedback has been received/)).toBeDefined();
   });
 
-  it('sends feedback to Discord webhook', async () => {
+  it('sends feedback through the API without exposing the Discord webhook', async () => {
     renderWithRouter();
 
     fireEvent.click(screen.getByText('Report a Bug'));
@@ -125,12 +125,20 @@ describe('FeedbackPage', () => {
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('discord.com'),
+        expect.stringContaining('/api/feedback'),
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         })
       );
+    });
+
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).not.toContain('discord.com');
+    expect(JSON.parse(options.body)).toEqual({
+      type: 'bug',
+      message: 'Found a bug',
+      email: 'test@example.com',
     });
   });
 

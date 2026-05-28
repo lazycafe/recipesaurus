@@ -6,7 +6,10 @@ compatibility_date = "2024-01-01"
 ENVIRONMENT = "development"
 APP_URL = "https://recipesaurus.ai"
 
-# Secret: RESEND_API_KEY - set via `wrangler secret put RESEND_API_KEY`
+# Secrets:
+# - RESEND_API_KEY - set via `wrangler secret put RESEND_API_KEY`
+# - DISCORD_SIGNUP_WEBHOOK_URL - set via `wrangler secret put DISCORD_SIGNUP_WEBHOOK_URL`
+# - DISCORD_FEEDBACK_WEBHOOK_URL - set via `wrangler secret put DISCORD_FEEDBACK_WEBHOOK_URL`
 
 [[d1_databases]]
 binding = "DB"

@@ -3,6 +3,8 @@ export interface Env {
   ENVIRONMENT: string;
   APP_URL: string;
   RESEND_API_KEY: string;
+  DISCORD_SIGNUP_WEBHOOK_URL?: string;
+  DISCORD_FEEDBACK_WEBHOOK_URL?: string;
 }
 
 interface User {
@@ -281,16 +283,74 @@ async function getSessionUser(request: Request, db: D1Database): Promise<User | 
   return db.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first<User>();
 }
 
-const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1479245550426783794/V5CkmHTKRySrKe2jZFw1VMeVYX_9PwKFg6s3N1OT7df6ApHFc74E-g0ED0s6ofiXpdnY';
+async function postDiscordWebhook(webhookUrl: string | undefined, payload: unknown): Promise<boolean> {
+  if (!webhookUrl) {
+    console.warn('Discord webhook URL is not configured');
+    return false;
+  }
 
-async function notifyDiscordNewUser(name: string, email: string): Promise<void> {
-  await fetch(DISCORD_WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      content: `New user signed up: **${name}** (${email})`,
-    }),
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      console.error('Discord webhook failed:', response.status, await response.text());
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Discord webhook error:', error);
+    return false;
+  }
+}
+
+async function notifyDiscordNewUser(webhookUrl: string | undefined, name: string, email: string): Promise<void> {
+  await postDiscordWebhook(webhookUrl, {
+    content: `New user signed up: **${name}** (${email})`,
   });
+}
+
+async function handleFeedback(request: Request, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const body = await request.json() as {
+    type?: 'bug' | 'feature' | 'general';
+    message?: string;
+    email?: string;
+  };
+
+  const message = body.message?.trim();
+  const email = body.email?.trim();
+  const feedbackType = body.type === 'bug' || body.type === 'feature' ? body.type : 'general';
+
+  if (!message) {
+    return errorResponse('Feedback message is required', 400, origin);
+  }
+
+  if (message.length > 4000) {
+    return errorResponse('Feedback message is too long', 400, origin);
+  }
+
+  if (email && email.length > 254) {
+    return errorResponse('Email is too long', 400, origin);
+  }
+
+  const typeName = feedbackType === 'bug' ? 'Bug' : feedbackType === 'feature' ? 'Feature' : 'Feedback';
+  const typeLabel = feedbackType === 'bug' ? 'Bug Report' : feedbackType === 'feature' ? 'Feature Request' : 'General Feedback';
+  const delivered = await postDiscordWebhook(env.DISCORD_FEEDBACK_WEBHOOK_URL, {
+    embeds: [{
+      title: `${typeName}: ${typeLabel}`,
+      description: message,
+      color: feedbackType === 'bug' ? 0xc45a5a : feedbackType === 'feature' ? 0x7a9e7e : 0xc9a962,
+      fields: email ? [{ name: 'Contact Email', value: email.slice(0, 254) }] : [],
+      timestamp: new Date().toISOString(),
+    }],
+  });
+
+  return jsonResponse({ success: true, delivered }, 200, corsHeaders(origin));
 }
 
 const VERIFICATION_TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
@@ -427,7 +487,7 @@ async function handleRegister(request: Request, db: D1Database, env: Env, ctx: E
   await sendVerificationEmail(env.RESEND_API_KEY, normalizedEmail, name.trim(), verificationToken, env.APP_URL);
 
   // Notify Discord of new signup (runs in background after response)
-  ctx.waitUntil(notifyDiscordNewUser(name.trim(), normalizedEmail));
+  ctx.waitUntil(notifyDiscordNewUser(env.DISCORD_SIGNUP_WEBHOOK_URL, name.trim(), normalizedEmail));
 
   return jsonResponse(
     {
@@ -2104,6 +2164,9 @@ export default {
       }
       if (path === '/api/auth/reset-password' && method === 'POST') {
         return handleResetPassword(request, env.DB);
+      }
+      if (path === '/api/feedback' && method === 'POST') {
+        return handleFeedback(request, env);
       }
 
       // Proxy fetch for recipe import

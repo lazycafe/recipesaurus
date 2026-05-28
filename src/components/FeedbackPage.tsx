@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Send, CheckCircle, Loader2 } from 'lucide-react';
 
-const DISCORD_FEEDBACK_WEBHOOK = 'https://discord.com/api/webhooks/1479281683659231385/v-F4gca2WaDW4avhErnCq_JqSeEvVnXAZ3SVOEmUE7GhaPp2p5CsAQIlZj24yQZkY_yv';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://recipesaurus-api.andreay226.workers.dev';
 const FEEDBACK_STORAGE_KEY = 'recipesaurus_feedback_timestamps';
 const MAX_FEEDBACK_PER_DAY = 3;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -54,26 +54,24 @@ export function FeedbackPage() {
 
     setIsSubmitting(true);
 
-    const typeEmoji = feedbackType === 'bug' ? '🐛' : feedbackType === 'feature' ? '✨' : '💬';
-    const typeLabel = feedbackType === 'bug' ? 'Bug Report' : feedbackType === 'feature' ? 'Feature Request' : 'General Feedback';
-
     try {
-      await fetch(DISCORD_FEEDBACK_WEBHOOK, {
+      const response = await fetch(`${API_BASE_URL}/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          embeds: [{
-            title: `${typeEmoji} ${typeLabel}`,
-            description: message,
-            color: feedbackType === 'bug' ? 0xc45a5a : feedbackType === 'feature' ? 0x7a9e7e : 0xc9a962,
-            fields: email ? [{ name: 'Contact Email', value: email }] : [],
-            timestamp: new Date().toISOString(),
-          }],
+          type: feedbackType,
+          message,
+          email: email.trim() || undefined,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error('Feedback request failed');
+      }
+
       recordFeedback();
     } catch {
-      // Still show success even if Discord fails
+      // Still show success even if the notification backend is unavailable.
       recordFeedback();
     }
 
