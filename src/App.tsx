@@ -266,7 +266,7 @@ export function getSharedRecipeToken(pathname: string = window.location.pathname
 }
 
 function SharedRecipePreviewRoute() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
@@ -280,6 +280,7 @@ function SharedRecipePreviewRoute() {
         encodedData={encodedData ?? undefined}
         shareToken={shareToken ?? undefined}
         isLoggedIn={!!user}
+        isAuthLoading={isLoading}
         onSignIn={() => setAuthModal('login')}
         onSignUp={() => setAuthModal('register')}
       />

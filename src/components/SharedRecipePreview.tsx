@@ -22,16 +22,24 @@ interface SharedRecipePreviewProps {
   encodedData?: string;
   shareToken?: string;
   isLoggedIn?: boolean;
+  isAuthLoading?: boolean;
   onSignIn?: () => void;
   onSignUp?: () => void;
 }
 
-export function SharedRecipePreview({ encodedData, shareToken, isLoggedIn, onSignUp }: SharedRecipePreviewProps) {
+export function SharedRecipePreview({
+  encodedData,
+  shareToken,
+  isLoggedIn = false,
+  isAuthLoading = false,
+  onSignUp,
+}: SharedRecipePreviewProps) {
   const [recipe, setRecipe] = useState<PreviewRecipe | null>(null);
   const [error, setError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   // These will only be available when rendered within the logged-in app context
   let client: ReturnType<typeof useClient> | null = null;
@@ -102,17 +110,23 @@ export function SharedRecipePreview({ encodedData, shareToken, isLoggedIn, onSig
 
   // Check for pending save after login
   useEffect(() => {
-    if (isLoggedIn && recipe && client) {
+    if (!isAuthLoading && isLoggedIn && recipe && client) {
       const pendingRecipe = sessionStorage.getItem('pendingSaveRecipe');
       if (pendingRecipe) {
         sessionStorage.removeItem('pendingSaveRecipe');
         handleSaveRecipe();
       }
     }
-  }, [isLoggedIn, recipe, client]);
+  }, [isAuthLoading, isLoggedIn, recipe, client]);
 
   const handleSaveRecipe = async () => {
     if (!recipe) return;
+
+    setSaveError('');
+
+    if (isAuthLoading) {
+      return;
+    }
 
     if (!isLoggedIn) {
       // Store pending action and show auth modal
@@ -121,7 +135,10 @@ export function SharedRecipePreview({ encodedData, shareToken, isLoggedIn, onSig
       return;
     }
 
-    if (!client) return;
+    if (!client) {
+      setSaveError('Unable to save recipe right now. Please try again.');
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -137,23 +154,27 @@ export function SharedRecipePreview({ encodedData, shareToken, isLoggedIn, onSig
         sourceUrl: recipe.sourceUrl || '',
       });
 
-      if (result.data) {
-        setHasSaved(true);
-        showToast?.({
-          message: 'Saved to My Recipe Collection',
-          type: 'success',
-          action: {
-            label: 'View',
-            onClick: () => {
-              window.location.href = '/cookbooks';
-            },
-          },
-        });
+      if (result.error) {
+        throw new Error(result.error);
       }
+
+      setHasSaved(true);
+      showToast?.({
+        message: 'Saved to My Recipe Collection',
+        type: 'success',
+        action: {
+          label: 'View',
+          onClick: () => {
+            window.location.href = '/cookbooks';
+          },
+        },
+      });
     } catch (err) {
       console.error('Failed to save recipe:', err);
+      const message = err instanceof Error ? err.message : 'Failed to save recipe. Please try again.';
+      setSaveError(message);
       showToast?.({
-        message: 'Failed to save recipe. Please try again.',
+        message,
         type: 'error',
       });
     } finally {
@@ -343,6 +364,7 @@ export function SharedRecipePreview({ encodedData, shareToken, isLoggedIn, onSig
             </div>
 
             <div className="preview-actions">
+              {saveError && <div className="form-error">{saveError}</div>}
               <button className="btn-secondary" onClick={handleDownloadPDF}>
                 <Download size={16} />
                 Download PDF
@@ -361,9 +383,9 @@ export function SharedRecipePreview({ encodedData, shareToken, isLoggedIn, onSig
               <button
                 className="btn-primary"
                 onClick={handleSaveRecipe}
-                disabled={isSaving || hasSaved}
+                disabled={isAuthLoading || isSaving || hasSaved}
               >
-                {isSaving ? (
+                {isAuthLoading || isSaving ? (
                   <Loader2 size={16} className="spin" />
                 ) : hasSaved ? (
                   <Heart size={16} fill="currentColor" />
