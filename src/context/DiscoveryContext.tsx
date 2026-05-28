@@ -52,6 +52,17 @@ function shouldUseSampleFallback<T>(items: T[], total: number, offset: number): 
   return offset === 0 && items.length === 0 && total === 0;
 }
 
+function combineWithSamplePage<T extends { id: string }>(
+  publicItems: T[],
+  publicTotal: number,
+  sampleItems: T[],
+  offset: number
+): T[] {
+  const sampleStart = Math.max(0, offset + publicItems.length - publicTotal);
+  const sampleNeeded = Math.max(0, PAGE_SIZE - publicItems.length);
+  return mergeUniqueById(publicItems, sampleItems.slice(sampleStart, sampleStart + sampleNeeded));
+}
+
 // Filter sample recipes by tags
 function filterSampleRecipes(tags: string[]): Recipe[] {
   if (tags.length === 0) return SAMPLE_RECIPES;
@@ -104,10 +115,18 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         !shouldUseSampleFallback(result.data.recipes, result.data.total, offset)
       ) {
         useSampleRecipes.current = false;
+        const filteredSamples = filterSampleRecipes(tags);
+        const combinedPage = combineWithSamplePage(
+          result.data.recipes,
+          result.data.total,
+          filteredSamples,
+          offset
+        );
+
         setState(s => ({
           ...s,
-          recipes: offset ? mergeUniqueById(s.recipes, result.data!.recipes) : mergeUniqueById([], result.data!.recipes),
-          recipesTotal: result.data!.total,
+          recipes: offset ? mergeUniqueById(s.recipes, combinedPage) : combinedPage,
+          recipesTotal: result.data!.total + filteredSamples.length,
           isLoadingRecipes: false,
         }));
       } else {
@@ -167,10 +186,17 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         !shouldUseSampleFallback(result.data.cookbooks, result.data.total, offset)
       ) {
         useSampleCookbooks.current = false;
+        const combinedPage = combineWithSamplePage(
+          result.data.cookbooks,
+          result.data.total,
+          SAMPLE_COOKBOOKS,
+          offset
+        );
+
         setState(s => ({
           ...s,
-          cookbooks: offset ? mergeUniqueById(s.cookbooks, result.data!.cookbooks) : mergeUniqueById([], result.data!.cookbooks),
-          cookbooksTotal: result.data!.total,
+          cookbooks: offset ? mergeUniqueById(s.cookbooks, combinedPage) : combinedPage,
+          cookbooksTotal: result.data!.total + SAMPLE_COOKBOOKS.length,
           isLoadingCookbooks: false,
         }));
       } else {

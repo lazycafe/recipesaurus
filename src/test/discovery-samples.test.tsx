@@ -97,4 +97,51 @@ describe('Discovery sample fallback', () => {
     });
     expect(client.discover.recipes).toHaveBeenCalledTimes(1);
   });
+
+  it('shows sample recipes and cookbooks after sparse public API content', async () => {
+    const client = createClientMock();
+    vi.mocked(client.discover.recipes).mockResolvedValue({
+      data: {
+        recipes: [{
+          id: 'public-recipe-1',
+          title: 'A Real Public Recipe',
+          description: 'From the API',
+          ingredients: ['ingredient'],
+          instructions: ['step'],
+          tags: ['dinner'],
+          isPublic: true,
+          ownerName: 'Real Chef',
+          createdAt: Date.now(),
+        }],
+        total: 1,
+      },
+    });
+    vi.mocked(client.discover.cookbooks).mockResolvedValue({
+      data: {
+        cookbooks: [{
+          id: 'public-cookbook-1',
+          name: 'A Real Public Cookbook',
+          recipeCount: 1,
+          isPublic: true,
+          isOwner: false,
+          ownerName: 'Real Chef',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }],
+        total: 1,
+      },
+    });
+
+    renderDiscovery(client);
+
+    await waitFor(() => {
+      expect(screen.getByText('A Real Public Recipe')).toBeDefined();
+      expect(screen.getByText(SAMPLE_RECIPES[0].title)).toBeDefined();
+      expect(screen.getByText('A Real Public Cookbook')).toBeDefined();
+      expect(screen.getByText(SAMPLE_COOKBOOKS[0].name)).toBeDefined();
+    });
+
+    expect(screen.getByText(`Recipes total: ${SAMPLE_RECIPES.length + 1}`)).toBeDefined();
+    expect(screen.getByText(`Cookbooks total: ${SAMPLE_COOKBOOKS.length + 1}`)).toBeDefined();
+  });
 });
