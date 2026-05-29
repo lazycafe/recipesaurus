@@ -24,6 +24,9 @@ import {
   MEAL_PLAN_PAID_PRICE_CENTS,
   MEAL_PLAN_PAID_WEEKLY_LIMIT,
   MEAL_PLAN_WEEK_MS,
+  MEAL_PLAN_INVALID_REQUEST_CODE,
+  MEAL_PLAN_LIMIT_CODE,
+  MEAL_PLAN_UNAUTHORIZED_CODE,
   type MealPlanRecipeContext,
   type MealPlanUsageInfo,
   type MealPlanSuggestionDetails,
@@ -519,7 +522,7 @@ export class CoreHandlers {
   async getMealPlanUsage(ctx: RequestContext): Promise<ApiResult<{ usage: MealPlanUsageInfo }>> {
     const user = await this.getSessionUser(ctx);
     if (!user) {
-      return { error: 'Unauthorized', status: 401 };
+      return { error: 'Unauthorized', status: 401, code: MEAL_PLAN_UNAUTHORIZED_CODE };
     }
 
     return {
@@ -557,17 +560,21 @@ export class CoreHandlers {
   ): Promise<ApiResult<MealPlanSuggestionDetails & { usage: MealPlanUsageInfo; recipeCount: number }>> {
     const user = await this.getSessionUser(ctx);
     if (!user) {
-      return { error: 'Unauthorized', status: 401 };
+      return { error: 'Unauthorized', status: 401, code: MEAL_PLAN_UNAUTHORIZED_CODE };
     }
 
     const request = normalizeMealPlanRequest(requestText);
     if (!request) {
-      return { error: 'Meal planning request is required and must be 1000 characters or fewer', status: 400 };
+      return {
+        error: 'Meal planning request is required and must be 1000 characters or fewer',
+        status: 400,
+        code: MEAL_PLAN_INVALID_REQUEST_CODE,
+      };
     }
 
     const usage = await this.getMealPlanUsageForUser(user.id);
     if (usage.remainingRequests <= 0) {
-      return { error: 'Weekly AI meal planning limit reached', status: 402 };
+      return { error: 'Weekly AI meal planning limit reached', status: 402, code: MEAL_PLAN_LIMIT_CODE };
     }
 
     const recipes = await this.getMealPlanRecipes(user.id);

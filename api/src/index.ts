@@ -12,8 +12,26 @@ import {
   buildMealPlannerInput,
   buildMealPlannerInstructions,
   extractOpenAIResponseText,
+  MEAL_PLAN_BILLING_CANCEL_FAILED_CODE,
+  MEAL_PLAN_BILLING_CHECKOUT_FAILED_CODE,
+  MEAL_PLAN_BILLING_CUSTOMER_NOT_FOUND_CODE,
+  MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE,
+  MEAL_PLAN_BILLING_PORTAL_FAILED_CODE,
+  MEAL_PLAN_BILLING_RESTORE_FAILED_CODE,
+  MEAL_PLAN_BILLING_STRIPE_URL_MISSING_CODE,
+  MEAL_PLAN_BILLING_SUBSCRIPTION_NOT_FOUND_CODE,
+  MEAL_PLAN_FORBIDDEN_CODE,
+  MEAL_PLAN_GENERATION_FAILED_CODE,
+  MEAL_PLAN_INVALID_REQUEST_CODE,
+  MEAL_PLAN_LIMIT_CODE,
+  MEAL_PLAN_OPENAI_EMPTY_RESPONSE_CODE,
+  MEAL_PLAN_OPENAI_NETWORK_ERROR_CODE,
+  MEAL_PLAN_OPENAI_NOT_CONFIGURED_CODE,
+  MEAL_PLAN_UNAUTHORIZED_CODE,
+  getMealPlanOpenAIErrorResponseCode,
   normalizeMealPlanRequest,
 } from './core/mealPlanner';
+import { getDefaultRecipesaurusErrorCode } from './core/apiErrors';
 
 export interface Env {
   DB: D1Database;
@@ -158,6 +176,13 @@ interface StripeEvent {
   data?: {
     object?: unknown;
   };
+}
+
+class MealPlanGenerationError extends Error {
+  constructor(message: string, readonly responseCode?: string) {
+    super(message);
+    this.name = 'MealPlanGenerationError';
+  }
 }
 
 // Password reset config
@@ -629,8 +654,12 @@ function jsonResponse(data: unknown, status = 200, headers: Record<string, strin
   });
 }
 
-function errorResponse(message: string, status = 400, origin?: string | null): Response {
-  return jsonResponse({ error: message }, status, corsHeaders(origin ?? null));
+function errorResponse(message: string, status = 400, origin?: string | null, code?: string): Response {
+  return jsonResponse(
+    { error: message, code: code || getDefaultRecipesaurusErrorCode(status) },
+    status,
+    corsHeaders(origin ?? null)
+  );
 }
 
 function setCookie(name: string, value: string, maxAge: number, isSecure: boolean): string {
@@ -1317,10 +1346,10 @@ async function handleGetMealPlanUsage(request: Request, env: Env): Promise<Respo
   const user = await getSessionUser(request, env.DB);
 
   if (!user) {
-    return errorResponse('Unauthorized', 401, origin);
+    return errorResponse('Unauthorized', 401, origin, MEAL_PLAN_UNAUTHORIZED_CODE);
   }
   if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner is not available for this account.', 403, origin);
+    return errorResponse('Meal planner is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
   }
 
   return jsonResponse({ usage: await getMealPlanUsage(env.DB, user.id) }, 200, corsHeaders(origin));
@@ -1353,32 +1382,51 @@ async function generateMealPlan(env: Env, request: string, recipes: MealPlanReci
       return buildFallbackMealPlan(request, recipes);
     }
 
-    throw new Error('OpenAI API key is not configured');
+    throw new MealPlanGenerationError(
+      'OpenAI API key is not configured',
+      MEAL_PLAN_OPENAI_NOT_CONFIGURED_CODE
+    );
   }
 
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: env.OPENAI_MODEL || 'gpt-5-mini',
-      instructions: buildMealPlannerInstructions(),
-      input: buildMealPlannerInput(request, recipes),
-      max_output_tokens: 1800,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: env.OPENAI_MODEL || 'gpt-5-mini',
+        instructions: buildMealPlannerInstructions(),
+        input: buildMealPlannerInput(request, recipes),
+        max_output_tokens: 1800,
+      }),
+    });
+  } catch (error) {
+    console.error('OpenAI meal plan request could not be sent:', error);
+    throw new MealPlanGenerationError(
+      'OpenAI network request failed',
+      MEAL_PLAN_OPENAI_NETWORK_ERROR_CODE
+    );
+  }
 
   if (!response.ok) {
-    console.error('OpenAI meal plan request failed:', response.status, await response.text());
-    throw new Error('OpenAI request failed');
+    const errorBody = await response.text();
+    console.error('OpenAI meal plan request failed:', response.status, errorBody);
+    throw new MealPlanGenerationError(
+      'OpenAI request failed',
+      getMealPlanOpenAIErrorResponseCode(response.status, errorBody) || undefined
+    );
   }
 
   const data = await response.json();
   const suggestion = extractOpenAIResponseText(data);
   if (!suggestion) {
-    throw new Error('OpenAI response did not include text');
+    throw new MealPlanGenerationError(
+      'OpenAI response did not include text',
+      MEAL_PLAN_OPENAI_EMPTY_RESPONSE_CODE
+    );
   }
 
   return suggestion;
@@ -1389,16 +1437,21 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
   const user = await getSessionUser(request, env.DB);
 
   if (!user) {
-    return errorResponse('Unauthorized', 401, origin);
+    return errorResponse('Unauthorized', 401, origin, MEAL_PLAN_UNAUTHORIZED_CODE);
   }
   if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner is not available for this account.', 403, origin);
+    return errorResponse('Meal planner is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
   }
 
   const body = await request.json() as { request?: unknown };
   const mealPlanRequest = normalizeMealPlanRequest(body.request);
   if (!mealPlanRequest) {
-    return errorResponse('Meal planning request is required and must be 1000 characters or fewer', 400, origin);
+    return errorResponse(
+      'Meal planning request is required and must be 1000 characters or fewer',
+      400,
+      origin,
+      MEAL_PLAN_INVALID_REQUEST_CODE
+    );
   }
 
   const usage = await getMealPlanUsage(env.DB, user.id);
@@ -1406,7 +1459,7 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
     return jsonResponse(
       {
         error: 'Weekly AI meal planning limit reached',
-        code: 'AI_MEAL_PLAN_LIMIT',
+        code: MEAL_PLAN_LIMIT_CODE,
         usage,
       },
       402,
@@ -1421,7 +1474,15 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
     suggestion = await generateMealPlan(env, mealPlanRequest, recipes);
   } catch (error) {
     console.error('Meal planning generation failed:', error);
-    return errorResponse('AI meal planning is unavailable right now. Please try again shortly.', 503, origin);
+    const errorCode = error instanceof MealPlanGenerationError
+      ? error.responseCode
+      : MEAL_PLAN_GENERATION_FAILED_CODE;
+    return errorResponse(
+      'AI meal planning is unavailable right now. Please try again shortly.',
+      503,
+      origin,
+      errorCode || MEAL_PLAN_GENERATION_FAILED_CODE
+    );
   }
 
   const now = Date.now();
@@ -1485,10 +1546,10 @@ async function handleCreateCheckoutSession(request: Request, env: Env): Promise<
     return errorResponse('Unauthorized', 401, origin);
   }
   if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner billing is not available for this account.', 403, origin);
+    return errorResponse('Meal planner billing is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
   }
   if (!env.STRIPE_SECRET_KEY) {
-    return errorResponse('Payments are not configured yet.', 503, origin);
+    return errorResponse('Payments are not configured yet.', 503, origin, MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE);
   }
 
   const existingSubscription = await getUserSubscription(env.DB, user.id);
@@ -1537,13 +1598,13 @@ async function handleCreateCheckoutSession(request: Request, env: Env): Promise<
     }
 
     if (!session.url) {
-      return errorResponse('Stripe did not return a checkout URL.', 502, origin);
+      return errorResponse('Stripe did not return a checkout URL.', 502, origin, MEAL_PLAN_BILLING_STRIPE_URL_MISSING_CODE);
     }
 
     return jsonResponse({ url: session.url }, 200, corsHeaders(origin));
   } catch (error) {
     console.error('Stripe checkout session failed:', error);
-    return errorResponse('Unable to start checkout right now.', 502, origin);
+    return errorResponse('Unable to start checkout right now.', 502, origin, MEAL_PLAN_BILLING_CHECKOUT_FAILED_CODE);
   }
 }
 
@@ -1555,15 +1616,15 @@ async function handleCreatePortalSession(request: Request, env: Env): Promise<Re
     return errorResponse('Unauthorized', 401, origin);
   }
   if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner billing is not available for this account.', 403, origin);
+    return errorResponse('Meal planner billing is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
   }
   if (!env.STRIPE_SECRET_KEY) {
-    return errorResponse('Payments are not configured yet.', 503, origin);
+    return errorResponse('Payments are not configured yet.', 503, origin, MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE);
   }
 
   const subscription = await getUserSubscription(env.DB, user.id);
   if (!subscription?.stripe_customer_id) {
-    return errorResponse('No Stripe customer found for this account.', 404, origin);
+    return errorResponse('No Stripe customer found for this account.', 404, origin, MEAL_PLAN_BILLING_CUSTOMER_NOT_FOUND_CODE);
   }
 
   const params = new URLSearchParams({
@@ -1574,13 +1635,13 @@ async function handleCreatePortalSession(request: Request, env: Env): Promise<Re
   try {
     const session = await stripePost<{ url?: string | null }>(env, '/billing_portal/sessions', params);
     if (!session.url) {
-      return errorResponse('Stripe did not return a billing portal URL.', 502, origin);
+      return errorResponse('Stripe did not return a billing portal URL.', 502, origin, MEAL_PLAN_BILLING_STRIPE_URL_MISSING_CODE);
     }
 
     return jsonResponse({ url: session.url }, 200, corsHeaders(origin));
   } catch (error) {
     console.error('Stripe portal session failed:', error);
-    return errorResponse('Unable to open billing management right now.', 502, origin);
+    return errorResponse('Unable to open billing management right now.', 502, origin, MEAL_PLAN_BILLING_PORTAL_FAILED_CODE);
   }
 }
 
@@ -1592,15 +1653,15 @@ async function handleCancelSubscription(request: Request, env: Env): Promise<Res
     return errorResponse('Unauthorized', 401, origin);
   }
   if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner billing is not available for this account.', 403, origin);
+    return errorResponse('Meal planner billing is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
   }
   if (!env.STRIPE_SECRET_KEY) {
-    return errorResponse('Payments are not configured yet.', 503, origin);
+    return errorResponse('Payments are not configured yet.', 503, origin, MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE);
   }
 
   const subscription = await getUserSubscription(env.DB, user.id);
   if (!subscription?.stripe_subscription_id || !isPaidMealPlanSubscription(subscription)) {
-    return errorResponse('No active paid subscription found for this account.', 404, origin);
+    return errorResponse('No active paid subscription found for this account.', 404, origin, MEAL_PLAN_BILLING_SUBSCRIPTION_NOT_FOUND_CODE);
   }
 
   if (subscription.cancel_at_period_end === 1) {
@@ -1623,7 +1684,7 @@ async function handleCancelSubscription(request: Request, env: Env): Promise<Res
     return jsonResponse({ billing: formatBillingStatus(refreshedSubscription) }, 200, corsHeaders(origin));
   } catch (error) {
     console.error('Stripe subscription cancellation failed:', error);
-    return errorResponse('Unable to end subscription right now.', 502, origin);
+    return errorResponse('Unable to end subscription right now.', 502, origin, MEAL_PLAN_BILLING_CANCEL_FAILED_CODE);
   }
 }
 
@@ -1635,15 +1696,15 @@ async function handleReinstateSubscription(request: Request, env: Env): Promise<
     return errorResponse('Unauthorized', 401, origin);
   }
   if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner billing is not available for this account.', 403, origin);
+    return errorResponse('Meal planner billing is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
   }
   if (!env.STRIPE_SECRET_KEY) {
-    return errorResponse('Payments are not configured yet.', 503, origin);
+    return errorResponse('Payments are not configured yet.', 503, origin, MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE);
   }
 
   const subscription = await getUserSubscription(env.DB, user.id);
   if (!subscription?.stripe_subscription_id || !isPaidMealPlanSubscription(subscription)) {
-    return errorResponse('No active paid subscription found for this account.', 404, origin);
+    return errorResponse('No active paid subscription found for this account.', 404, origin, MEAL_PLAN_BILLING_SUBSCRIPTION_NOT_FOUND_CODE);
   }
 
   if (subscription.cancel_at_period_end !== 1) {
@@ -1666,7 +1727,7 @@ async function handleReinstateSubscription(request: Request, env: Env): Promise<
     return jsonResponse({ billing: formatBillingStatus(refreshedSubscription) }, 200, corsHeaders(origin));
   } catch (error) {
     console.error('Stripe subscription restore failed:', error);
-    return errorResponse('Unable to restore subscription right now.', 502, origin);
+    return errorResponse('Unable to restore subscription right now.', 502, origin, MEAL_PLAN_BILLING_RESTORE_FAILED_CODE);
   }
 }
 

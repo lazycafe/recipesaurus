@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { ReactTestHarness } from './ReactTestHarness';
 import {
+  MEAL_PLAN_INVALID_REQUEST_CODE,
+  MEAL_PLAN_LIMIT_CODE,
+  MEAL_PLAN_OPENAI_AUTHENTICATION_FAILED_CODE,
+  MEAL_PLAN_OPENAI_BAD_REQUEST_CODE,
+  MEAL_PLAN_OPENAI_INSUFFICIENT_QUOTA_CODE,
+  MEAL_PLAN_OPENAI_MODEL_UNAVAILABLE_CODE,
+  MEAL_PLAN_OPENAI_PERMISSION_DENIED_CODE,
+  MEAL_PLAN_OPENAI_RATE_LIMITED_CODE,
+  MEAL_PLAN_OPENAI_SERVER_ERROR_CODE,
   buildFallbackMealPlan,
   buildMealPlannerInstructions,
+  getMealPlanOpenAIErrorResponseCode,
   type MealPlanRecipeContext,
 } from '../../api/src/core/mealPlanner';
 
@@ -35,6 +45,7 @@ describe('AI meal planner API', () => {
       const third = await client.ai.createMealPlan('Plan one more dinner.');
       expect(third.error).toBe('Weekly AI meal planning limit reached');
       expect(third.status).toBe(402);
+      expect(third.code).toBe(MEAL_PLAN_LIMIT_CODE);
     } finally {
       harness.close();
     }
@@ -49,6 +60,7 @@ describe('AI meal planner API', () => {
       const result = await client.ai.createMealPlan('   ');
       expect(result.error).toBe('Meal planning request is required and must be 1000 characters or fewer');
       expect(result.status).toBe(400);
+      expect(result.code).toBe(MEAL_PLAN_INVALID_REQUEST_CODE);
 
       const usage = await client.ai.getMealPlanUsage();
       expect(usage.data?.usage.remainingRequests).toBe(2);
@@ -95,5 +107,52 @@ describe('AI meal planner API', () => {
     expect(instructions).toContain('Match each recipe to the requested meal slot');
     expect(instructions).toContain('avoid breakfast, brunch, sweet, and dessert recipes');
     expect(instructions).toContain('fill the gaps with savory new ideas');
+  });
+
+  it('maps OpenAI insufficient quota failures to a Recipesaurus error code', () => {
+    const errorBody = JSON.stringify({
+      error: {
+        message: 'You exceeded your current quota',
+        type: 'insufficient_quota',
+        code: 'insufficient_quota',
+      },
+    });
+
+    expect(getMealPlanOpenAIErrorResponseCode(429, errorBody)).toBe(
+      MEAL_PLAN_OPENAI_INSUFFICIENT_QUOTA_CODE
+    );
+  });
+
+  it('maps other OpenAI meal planner failures to Recipesaurus error codes', () => {
+    const errorBody = (code: string | null, message = 'OpenAI error', param?: string) => JSON.stringify({
+      error: {
+        code,
+        message,
+        param,
+      },
+    });
+
+    expect(getMealPlanOpenAIErrorResponseCode(401, errorBody('invalid_api_key'))).toBe(
+      MEAL_PLAN_OPENAI_AUTHENTICATION_FAILED_CODE
+    );
+    expect(getMealPlanOpenAIErrorResponseCode(403, errorBody('permission_denied'))).toBe(
+      MEAL_PLAN_OPENAI_PERMISSION_DENIED_CODE
+    );
+    expect(getMealPlanOpenAIErrorResponseCode(429, errorBody('rate_limit_exceeded'))).toBe(
+      MEAL_PLAN_OPENAI_RATE_LIMITED_CODE
+    );
+    expect(getMealPlanOpenAIErrorResponseCode(404, errorBody('model_not_found'))).toBe(
+      MEAL_PLAN_OPENAI_MODEL_UNAVAILABLE_CODE
+    );
+    expect(getMealPlanOpenAIErrorResponseCode(400, errorBody(null, 'Invalid model', 'model'))).toBe(
+      MEAL_PLAN_OPENAI_MODEL_UNAVAILABLE_CODE
+    );
+    expect(getMealPlanOpenAIErrorResponseCode(400, errorBody('invalid_request_error'))).toBe(
+      MEAL_PLAN_OPENAI_BAD_REQUEST_CODE
+    );
+    expect(getMealPlanOpenAIErrorResponseCode(503, errorBody('server_error'))).toBe(
+      MEAL_PLAN_OPENAI_SERVER_ERROR_CODE
+    );
+    expect(getMealPlanOpenAIErrorResponseCode(418, errorBody('unknown'))).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BookPlus, CalendarDays, CheckCircle, Clock, CreditCard, Loader2, Lock, Send, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
@@ -57,6 +57,7 @@ export function MealPlannerPage() {
   const [isManagingBilling, setIsManagingBilling] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const isSubmittingRef = useRef(false);
 
   const charactersRemaining = MAX_REQUEST_LENGTH - request.length;
   const remainingRequests = usage?.remainingRequests ?? 0;
@@ -137,6 +138,8 @@ export function MealPlannerPage() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+    if (isSubmittingRef.current) return;
+
     const trimmedRequest = request.trim();
 
     if (!trimmedRequest) {
@@ -149,27 +152,33 @@ export function MealPlannerPage() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     setError('');
     setShowPaywall(false);
 
-    const result = await client.ai.createMealPlan(trimmedRequest);
+    try {
+      const result = await client.ai.createMealPlan(trimmedRequest);
 
-    if (result.data) {
-      setMealPlan(result.data);
-      setUsage(result.data.usage);
-      setShowPaywall(result.data.usage.remainingRequests <= 0);
-    } else if (result.status === 402 || result.code === 'AI_MEAL_PLAN_LIMIT') {
-      setShowPaywall(true);
-      const usageResult = await client.ai.getMealPlanUsage();
-      if (usageResult.data?.usage) {
-        setUsage(usageResult.data.usage);
+      if (result.data) {
+        setMealPlan(result.data);
+        setUsage(result.data.usage);
+        setShowPaywall(result.data.usage.remainingRequests <= 0);
+      } else if (result.status === 402 || result.code === 'AI_MEAL_PLAN_LIMIT') {
+        setShowPaywall(true);
+        const usageResult = await client.ai.getMealPlanUsage();
+        if (usageResult.data?.usage) {
+          setUsage(usageResult.data.usage);
+        }
+      } else {
+        setError(result.error || 'Unable to create a meal plan right now.');
       }
-    } else {
-      setError(result.error || 'Unable to create a meal plan right now.');
+    } catch {
+      setError('Unable to create a meal plan right now.');
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   const handleCreateCookbook = async () => {

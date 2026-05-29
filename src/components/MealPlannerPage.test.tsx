@@ -138,6 +138,43 @@ describe('MealPlannerPage', () => {
     expect(screen.queryByText('AI meal plan draft')).toBeNull();
   });
 
+  it('keeps the submit button disabled while planning', async () => {
+    let resolveMealPlan: ((value: unknown) => void) | undefined;
+    mockCreateMealPlan.mockImplementation(() => new Promise(resolve => {
+      resolveMealPlan = resolve;
+    }));
+
+    renderMealPlanner();
+
+    await waitFor(() => {
+      expect(screen.getByText(/2 requests remaining this week/)).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Get Suggestions/i }));
+
+    await waitFor(() => {
+      const planningButton = screen.getByRole('button', { name: /Planning/i }) as HTMLButtonElement;
+      expect(planningButton.disabled).toBe(true);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Planning/i }));
+    expect(mockCreateMealPlan).toHaveBeenCalledTimes(1);
+
+    resolveMealPlan?.({
+      data: {
+        suggestion: 'Monday: From your recipes: Herb-Crusted Chicken',
+        mentionedRecipes: [{ id: 'recipe-1', title: 'Herb-Crusted Chicken' }],
+        cookbookName: 'Healthy Dinner Meal Plan',
+        usage: usage(1),
+        recipeCount: 3,
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Get Suggestions/i })).toBeDefined();
+    });
+  });
+
   it('shows the paywall when the weekly quota is gone', async () => {
     mockGetMealPlanUsage.mockResolvedValue({ data: { usage: usage(0) } });
 

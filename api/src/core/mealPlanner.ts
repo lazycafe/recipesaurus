@@ -6,6 +6,29 @@ export const MEAL_PLAN_PAID_PLAN_NAME = 'Meal Planner Plus';
 export const MEAL_PLAN_MAX_PROMPT_LENGTH = 1000;
 export const MEAL_PLAN_MAX_RECIPES = 80;
 export const MEAL_PLAN_MAX_INGREDIENTS = 14;
+export const MEAL_PLAN_UNAUTHORIZED_CODE = 'AI_MEAL_PLAN_UNAUTHORIZED';
+export const MEAL_PLAN_FORBIDDEN_CODE = 'AI_MEAL_PLAN_FORBIDDEN';
+export const MEAL_PLAN_INVALID_REQUEST_CODE = 'AI_MEAL_PLAN_INVALID_REQUEST';
+export const MEAL_PLAN_LIMIT_CODE = 'AI_MEAL_PLAN_LIMIT';
+export const MEAL_PLAN_OPENAI_NOT_CONFIGURED_CODE = 'AI_MEAL_PLAN_OPENAI_NOT_CONFIGURED';
+export const MEAL_PLAN_OPENAI_AUTHENTICATION_FAILED_CODE = 'AI_MEAL_PLAN_OPENAI_AUTHENTICATION_FAILED';
+export const MEAL_PLAN_OPENAI_PERMISSION_DENIED_CODE = 'AI_MEAL_PLAN_OPENAI_PERMISSION_DENIED';
+export const MEAL_PLAN_OPENAI_INSUFFICIENT_QUOTA_CODE = 'AI_MEAL_PLAN_OPENAI_INSUFFICIENT_QUOTA';
+export const MEAL_PLAN_OPENAI_RATE_LIMITED_CODE = 'AI_MEAL_PLAN_OPENAI_RATE_LIMITED';
+export const MEAL_PLAN_OPENAI_MODEL_UNAVAILABLE_CODE = 'AI_MEAL_PLAN_OPENAI_MODEL_UNAVAILABLE';
+export const MEAL_PLAN_OPENAI_BAD_REQUEST_CODE = 'AI_MEAL_PLAN_OPENAI_BAD_REQUEST';
+export const MEAL_PLAN_OPENAI_SERVER_ERROR_CODE = 'AI_MEAL_PLAN_OPENAI_SERVER_ERROR';
+export const MEAL_PLAN_OPENAI_NETWORK_ERROR_CODE = 'AI_MEAL_PLAN_OPENAI_NETWORK_ERROR';
+export const MEAL_PLAN_OPENAI_EMPTY_RESPONSE_CODE = 'AI_MEAL_PLAN_OPENAI_EMPTY_RESPONSE';
+export const MEAL_PLAN_GENERATION_FAILED_CODE = 'AI_MEAL_PLAN_GENERATION_FAILED';
+export const MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE = 'AI_MEAL_PLAN_BILLING_NOT_CONFIGURED';
+export const MEAL_PLAN_BILLING_CUSTOMER_NOT_FOUND_CODE = 'AI_MEAL_PLAN_BILLING_CUSTOMER_NOT_FOUND';
+export const MEAL_PLAN_BILLING_SUBSCRIPTION_NOT_FOUND_CODE = 'AI_MEAL_PLAN_BILLING_SUBSCRIPTION_NOT_FOUND';
+export const MEAL_PLAN_BILLING_STRIPE_URL_MISSING_CODE = 'AI_MEAL_PLAN_BILLING_STRIPE_URL_MISSING';
+export const MEAL_PLAN_BILLING_CHECKOUT_FAILED_CODE = 'AI_MEAL_PLAN_BILLING_CHECKOUT_FAILED';
+export const MEAL_PLAN_BILLING_PORTAL_FAILED_CODE = 'AI_MEAL_PLAN_BILLING_PORTAL_FAILED';
+export const MEAL_PLAN_BILLING_CANCEL_FAILED_CODE = 'AI_MEAL_PLAN_BILLING_CANCEL_FAILED';
+export const MEAL_PLAN_BILLING_RESTORE_FAILED_CODE = 'AI_MEAL_PLAN_BILLING_RESTORE_FAILED';
 
 export interface MealPlanUsageInfo {
   weeklyLimit: number;
@@ -262,4 +285,59 @@ export function extractOpenAIResponseText(data: unknown): string {
     .map(content => content.text)
     .join('\n')
     .trim();
+}
+
+function extractOpenAIError(errorBody: string): { code: string | null; message: string; param: string | null } {
+  try {
+    const data = JSON.parse(errorBody) as { error?: { code?: unknown; message?: unknown; param?: unknown } };
+
+    return {
+      code: typeof data.error?.code === 'string' ? data.error.code : null,
+      message: typeof data.error?.message === 'string' ? data.error.message : '',
+      param: typeof data.error?.param === 'string' ? data.error.param : null,
+    };
+  } catch {
+    return {
+      code: null,
+      message: errorBody,
+      param: null,
+    };
+  }
+}
+
+export function getMealPlanOpenAIErrorResponseCode(status: number, errorBody: string): string | null {
+  const openAIError = extractOpenAIError(errorBody);
+  const normalizedMessage = openAIError.message.toLowerCase();
+
+  if (status === 401) {
+    return MEAL_PLAN_OPENAI_AUTHENTICATION_FAILED_CODE;
+  }
+
+  if (status === 403) {
+    return MEAL_PLAN_OPENAI_PERMISSION_DENIED_CODE;
+  }
+
+  if (status === 429) {
+    return openAIError.code === 'insufficient_quota'
+      ? MEAL_PLAN_OPENAI_INSUFFICIENT_QUOTA_CODE
+      : MEAL_PLAN_OPENAI_RATE_LIMITED_CODE;
+  }
+
+  if (
+    openAIError.code === 'model_not_found' ||
+    openAIError.param === 'model' ||
+    normalizedMessage.includes('model')
+  ) {
+    return MEAL_PLAN_OPENAI_MODEL_UNAVAILABLE_CODE;
+  }
+
+  if (status === 400) {
+    return MEAL_PLAN_OPENAI_BAD_REQUEST_CODE;
+  }
+
+  if (status >= 500) {
+    return MEAL_PLAN_OPENAI_SERVER_ERROR_CODE;
+  }
+
+  return null;
 }

@@ -113,6 +113,7 @@ export interface ApiResult<T> {
   data?: T;
   error?: string;
   status: number;
+  code?: string;
   headers?: Record<string, string>;
 }
 
