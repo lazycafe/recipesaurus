@@ -3,6 +3,7 @@ import { Recipe } from '../types/Recipe';
 import { useClient } from '../client/ClientContext';
 import { useAuth } from './AuthContext';
 import type { Recipe as ClientRecipe } from '../client/types';
+import { dedupeRecipes } from '../utils/recipeDedupe';
 
 interface RecipeContextType {
   recipes: Recipe[];
@@ -58,7 +59,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await client.recipes.list();
       if (data?.recipes) {
-        setRecipes(data.recipes.map(mapRecipeResponse));
+        setRecipes(dedupeRecipes(data.recipes.map(mapRecipeResponse)));
       } else if (error) {
         console.error('Failed to fetch recipes:', error);
       }
@@ -93,7 +94,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
         id: data.id,
         createdAt: Date.now(),
       };
-      setRecipes(prev => [newRecipe, ...prev]);
+      setRecipes(prev => dedupeRecipes([newRecipe, ...prev]));
     } else if (error) {
       console.error('Failed to create recipe:', error);
       throw new Error(error);

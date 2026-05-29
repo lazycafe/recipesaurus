@@ -142,6 +142,23 @@ describe('MyRecipesPage', () => {
     expect(screen.getByText('Test Recipe')).toBeDefined();
   });
 
+  it('renders duplicate recipes only once', () => {
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [mockRecipe, { ...mockRecipe, id: 'recipe-duplicate', createdAt: mockRecipe.createdAt + 1 }],
+      isLoading: false,
+      addRecipe: mockAddRecipe,
+      updateRecipe: mockUpdateRecipe,
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: mockGetAllTags.mockReturnValue(['dinner', 'quick']),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    render(<MyRecipesPage />);
+
+    expect(screen.getAllByText('Test Recipe')).toHaveLength(1);
+    expect(screen.getByText('1 recipe')).toBeDefined();
+  });
+
   it('opens filter menu when filter button clicked', () => {
     vi.mocked(RecipeContext.useRecipes).mockReturnValue({
       recipes: [mockRecipe],

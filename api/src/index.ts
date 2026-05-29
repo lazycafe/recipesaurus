@@ -38,6 +38,7 @@ interface Recipe {
   prep_time: string | null;
   cook_time: string | null;
   servings: string | null;
+  source_recipe_id?: string | null;
   is_public: number;
   created_at: number;
 }
@@ -173,6 +174,54 @@ function normalizeRecipeSharePayload(data: RecipeSharePayload): RecipeSharePaylo
   }
 
   return recipe;
+}
+
+const RECIPE_DEDUPE_SEPARATOR = '\u001f';
+
+function normalizeRecipeField(value: string | null | undefined): string {
+  return (value || '').trim().toLowerCase();
+}
+
+function recipeRowDedupeKey(recipe: Recipe): string {
+  return [
+    recipe.owner_id,
+    normalizeRecipeField(recipe.title),
+    normalizeRecipeField(recipe.description),
+    normalizeRecipeField(recipe.ingredients),
+    normalizeRecipeField(recipe.instructions),
+    normalizeRecipeField(recipe.tags),
+    normalizeRecipeField(recipe.image_url),
+    normalizeRecipeField(recipe.source_url),
+    normalizeRecipeField(recipe.prep_time),
+    normalizeRecipeField(recipe.cook_time),
+    normalizeRecipeField(recipe.servings),
+  ].join(RECIPE_DEDUPE_SEPARATOR);
+}
+
+function shouldPreferRecipeRow(current: Recipe, candidate: Recipe, currentUserId: string): boolean {
+  const currentIsOwner = current.owner_id === currentUserId;
+  const candidateIsOwner = candidate.owner_id === currentUserId;
+
+  if (candidateIsOwner !== currentIsOwner) {
+    return candidateIsOwner;
+  }
+
+  return candidate.created_at > current.created_at;
+}
+
+function dedupeRecipeRows<T extends Recipe>(recipes: T[], currentUserId: string): T[] {
+  const selectedByKey = new Map<string, T>();
+
+  for (const recipe of recipes) {
+    const key = recipeRowDedupeKey(recipe);
+    const selected = selectedByKey.get(key);
+
+    if (!selected || shouldPreferRecipeRow(selected, recipe, currentUserId)) {
+      selectedByKey.set(key, recipe);
+    }
+  }
+
+  return recipes.filter(recipe => selectedByKey.get(recipeRowDedupeKey(recipe)) === recipe);
 }
 
 async function deriveKey(password: string, salt: Uint8Array): Promise<ArrayBuffer> {
@@ -907,7 +956,7 @@ async function handleGetRecipes(request: Request, db: D1Database): Promise<Respo
      ORDER BY r.created_at DESC`
   ).bind(user.id).all<Recipe & { owner_name: string | null }>();
 
-  const formattedRecipes = recipes.results.map(r => ({
+  const formattedRecipes = dedupeRecipeRows(recipes.results, user.id).map(r => ({
     id: r.id,
     title: r.title,
     description: r.description,
@@ -2257,44 +2306,101 @@ async function handleDiscoverSaveCookbook(request: Request, db: D1Database, cook
     now
   ).run();
 
+  const collectionId = await getOrCreateRecipeCollection(db, user.id);
+
   // Copy each recipe and add to the new cookbook
   for (const recipe of cookbookRecipes || []) {
-    const newRecipeId = generateId();
+    let savedRecipeId = await findExistingSavedRecipeId(db, user.id, recipe);
 
-    await db.prepare(`
-      INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      newRecipeId,
-      user.id,
-      recipe.owner_id,
-      recipe.title,
-      recipe.description,
-      recipe.ingredients,
-      recipe.instructions,
-      recipe.tags,
-      recipe.image_url,
-      recipe.source_url,
-      recipe.prep_time,
-      recipe.cook_time,
-      recipe.servings,
-      0, // private
-      now
-    ).run();
+    if (!savedRecipeId) {
+      savedRecipeId = generateId();
+
+      await db.prepare(`
+        INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        savedRecipeId,
+        user.id,
+        recipe.owner_id,
+        recipe.title,
+        recipe.description,
+        recipe.ingredients,
+        recipe.instructions,
+        recipe.tags,
+        recipe.image_url,
+        recipe.source_url,
+        recipe.prep_time,
+        recipe.cook_time,
+        recipe.servings,
+        recipe.id,
+        0, // private
+        now
+      ).run();
+    }
 
     // Add to new cookbook
     await db.prepare('INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)')
-      .bind(newCookbookId, newRecipeId, user.id, now)
+      .bind(newCookbookId, savedRecipeId, user.id, now)
       .run();
 
     // Also add to My Recipe Collection
-    const collectionId = await getOrCreateRecipeCollection(db, user.id);
     await db.prepare('INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)')
-      .bind(collectionId, newRecipeId, user.id, now)
+      .bind(collectionId, savedRecipeId, user.id, now)
       .run();
   }
 
   return jsonResponse({ id: newCookbookId }, 201, corsHeaders(origin));
+}
+
+async function findExistingSavedRecipeId(db: D1Database, userId: string, recipe: Recipe): Promise<string | null> {
+  const existing = await db.prepare(`
+    SELECT id FROM recipes
+    WHERE user_id = ?
+      AND (
+        id = ?
+        OR source_recipe_id = ?
+        OR (
+          owner_id = ?
+          AND title = ?
+          AND COALESCE(description, '') = COALESCE(?, '')
+          AND ingredients = ?
+          AND instructions = ?
+          AND COALESCE(tags, '') = COALESCE(?, '')
+          AND COALESCE(image_url, '') = COALESCE(?, '')
+          AND COALESCE(source_url, '') = COALESCE(?, '')
+          AND COALESCE(prep_time, '') = COALESCE(?, '')
+          AND COALESCE(cook_time, '') = COALESCE(?, '')
+          AND COALESCE(servings, '') = COALESCE(?, '')
+        )
+      )
+    ORDER BY
+      CASE
+        WHEN id = ? THEN 0
+        WHEN source_recipe_id = ? THEN 1
+        ELSE 2
+      END,
+      created_at ASC
+    LIMIT 1
+  `).bind(
+    userId,
+    recipe.id,
+    recipe.id,
+    recipe.owner_id,
+    recipe.title,
+    recipe.description,
+    recipe.ingredients,
+    recipe.instructions,
+    recipe.tags,
+    recipe.image_url,
+    recipe.source_url,
+    recipe.prep_time,
+    recipe.cook_time,
+    recipe.servings,
+    recipe.id,
+    recipe.id
+  ).first<{ id: string }>();
+
+  return existing?.id || null;
 }
 
 // Discover - save a public recipe to user's collection
@@ -2315,13 +2421,18 @@ async function handleDiscoverSaveRecipe(request: Request, db: D1Database, recipe
     return errorResponse('Recipe not found or not public', 404, origin);
   }
 
+  const existingRecipeId = await findExistingSavedRecipeId(db, user.id, recipe);
+  if (existingRecipeId) {
+    return jsonResponse({ id: existingRecipeId }, 200, corsHeaders(origin));
+  }
+
   // Create a copy of the recipe for the user
   const newRecipeId = generateId();
   const now = Date.now();
 
   await db.prepare(`
-    INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     newRecipeId,
     user.id,
@@ -2336,6 +2447,7 @@ async function handleDiscoverSaveRecipe(request: Request, db: D1Database, recipe
     recipe.prep_time,
     recipe.cook_time,
     recipe.servings,
+    recipe.id,
     0, // private
     now
   ).run();

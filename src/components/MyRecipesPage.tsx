@@ -10,6 +10,7 @@ import { CookbookModal } from './CookbookModal';
 import { DinoMascot } from './DinoMascot';
 import { useCookbooks } from '../context/CookbookContext';
 import { Recipe, RecipeFormData } from '../types/Recipe';
+import { dedupeRecipes } from '../utils/recipeDedupe';
 
 interface ExtendedRecipe extends Recipe {
   ownerName?: string;
@@ -55,6 +56,7 @@ export function MyRecipesPage() {
   const [showAddRecipeModal, setShowAddRecipeModal] = useState(false);
 
   const filterMenuRef = useRef<HTMLDivElement>(null);
+  const uniqueRecipes = useMemo(() => dedupeRecipes(recipes), [recipes]);
 
   // Close filter menu when clicking outside
   useEffect(() => {
@@ -72,17 +74,17 @@ export function MyRecipesPage() {
   // Get unique owners from recipes
   const allOwners = useMemo(() => {
     const ownerSet = new Map<string, string>();
-    recipes.forEach(recipe => {
+    uniqueRecipes.forEach(recipe => {
       const r = recipe as ExtendedRecipe;
       if (r.ownerName) {
         ownerSet.set(r.ownerName, r.ownerName);
       }
     });
     return Array.from(ownerSet.values()).sort();
-  }, [recipes]);
+  }, [uniqueRecipes]);
 
   const filteredRecipes = useMemo(() => {
-    return recipes.filter(recipe => {
+    return uniqueRecipes.filter(recipe => {
       const r = recipe as ExtendedRecipe;
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch =
@@ -102,7 +104,7 @@ export function MyRecipesPage() {
 
       return matchesSearch && matchesTags && matchesOwner;
     });
-  }, [recipes, searchQuery, selectedTags, selectedOwner]);
+  }, [uniqueRecipes, searchQuery, selectedTags, selectedOwner]);
 
   const handleTagToggle = (tag: string) => {
     setSelectedTags(prev =>
@@ -172,7 +174,7 @@ export function MyRecipesPage() {
         </button>
       </div>
 
-      {recipes.length > 0 ? (
+      {uniqueRecipes.length > 0 ? (
         <>
           <div className="my-recipes-toolbar">
             <div className="my-recipes-search-bar">
@@ -256,7 +258,7 @@ export function MyRecipesPage() {
 
           <p className="results-count">
             {filteredRecipes.length} recipe{filteredRecipes.length !== 1 ? 's' : ''}
-            {hasFilters && ` of ${recipes.length}`}
+            {hasFilters && ` of ${uniqueRecipes.length}`}
           </p>
 
           {filteredRecipes.length > 0 ? (

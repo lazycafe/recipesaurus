@@ -33,10 +33,12 @@ CREATE TABLE IF NOT EXISTS recipes (
   prep_time TEXT,
   cook_time TEXT,
   servings TEXT,
+  source_recipe_id TEXT,
   is_public INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (source_recipe_id) REFERENCES recipes(id) ON DELETE SET NULL
 );
 
 -- Cookbooks table
@@ -133,6 +135,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_recipes_user_id ON recipes(user_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_owner_id ON recipes(owner_id);
+CREATE INDEX IF NOT EXISTS idx_recipes_source_recipe_id ON recipes(source_recipe_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_cookbooks_user_id ON cookbooks(user_id);

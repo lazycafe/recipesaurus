@@ -3,6 +3,7 @@ import { useClient } from '../client/ClientContext';
 import type { Recipe, Cookbook } from '../client/types';
 import { SAMPLE_RECIPES } from '../data/sampleRecipes';
 import { SAMPLE_COOKBOOKS, COOKBOOK_RECIPES } from '../data/sampleCookbooks';
+import { findDuplicateRecipe } from '../utils/recipeDedupe';
 
 interface DiscoveryState {
   recipes: Recipe[];
@@ -246,6 +247,13 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       if (recipeId.startsWith('sample-')) {
         const sampleRecipe = SAMPLE_RECIPES.find(r => r.id === recipeId);
         if (sampleRecipe) {
+          const existingRecipes = await client.recipes.list();
+          const existingRecipe = findDuplicateRecipe(existingRecipes.data?.recipes || [], sampleRecipe);
+
+          if (existingRecipe) {
+            return existingRecipe.id;
+          }
+
           // Create recipe directly from sample data
           const result = await client.recipes.create({
             title: sampleRecipe.title,
@@ -303,22 +311,29 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
           for (const recipeId of recipeIds) {
             const sampleRecipe = SAMPLE_RECIPES.find(r => r.id === recipeId);
             if (sampleRecipe) {
-              const recipeResult = await client.recipes.create({
-                title: sampleRecipe.title,
-                description: sampleRecipe.description,
-                ingredients: sampleRecipe.ingredients,
-                instructions: sampleRecipe.instructions,
-                tags: sampleRecipe.tags,
-                imageUrl: sampleRecipe.imageUrl ?? undefined,
-                prepTime: sampleRecipe.prepTime ?? undefined,
-                cookTime: sampleRecipe.cookTime ?? undefined,
-                servings: sampleRecipe.servings ?? undefined,
-                isPublic: false,
-              });
+              const existingRecipes = await client.recipes.list();
+              const existingRecipe = findDuplicateRecipe(existingRecipes.data?.recipes || [], sampleRecipe);
+              const existingRecipeId = existingRecipe?.id;
+
+              const recipeResult = existingRecipeId
+                ? null
+                : await client.recipes.create({
+                    title: sampleRecipe.title,
+                    description: sampleRecipe.description,
+                    ingredients: sampleRecipe.ingredients,
+                    instructions: sampleRecipe.instructions,
+                    tags: sampleRecipe.tags,
+                    imageUrl: sampleRecipe.imageUrl ?? undefined,
+                    prepTime: sampleRecipe.prepTime ?? undefined,
+                    cookTime: sampleRecipe.cookTime ?? undefined,
+                    servings: sampleRecipe.servings ?? undefined,
+                    isPublic: false,
+                  });
 
               // Add to cookbook
-              if (recipeResult.data) {
-                await client.cookbooks.addRecipe(newCookbookId, recipeResult.data.id);
+              const savedRecipeId = existingRecipeId || recipeResult?.data?.id;
+              if (savedRecipeId) {
+                await client.cookbooks.addRecipe(newCookbookId, savedRecipeId);
               }
             }
           }

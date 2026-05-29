@@ -30,6 +30,7 @@ export interface DbRecipe {
   prep_time: string | null;
   cook_time: string | null;
   servings: string | null;
+  source_recipe_id?: string | null;
   is_public: number; // 0 = private, 1 = public
   created_at: number;
 }

@@ -158,6 +158,54 @@ function formatRecipe(r: DbRecipe & { owner_name?: string | null }, currentUserI
   };
 }
 
+const RECIPE_DEDUPE_SEPARATOR = '\u001f';
+
+function normalizeRecipeField(value: string | null | undefined): string {
+  return (value || '').trim().toLowerCase();
+}
+
+function recipeRowDedupeKey(recipe: DbRecipe): string {
+  return [
+    recipe.owner_id,
+    normalizeRecipeField(recipe.title),
+    normalizeRecipeField(recipe.description),
+    normalizeRecipeField(recipe.ingredients),
+    normalizeRecipeField(recipe.instructions),
+    normalizeRecipeField(recipe.tags),
+    normalizeRecipeField(recipe.image_url),
+    normalizeRecipeField(recipe.source_url),
+    normalizeRecipeField(recipe.prep_time),
+    normalizeRecipeField(recipe.cook_time),
+    normalizeRecipeField(recipe.servings),
+  ].join(RECIPE_DEDUPE_SEPARATOR);
+}
+
+function shouldPreferRecipeRow(current: DbRecipe, candidate: DbRecipe, currentUserId: string): boolean {
+  const currentIsOwner = current.owner_id === currentUserId;
+  const candidateIsOwner = candidate.owner_id === currentUserId;
+
+  if (candidateIsOwner !== currentIsOwner) {
+    return candidateIsOwner;
+  }
+
+  return candidate.created_at > current.created_at;
+}
+
+function dedupeRecipeRows<T extends DbRecipe>(recipes: T[], currentUserId: string): T[] {
+  const selectedByKey = new Map<string, T>();
+
+  for (const recipe of recipes) {
+    const key = recipeRowDedupeKey(recipe);
+    const selected = selectedByKey.get(key);
+
+    if (!selected || shouldPreferRecipeRow(selected, recipe, currentUserId)) {
+      selectedByKey.set(key, recipe);
+    }
+  }
+
+  return recipes.filter(recipe => selectedByKey.get(recipeRowDedupeKey(recipe)) === recipe);
+}
+
 const MAX_RECIPE_SHARE_BYTES = 64 * 1024;
 const MAX_RECIPE_SHARE_ITEMS = 250;
 
@@ -395,7 +443,7 @@ export class CoreHandlers {
     );
 
     return {
-      data: { recipes: result.results.map(r => formatRecipe(r, user.id)) },
+      data: { recipes: dedupeRecipeRows(result.results, user.id).map(r => formatRecipe(r, user.id)) },
       status: 200,
     };
   }
@@ -1638,6 +1686,56 @@ export class CoreHandlers {
     };
   }
 
+  private async findExistingSavedRecipeId(userId: string, recipe: DbRecipe): Promise<string | null> {
+    const existing = await this.db.get<{ id: string }>(
+      `SELECT id FROM recipes
+       WHERE user_id = ?
+         AND (
+           id = ?
+           OR source_recipe_id = ?
+           OR (
+             owner_id = ?
+             AND title = ?
+             AND COALESCE(description, '') = COALESCE(?, '')
+             AND ingredients = ?
+             AND instructions = ?
+             AND COALESCE(tags, '') = COALESCE(?, '')
+             AND COALESCE(image_url, '') = COALESCE(?, '')
+             AND COALESCE(source_url, '') = COALESCE(?, '')
+             AND COALESCE(prep_time, '') = COALESCE(?, '')
+             AND COALESCE(cook_time, '') = COALESCE(?, '')
+             AND COALESCE(servings, '') = COALESCE(?, '')
+           )
+         )
+       ORDER BY
+         CASE
+           WHEN id = ? THEN 0
+           WHEN source_recipe_id = ? THEN 1
+           ELSE 2
+         END,
+         created_at ASC
+       LIMIT 1`,
+      userId,
+      recipe.id,
+      recipe.id,
+      recipe.owner_id,
+      recipe.title,
+      recipe.description,
+      recipe.ingredients,
+      recipe.instructions,
+      recipe.tags,
+      recipe.image_url,
+      recipe.source_url,
+      recipe.prep_time,
+      recipe.cook_time,
+      recipe.servings,
+      recipe.id,
+      recipe.id
+    );
+
+    return existing?.id || null;
+  }
+
   // Save a public recipe to user's collection (creates a copy)
   async saveRecipe(
     ctx: RequestContext,
@@ -1658,11 +1756,16 @@ export class CoreHandlers {
       return { error: 'Recipe not found or not public', status: 404 };
     }
 
+    const existingRecipeId = await this.findExistingSavedRecipeId(user.id, recipe);
+    if (existingRecipeId) {
+      return { data: { id: existingRecipeId }, status: 200 };
+    }
+
     // Create a copy of the recipe for the user
     const newRecipeId = this.crypto.generateId();
     await this.db.run(
-      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       newRecipeId,
       user.id,
       recipe.owner_id, // Keep original owner reference
@@ -1676,6 +1779,7 @@ export class CoreHandlers {
       recipe.prep_time,
       recipe.cook_time,
       recipe.servings,
+      recipe.id,
       0, // saved copies are private by default
       Date.now()
     );
@@ -1744,33 +1848,38 @@ export class CoreHandlers {
 
     // Copy each recipe and add to both the new cookbook and user's collection
     for (const recipe of cookbookRecipes.results) {
-      const newRecipeId = this.crypto.generateId();
+      let savedRecipeId = await this.findExistingSavedRecipeId(user.id, recipe);
 
-      await this.db.run(
-        `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        newRecipeId,
-        user.id,
-        recipe.owner_id,
-        recipe.title,
-        recipe.description,
-        recipe.ingredients,
-        recipe.instructions,
-        recipe.tags,
-        recipe.image_url,
-        recipe.source_url,
-        recipe.prep_time,
-        recipe.cook_time,
-        recipe.servings,
-        0, // private
-        now
-      );
+      if (!savedRecipeId) {
+        savedRecipeId = this.crypto.generateId();
+
+        await this.db.run(
+          `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          savedRecipeId,
+          user.id,
+          recipe.owner_id,
+          recipe.title,
+          recipe.description,
+          recipe.ingredients,
+          recipe.instructions,
+          recipe.tags,
+          recipe.image_url,
+          recipe.source_url,
+          recipe.prep_time,
+          recipe.cook_time,
+          recipe.servings,
+          recipe.id,
+          0, // private
+          now
+        );
+      }
 
       // Add to new cookbook
       await this.db.run(
         'INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
         newCookbookId,
-        newRecipeId,
+        savedRecipeId,
         user.id,
         now
       );
@@ -1779,7 +1888,7 @@ export class CoreHandlers {
       await this.db.run(
         'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
         collectionId,
-        newRecipeId,
+        savedRecipeId,
         user.id,
         now
       );

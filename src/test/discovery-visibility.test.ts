@@ -93,4 +93,47 @@ describe('public discovery visibility', () => {
     const cookbookIds = cookbookDiscoverResult.data!.cookbooks.map(cookbook => cookbook.id);
     expect(new Set(cookbookIds).size).toBe(cookbookIds.length);
   });
+
+  it('reuses an existing My Recipes copy when saving the same public recipe again', async () => {
+    const ownerClient = harness.getClient();
+    const recipeResult = await ownerClient.recipes.create({
+      title: 'Shareable Lentil Soup',
+      description: 'One public recipe should save once',
+      ingredients: ['lentils', 'stock'],
+      instructions: ['simmer'],
+      tags: ['soup'],
+      isPublic: true,
+    });
+
+    const saverClient = harness.createClient();
+    await saverClient.auth.register('saver@example.com', 'Saver', 'Password123');
+
+    const firstSave = await saverClient.discover.saveRecipe(recipeResult.data!.id);
+    const secondSave = await saverClient.discover.saveRecipe(recipeResult.data!.id);
+
+    expect(secondSave.data!.id).toBe(firstSave.data!.id);
+
+    const recipesResult = await saverClient.recipes.list();
+    const savedCopies = recipesResult.data!.recipes.filter(recipe => recipe.title === 'Shareable Lentil Soup');
+    expect(savedCopies).toHaveLength(1);
+  });
+
+  it('does not duplicate a user-owned public recipe when saved from Discover', async () => {
+    const client = harness.getClient();
+    const recipeResult = await client.recipes.create({
+      title: 'Own Public Salad',
+      description: 'Already belongs to this user',
+      ingredients: ['greens'],
+      instructions: ['toss'],
+      tags: ['salad'],
+      isPublic: true,
+    });
+
+    const saveResult = await client.discover.saveRecipe(recipeResult.data!.id);
+    expect(saveResult.data!.id).toBe(recipeResult.data!.id);
+
+    const recipesResult = await client.recipes.list();
+    const matchingRecipes = recipesResult.data!.recipes.filter(recipe => recipe.title === 'Own Public Salad');
+    expect(matchingRecipes).toHaveLength(1);
+  });
 });
