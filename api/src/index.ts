@@ -1665,8 +1665,8 @@ async function handleReinstateSubscription(request: Request, env: Env): Promise<
     const refreshedSubscription = await getUserSubscription(env.DB, user.id);
     return jsonResponse({ billing: formatBillingStatus(refreshedSubscription) }, 200, corsHeaders(origin));
   } catch (error) {
-    console.error('Stripe subscription reinstatement failed:', error);
-    return errorResponse('Unable to reinstate subscription right now.', 502, origin);
+    console.error('Stripe subscription restore failed:', error);
+    return errorResponse('Unable to restore subscription right now.', 502, origin);
   }
 }
 

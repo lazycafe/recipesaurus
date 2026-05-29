@@ -197,7 +197,7 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('reinstates a paid subscription that was already scheduled to end', async () => {
+  it('restores a paid subscription that was already scheduled to end', async () => {
     const canceledBilling: BillingStatus = {
       ...paidBilling,
       subscription: {
@@ -211,10 +211,10 @@ describe('SettingsPage', () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Reinstate paid subscription/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /Restore paid subscription/i })).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Reinstate paid subscription/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Restore paid subscription/i }));
 
     await waitFor(() => {
       expect(mockReinstateSubscription).toHaveBeenCalledTimes(1);

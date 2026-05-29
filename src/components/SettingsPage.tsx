@@ -103,7 +103,7 @@ export function SettingsPage() {
     if (result.data?.billing) {
       setBilling(result.data.billing);
     } else {
-      setBillingError(result.error || 'Unable to reinstate subscription right now.');
+      setBillingError(result.error || 'Unable to restore subscription right now.');
     }
 
     setIsReinstatingSubscription(false);
@@ -181,7 +181,7 @@ export function SettingsPage() {
                   disabled={isReinstatingSubscription}
                 >
                   <Sparkles size={16} />
-                  {isReinstatingSubscription ? 'Reinstating...' : 'Reinstate paid subscription'}
+                  {isReinstatingSubscription ? 'Restoring...' : 'Restore paid subscription'}
                 </button>
               </div>
             )}
