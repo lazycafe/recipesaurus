@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { ReactTestHarness } from './ReactTestHarness';
+import {
+  buildFallbackMealPlan,
+  buildMealPlannerInstructions,
+  type MealPlanRecipeContext,
+} from '../../api/src/core/mealPlanner';
 
 describe('AI meal planner API', () => {
   it('uses saved recipes and enforces two requests per rolling week', async () => {
@@ -42,7 +47,7 @@ describe('AI meal planner API', () => {
       await harness.seedUser('empty@example.com', 'Password123', 'Empty Request');
 
       const result = await client.ai.createMealPlan('   ');
-      expect(result.error).toBe('Meal planning request is required and must be 2000 characters or fewer');
+      expect(result.error).toBe('Meal planning request is required and must be 1000 characters or fewer');
       expect(result.status).toBe(400);
 
       const usage = await client.ai.getMealPlanUsage();
@@ -50,5 +55,45 @@ describe('AI meal planner API', () => {
     } finally {
       harness.close();
     }
+  });
+
+  it('keeps breakfast and dessert recipes out of lunch and dinner fallback plans', () => {
+    const recipes: MealPlanRecipeContext[] = [
+      {
+        id: 'pancakes',
+        title: 'Fluffy Blueberry Pancakes',
+        description: 'Weekend breakfast',
+        ingredients: ['flour', 'blueberries'],
+        tags: ['breakfast', 'sweet'],
+      },
+      {
+        id: 'fondant',
+        title: 'Chocolate Fondant',
+        description: 'Molten chocolate dessert',
+        ingredients: ['chocolate', 'butter'],
+        tags: ['dessert'],
+      },
+      {
+        id: 'bowl',
+        title: 'Tofu Rice Bowl',
+        description: 'Savory weeknight bowl',
+        ingredients: ['tofu', 'rice'],
+        tags: ['dinner', 'healthy'],
+      },
+    ];
+
+    const result = buildFallbackMealPlan('Plan lunches and dinners for this week.', recipes);
+
+    expect(result).toContain('Tofu Rice Bowl');
+    expect(result).not.toContain('Fluffy Blueberry Pancakes');
+    expect(result).not.toContain('Chocolate Fondant');
+  });
+
+  it('instructs the model to match recipes to requested meal slots', () => {
+    const instructions = buildMealPlannerInstructions();
+
+    expect(instructions).toContain('Match each recipe to the requested meal slot');
+    expect(instructions).toContain('avoid breakfast, brunch, sweet, and dessert recipes');
+    expect(instructions).toContain('fill the gaps with savory new ideas');
   });
 });

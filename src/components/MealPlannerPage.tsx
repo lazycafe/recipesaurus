@@ -9,7 +9,7 @@ import type { MealPlanResult, MealPlanUsage } from '../client/types';
 import type { Recipe } from '../types/Recipe';
 import type { FormEvent, ReactNode } from 'react';
 
-const MAX_REQUEST_LENGTH = 2000;
+const MAX_REQUEST_LENGTH = 1000;
 const PAID_WEEKLY_LIMIT = 50;
 
 const SAMPLE_REQUESTS = [

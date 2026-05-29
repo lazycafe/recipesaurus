@@ -562,7 +562,7 @@ export class CoreHandlers {
 
     const request = normalizeMealPlanRequest(requestText);
     if (!request) {
-      return { error: 'Meal planning request is required and must be 2000 characters or fewer', status: 400 };
+      return { error: 'Meal planning request is required and must be 1000 characters or fewer', status: 400 };
     }
 
     const usage = await this.getMealPlanUsageForUser(user.id);

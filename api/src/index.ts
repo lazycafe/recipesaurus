@@ -1398,7 +1398,7 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
   const body = await request.json() as { request?: unknown };
   const mealPlanRequest = normalizeMealPlanRequest(body.request);
   if (!mealPlanRequest) {
-    return errorResponse('Meal planning request is required and must be 2000 characters or fewer', 400, origin);
+    return errorResponse('Meal planning request is required and must be 1000 characters or fewer', 400, origin);
   }
 
   const usage = await getMealPlanUsage(env.DB, user.id);
