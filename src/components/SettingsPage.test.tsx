@@ -22,6 +22,7 @@ describe('SettingsPage', () => {
   };
   const mockGetBillingStatus = vi.fn();
   const mockCancelSubscription = vi.fn();
+  const mockReinstateSubscription = vi.fn();
 
   const freeBilling: BillingStatus = {
     isPaid: false,
@@ -82,6 +83,11 @@ describe('SettingsPage', () => {
         },
       },
     });
+    mockReinstateSubscription.mockResolvedValue({
+      data: {
+        billing: paidBilling,
+      },
+    });
 
     vi.mocked(ClientContext.useClient).mockReturnValue({
       billing: {
@@ -89,6 +95,7 @@ describe('SettingsPage', () => {
         createCheckoutSession: vi.fn(),
         createPortalSession: vi.fn(),
         cancelSubscription: mockCancelSubscription,
+        reinstateSubscription: mockReinstateSubscription,
       },
     } as unknown as IClient);
 
@@ -150,6 +157,7 @@ describe('SettingsPage', () => {
       expect(screen.getByText('Free')).toBeDefined();
     });
     expect(screen.getByText(/2 AI meal planning requests per week/i)).toBeDefined();
+    expect(screen.queryByRole('button', { name: /Upgrade to Meal Planner Plus/i })).toBeNull();
   });
 
   it('shows the paid subscription plan', async () => {
@@ -186,6 +194,32 @@ describe('SettingsPage', () => {
       expect(mockCancelSubscription).toHaveBeenCalledTimes(1);
       expect(screen.getByText(/will end on/i)).toBeDefined();
       expect(screen.getByText('Access until')).toBeDefined();
+    });
+  });
+
+  it('reinstates a paid subscription that was already scheduled to end', async () => {
+    const canceledBilling: BillingStatus = {
+      ...paidBilling,
+      subscription: {
+        ...paidBilling.subscription!,
+        cancelAtPeriodEnd: true,
+      },
+    };
+    mockGetBillingStatus.mockResolvedValue({ data: { billing: canceledBilling } });
+    mockAuth();
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Reinstate paid subscription/i })).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Reinstate paid subscription/i }));
+
+    await waitFor(() => {
+      expect(mockReinstateSubscription).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Renews on')).toBeDefined();
+      expect(screen.getByRole('button', { name: /End paid subscription/i })).toBeDefined();
     });
   });
 });

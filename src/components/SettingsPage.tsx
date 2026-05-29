@@ -34,6 +34,7 @@ export function SettingsPage() {
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCancelingSubscription, setIsCancelingSubscription] = useState(false);
+  const [isReinstatingSubscription, setIsReinstatingSubscription] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -90,6 +91,22 @@ export function SettingsPage() {
     }
 
     setIsCancelingSubscription(false);
+  };
+
+  const handleReinstateSubscription = async () => {
+    if (isReinstatingSubscription) return;
+
+    setIsReinstatingSubscription(true);
+    setBillingError('');
+
+    const result = await client.billing.reinstateSubscription();
+    if (result.data?.billing) {
+      setBilling(result.data.billing);
+    } else {
+      setBillingError(result.error || 'Unable to reinstate subscription right now.');
+    }
+
+    setIsReinstatingSubscription(false);
   };
 
   if (!user) return null;
@@ -153,9 +170,20 @@ export function SettingsPage() {
             )}
 
             {isPaid && isScheduledToEnd && (
-              <p className="settings-subscription-note">
-                Your Meal Planner Plus subscription will end on {endDate || 'the last day of your current billing period'}. You will keep access until then.
-              </p>
+              <div className="settings-subscription-actions">
+                <p className="settings-subscription-note">
+                  Your Meal Planner Plus subscription will end on {endDate || 'the last day of your current billing period'}. You will keep access until then.
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary settings-reinstate-subscription"
+                  onClick={handleReinstateSubscription}
+                  disabled={isReinstatingSubscription}
+                >
+                  <Sparkles size={16} />
+                  {isReinstatingSubscription ? 'Reinstating...' : 'Reinstate paid subscription'}
+                </button>
+              </div>
             )}
 
             {isPaid && !isScheduledToEnd && (

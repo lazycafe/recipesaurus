@@ -395,6 +395,10 @@ export class InMemoryClient implements IClient {
     cancelSubscription: async (): Promise<ApiResponse<{ billing: BillingStatus }>> => {
       return { error: 'Subscription cancellation is not available in local test mode', status: 501 };
     },
+
+    reinstateSubscription: async (): Promise<ApiResponse<{ billing: BillingStatus }>> => {
+      return { error: 'Subscription reinstatement is not available in local test mode', status: 501 };
+    },
   };
 
   // Discovery - public content

@@ -315,6 +315,10 @@ export class HttpClient implements IClient {
     cancelSubscription: (): Promise<ApiResponse<{ billing: BillingStatus }>> => {
       return this.transport.request('POST', '/api/billing/cancel-subscription');
     },
+
+    reinstateSubscription: (): Promise<ApiResponse<{ billing: BillingStatus }>> => {
+      return this.transport.request('POST', '/api/billing/reinstate-subscription');
+    },
   };
 
   discover = {
