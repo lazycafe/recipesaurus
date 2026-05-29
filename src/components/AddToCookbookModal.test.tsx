@@ -5,6 +5,7 @@ import * as CookbookContext from '../context/CookbookContext';
 import * as ClientContext from '../client/ClientContext';
 import type { Cookbook } from '../types/Cookbook';
 import type { Recipe } from '../types/Recipe';
+import type { IClient } from '../client/types';
 
 // Mock the contexts
 vi.mock('../context/CookbookContext', () => ({
@@ -112,6 +113,8 @@ describe('AddToCookbookModal', () => {
         accept: vi.fn(),
         decline: vi.fn(),
       },
+      ai: {} as IClient['ai'],
+      billing: {} as IClient['billing'],
       discover: {
         recipes: vi.fn(),
         cookbooks: vi.fn(),

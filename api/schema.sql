@@ -126,6 +126,30 @@ CREATE TABLE IF NOT EXISTS cookbook_invites (
   UNIQUE(cookbook_id, invited_user_id)
 );
 
+-- AI meal planning requests for weekly quota enforcement
+CREATE TABLE IF NOT EXISTS ai_meal_plan_requests (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  response TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Paid meal planning subscriptions. Stripe remains the source of truth;
+-- this table mirrors signed webhook state for quota decisions.
+CREATE TABLE IF NOT EXISTS user_subscriptions (
+  user_id TEXT PRIMARY KEY,
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT,
+  status TEXT NOT NULL,
+  current_period_end INTEGER,
+  cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
@@ -149,3 +173,6 @@ CREATE INDEX IF NOT EXISTS idx_cookbook_share_links_token ON cookbook_share_link
 CREATE INDEX IF NOT EXISTS idx_cookbook_share_links_cookbook_id ON cookbook_share_links(cookbook_id);
 CREATE INDEX IF NOT EXISTS idx_recipe_share_links_token ON recipe_share_links(token);
 CREATE INDEX IF NOT EXISTS idx_recipe_share_links_created_at ON recipe_share_links(created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_meal_plan_requests_user_created ON ai_meal_plan_requests(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_customer ON user_subscriptions(stripe_customer_id);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_subscription ON user_subscriptions(stripe_subscription_id);

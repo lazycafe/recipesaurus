@@ -15,6 +15,10 @@ export type {
   UpdateRecipeData,
   CreateCookbookData,
   UpdateCookbookData,
+  MealPlanUsage,
+  MealPlanResult,
+  BillingStatus,
+  BillingSession,
 } from './types';
 
 export { HttpClient, HttpTransport, LocalStorageTokenStorage, createHttpClient } from './HttpClient';

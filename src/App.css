@@ -336,7 +336,7 @@ img {
   display: flex;
   justify-content: center;
   width: 100%;
-  max-width: 280px;
+  max-width: 360px;
 }
 
 @media (max-width: 900px) {
@@ -361,7 +361,7 @@ img {
   justify-content: center;
   gap: 2px;
   flex: 1;
-  min-width: 72px;
+  min-width: 68px;
   padding: var(--space-2) var(--space-2);
   color: var(--color-taupe);
   font-size: var(--text-xs);
@@ -5226,6 +5226,325 @@ img {
   display: flex;
   justify-content: center;
   margin-top: var(--space-8);
+}
+
+/* ========================================
+   AI Meal Planner
+   ======================================== */
+
+.meal-planner-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 920px;
+  margin: 0 auto;
+  padding-bottom: var(--space-8);
+}
+
+.meal-planner-header {
+  text-align: center;
+}
+
+.meal-planner-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.meal-planner-title svg {
+  color: var(--color-mustard);
+}
+
+.meal-planner-title h1 {
+  font-size: var(--text-3xl);
+}
+
+.meal-planner-header p {
+  max-width: 680px;
+  margin: 0 auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+}
+
+.meal-planner-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.meal-planner-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.meal-planner-status-item svg {
+  color: var(--color-terracotta);
+  flex-shrink: 0;
+}
+
+.meal-planner-billing-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-background);
+  color: var(--color-terracotta);
+  border: 1px solid var(--color-terracotta);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.meal-planner-billing-link:hover:not(:disabled) {
+  background: var(--color-terracotta-light);
+}
+
+.meal-planner-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.meal-planner-form label {
+  font-weight: 700;
+  color: var(--color-charcoal);
+}
+
+.meal-planner-form textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  padding: var(--space-4);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-background);
+  color: var(--color-text);
+  line-height: 1.55;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.meal-planner-form textarea:focus {
+  border-color: var(--color-terracotta);
+  box-shadow: 0 0 0 3px var(--color-terracotta-light);
+}
+
+.meal-planner-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.meal-planner-submit {
+  min-width: 172px;
+}
+
+.meal-planner-samples {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.meal-planner-sample {
+  min-height: 96px;
+  padding: var(--space-4);
+  background: var(--color-background);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  line-height: 1.4;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.meal-planner-sample:hover {
+  border-color: var(--color-mustard);
+  background: var(--color-mustard-light);
+  transform: translateY(-1px);
+}
+
+.meal-planner-message {
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.meal-planner-error {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border: 1px solid rgba(185, 28, 28, 0.2);
+}
+
+.meal-planner-paywall {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--color-mustard-light);
+  border: 1px solid rgba(106, 90, 18, 0.24);
+  border-radius: var(--radius-sm);
+}
+
+.meal-planner-paywall > svg {
+  color: var(--color-mustard);
+}
+
+.meal-planner-paywall h2,
+.meal-planner-result h2 {
+  font-size: var(--text-xl);
+  margin-bottom: var(--space-1);
+}
+
+.meal-planner-paywall p {
+  color: var(--color-text-muted);
+}
+
+.meal-planner-paywall-action {
+  min-width: 112px;
+}
+
+.meal-planner-result {
+  padding: var(--space-5);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.meal-planner-result-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.meal-planner-result-header svg {
+  color: var(--color-terracotta);
+}
+
+.meal-planner-result-text {
+  white-space: pre-wrap;
+  color: var(--color-text);
+  line-height: 1.7;
+}
+
+.meal-planner-recipe-link {
+  display: inline;
+  padding: 0;
+  color: var(--color-terracotta);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  vertical-align: baseline;
+}
+
+.meal-planner-recipe-link:hover {
+  color: var(--color-terracotta-dark);
+}
+
+.meal-planner-cookbook-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.meal-planner-cookbook-action h3 {
+  font-size: var(--text-lg);
+  margin-bottom: var(--space-1);
+}
+
+.meal-planner-cookbook-action p,
+.meal-planner-mentioned {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.meal-planner-mentioned {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.meal-planner-mentioned svg {
+  color: var(--color-terracotta);
+  flex-shrink: 0;
+}
+
+@media (max-width: 760px) {
+  .meal-planner-title h1 {
+    font-size: var(--text-2xl);
+  }
+
+  .meal-planner-header p {
+    font-size: var(--text-base);
+  }
+
+  .meal-planner-samples {
+    grid-template-columns: 1fr;
+  }
+
+  .meal-planner-sample {
+    min-height: auto;
+  }
+
+  .meal-planner-form-footer,
+  .meal-planner-paywall {
+    align-items: stretch;
+  }
+
+  .meal-planner-form-footer {
+    flex-direction: column;
+  }
+
+  .meal-planner-submit,
+  .meal-planner-paywall-action,
+  .meal-planner-billing-link {
+    width: 100%;
+  }
+
+  .meal-planner-paywall {
+    grid-template-columns: 1fr;
+  }
+
+  .meal-planner-cookbook-action {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .meal-planner-cookbook-action .btn-primary {
+    width: 100%;
+  }
 }
 
 /* Mobile compact cards */

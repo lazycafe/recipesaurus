@@ -28,6 +28,8 @@ import { DiscoveryPage } from './components/DiscoveryPage';
 import { PublicHomePage } from './components/PublicHomePage';
 import { PublicCookbookDetailPage } from './components/PublicCookbookDetailPage';
 import { MyRecipesPage } from './components/MyRecipesPage';
+import { MealPlannerPage } from './components/MealPlannerPage';
+import { canAccessMealPlanner } from './utils/mealPlannerAccess';
 import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
 
@@ -60,10 +62,12 @@ function ScrollToTop() {
 }
 
 function RecipeApp() {
+  const { user } = useAuth();
   const { createCookbook } = useCookbooks();
   const { addRecipe } = useRecipes();
   const [showCookbookModal, setShowCookbookModal] = useState(false);
   const [showRecipeModal, setShowRecipeModal] = useState(false);
+  const canUseMealPlanner = canAccessMealPlanner(user?.id);
 
   const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => {
     await createCookbook(data);
@@ -120,6 +124,10 @@ function RecipeApp() {
             <Route
               path="/my-recipes"
               element={<MyRecipesPage />}
+            />
+            <Route
+              path="/meal-planner"
+              element={canUseMealPlanner ? <MealPlannerPage /> : <Navigate to="/discover/recipes" replace />}
             />
             <Route
               path="/recipes"

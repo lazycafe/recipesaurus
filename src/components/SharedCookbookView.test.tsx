@@ -50,6 +50,8 @@ describe('SharedCookbookView', () => {
       },
       notifications: {} as IClient['notifications'],
       invites: {} as IClient['invites'],
+      ai: {} as IClient['ai'],
+      billing: {} as IClient['billing'],
       discover: {} as IClient['discover'],
     });
   });

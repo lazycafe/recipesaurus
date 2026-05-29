@@ -1,8 +1,30 @@
+import {
+  MEAL_PLAN_MAX_RECIPES,
+  MEAL_PLAN_FREE_WEEKLY_LIMIT,
+  MEAL_PLAN_PAID_PLAN_NAME,
+  MEAL_PLAN_PAID_PRICE_CENTS,
+  MEAL_PLAN_PAID_WEEKLY_LIMIT,
+  MEAL_PLAN_WEEK_MS,
+  type MealPlanRecipeContext,
+  type MealPlanUsageInfo,
+  buildFallbackMealPlan,
+  buildMealPlanSuggestionDetails,
+  buildMealPlannerInput,
+  buildMealPlannerInstructions,
+  extractOpenAIResponseText,
+  normalizeMealPlanRequest,
+} from './core/mealPlanner';
+
 export interface Env {
   DB: D1Database;
   ENVIRONMENT: string;
   APP_URL: string;
   RESEND_API_KEY: string;
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
+  STRIPE_PRICE_ID?: string;
   DISCORD_SIGNUP_WEBHOOK_URL?: string;
   DISCORD_FEEDBACK_WEBHOOK_URL?: string;
 }
@@ -100,6 +122,44 @@ interface PasswordResetToken {
   created_at: number;
 }
 
+interface UserSubscription {
+  user_id: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  status: string;
+  current_period_end: number | null;
+  cancel_at_period_end: number;
+  created_at: number;
+  updated_at: number;
+}
+
+interface StripeCheckoutSession {
+  id: string;
+  url?: string | null;
+  customer?: string | { id?: string } | null;
+  subscription?: string | { id?: string } | null;
+  client_reference_id?: string | null;
+  customer_email?: string | null;
+  metadata?: Record<string, string> | null;
+}
+
+interface StripeSubscription {
+  id: string;
+  customer?: string | { id?: string } | null;
+  status?: string;
+  current_period_end?: number | null;
+  cancel_at_period_end?: boolean;
+  metadata?: Record<string, string> | null;
+}
+
+interface StripeEvent {
+  id: string;
+  type: string;
+  data?: {
+    object?: unknown;
+  };
+}
+
 // Password reset config
 const RESET_TOKEN_DURATION = 60 * 60 * 1000; // 1 hour
 
@@ -115,6 +175,10 @@ const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
 const ATTEMPT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const MAX_RECIPE_SHARE_BYTES = 64 * 1024;
 const MAX_RECIPE_SHARE_ITEMS = 250;
+const MEAL_PLANNER_ALLOWED_USER_IDS = new Set([
+  '01e661dd94b580d2ac099044800a3096',
+  '43edf8080df3693f5e0c7176d95ac39e',
+]);
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -132,6 +196,12 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes.buffer;
+}
+
+function arrayBufferToHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function generateId(): string {
@@ -222,6 +292,243 @@ function dedupeRecipeRows<T extends Recipe>(recipes: T[], currentUserId: string)
   }
 
   return recipes.filter(recipe => selectedByKey.get(recipeRowDedupeKey(recipe)) === recipe);
+}
+
+function parseJsonList(value: string | null | undefined): string[] {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function isPaidMealPlanSubscription(subscription: UserSubscription | null): boolean {
+  return subscription?.status === 'active' || subscription?.status === 'trialing';
+}
+
+function getMealPlanLimitForSubscription(subscription: UserSubscription | null): number {
+  return isPaidMealPlanSubscription(subscription)
+    ? MEAL_PLAN_PAID_WEEKLY_LIMIT
+    : MEAL_PLAN_FREE_WEEKLY_LIMIT;
+}
+
+function getAppBaseUrl(env: Env): string {
+  return (env.APP_URL || 'https://recipesaurus.ai').replace(/\/+$/, '');
+}
+
+function isLocalDevelopmentRequest(request: Request, env: Env): boolean {
+  if (env.ENVIRONMENT !== 'development') {
+    return false;
+  }
+
+  const url = new URL(request.url);
+  const origin = request.headers.get('Origin') || '';
+  return (
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.hostname === '[::1]' ||
+    url.hostname === '::1' ||
+    origin.startsWith('http://localhost:') ||
+    origin.startsWith('http://127.0.0.1:')
+  );
+}
+
+function canAccessMealPlanner(userId: string, env: Env, request: Request): boolean {
+  if (isLocalDevelopmentRequest(request, env)) {
+    return true;
+  }
+
+  return MEAL_PLANNER_ALLOWED_USER_IDS.has(userId);
+}
+
+function getStripeId(value: string | { id?: string } | null | undefined): string | null {
+  if (typeof value === 'string') return value;
+  return typeof value?.id === 'string' ? value.id : null;
+}
+
+async function stripePost<T>(env: Env, path: string, params: URLSearchParams): Promise<T> {
+  if (!env.STRIPE_SECRET_KEY) {
+    throw new Error('Stripe secret key is not configured');
+  }
+
+  const response = await fetch(`https://api.stripe.com/v1${path}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params,
+  });
+
+  const data = await response.json() as T & { error?: { message?: string } };
+  if (!response.ok) {
+    throw new Error(data.error?.message || `Stripe request failed with status ${response.status}`);
+  }
+
+  return data;
+}
+
+async function stripeGet<T>(env: Env, path: string): Promise<T> {
+  if (!env.STRIPE_SECRET_KEY) {
+    throw new Error('Stripe secret key is not configured');
+  }
+
+  const response = await fetch(`https://api.stripe.com/v1${path}`, {
+    headers: {
+      'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+    },
+  });
+
+  const data = await response.json() as T & { error?: { message?: string } };
+  if (!response.ok) {
+    throw new Error(data.error?.message || `Stripe request failed with status ${response.status}`);
+  }
+
+  return data;
+}
+
+function parseStripeSignatureHeader(header: string | null): { timestamp: number; signatures: string[] } | null {
+  if (!header) return null;
+
+  const parts = header.split(',').map(part => part.trim());
+  const timestampPart = parts.find(part => part.startsWith('t='));
+  const timestamp = Number(timestampPart?.slice(2));
+  const signatures = parts
+    .filter(part => part.startsWith('v1='))
+    .map(part => part.slice(3))
+    .filter(Boolean);
+
+  return Number.isFinite(timestamp) && signatures.length > 0
+    ? { timestamp, signatures }
+    : null;
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+async function verifyStripeWebhookSignature(
+  payload: string,
+  signatureHeader: string | null,
+  webhookSecret: string,
+  toleranceSeconds = 300
+): Promise<boolean> {
+  const parsed = parseStripeSignatureHeader(signatureHeader);
+  if (!parsed) return false;
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (Math.abs(nowSeconds - parsed.timestamp) > toleranceSeconds) {
+    return false;
+  }
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(webhookSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signedPayload = `${parsed.timestamp}.${payload}`;
+  const expected = arrayBufferToHex(await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload)));
+
+  return parsed.signatures.some(signature => constantTimeEqual(expected, signature));
+}
+
+async function getUserSubscription(db: D1Database, userId: string): Promise<UserSubscription | null> {
+  return db.prepare('SELECT * FROM user_subscriptions WHERE user_id = ?')
+    .bind(userId)
+    .first<UserSubscription>();
+}
+
+async function upsertUserSubscription(
+  db: D1Database,
+  userId: string,
+  data: {
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
+    status: string;
+    currentPeriodEnd: number | null;
+    cancelAtPeriodEnd: boolean;
+  }
+): Promise<void> {
+  const now = Date.now();
+  await db.prepare(`
+    INSERT INTO user_subscriptions (
+      user_id,
+      stripe_customer_id,
+      stripe_subscription_id,
+      status,
+      current_period_end,
+      cancel_at_period_end,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      stripe_customer_id = COALESCE(excluded.stripe_customer_id, user_subscriptions.stripe_customer_id),
+      stripe_subscription_id = COALESCE(excluded.stripe_subscription_id, user_subscriptions.stripe_subscription_id),
+      status = excluded.status,
+      current_period_end = excluded.current_period_end,
+      cancel_at_period_end = excluded.cancel_at_period_end,
+      updated_at = excluded.updated_at
+  `).bind(
+    userId,
+    data.stripeCustomerId,
+    data.stripeSubscriptionId,
+    data.status,
+    data.currentPeriodEnd,
+    data.cancelAtPeriodEnd ? 1 : 0,
+    now,
+    now
+  ).run();
+}
+
+async function findSubscriptionUserId(db: D1Database, subscription: StripeSubscription): Promise<string | null> {
+  if (subscription.metadata?.userId) {
+    return subscription.metadata.userId;
+  }
+
+  const bySubscription = await db.prepare(
+    'SELECT user_id FROM user_subscriptions WHERE stripe_subscription_id = ?'
+  ).bind(subscription.id).first<{ user_id: string }>();
+  if (bySubscription?.user_id) {
+    return bySubscription.user_id;
+  }
+
+  const customerId = getStripeId(subscription.customer);
+  if (!customerId) return null;
+
+  const byCustomer = await db.prepare(
+    'SELECT user_id FROM user_subscriptions WHERE stripe_customer_id = ?'
+  ).bind(customerId).first<{ user_id: string }>();
+
+  return byCustomer?.user_id || null;
+}
+
+async function recordStripeSubscription(
+  db: D1Database,
+  userId: string,
+  subscription: StripeSubscription
+): Promise<void> {
+  await upsertUserSubscription(db, userId, {
+    stripeCustomerId: getStripeId(subscription.customer),
+    stripeSubscriptionId: subscription.id,
+    status: subscription.status || 'unknown',
+    currentPeriodEnd: subscription.current_period_end ? subscription.current_period_end * 1000 : null,
+    cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+  });
 }
 
 async function deriveKey(password: string, salt: Uint8Array): Promise<ArrayBuffer> {
@@ -976,6 +1283,385 @@ async function handleGetRecipes(request: Request, db: D1Database): Promise<Respo
   }));
 
   return jsonResponse({ recipes: formattedRecipes }, 200, corsHeaders(origin));
+}
+
+async function getMealPlanUsage(db: D1Database, userId: string, now = Date.now()): Promise<MealPlanUsageInfo> {
+  const windowStartsAt = now - MEAL_PLAN_WEEK_MS;
+  const subscription = await getUserSubscription(db, userId);
+  const isPaid = isPaidMealPlanSubscription(subscription);
+  const weeklyLimit = getMealPlanLimitForSubscription(subscription);
+  const usage = await db.prepare(`
+    SELECT COUNT(*) as count, MIN(created_at) as oldest_created_at
+    FROM ai_meal_plan_requests
+    WHERE user_id = ? AND created_at > ?
+  `).bind(userId, windowStartsAt).first<{ count: number; oldest_created_at: number | null }>();
+
+  const usedThisWeek = Number(usage?.count || 0);
+  const remainingRequests = Math.max(0, weeklyLimit - usedThisWeek);
+  const oldestCreatedAt = usage?.oldest_created_at ? Number(usage.oldest_created_at) : null;
+
+  return {
+    weeklyLimit,
+    usedThisWeek,
+    remainingRequests,
+    windowStartsAt,
+    nextResetAt: remainingRequests > 0 ? null : (oldestCreatedAt ? oldestCreatedAt + MEAL_PLAN_WEEK_MS : now + MEAL_PLAN_WEEK_MS),
+    isPaid,
+    planName: isPaid ? MEAL_PLAN_PAID_PLAN_NAME : 'Free',
+    priceCents: MEAL_PLAN_PAID_PRICE_CENTS,
+  };
+}
+
+async function handleGetMealPlanUsage(request: Request, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, env.DB);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+  if (!canAccessMealPlanner(user.id, env, request)) {
+    return errorResponse('Meal planner is not available for this account.', 403, origin);
+  }
+
+  return jsonResponse({ usage: await getMealPlanUsage(env.DB, user.id) }, 200, corsHeaders(origin));
+}
+
+async function getMealPlanRecipes(db: D1Database, userId: string): Promise<MealPlanRecipeContext[]> {
+  const recipes = await db.prepare(`
+    SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+    FROM recipes
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).bind(userId, MEAL_PLAN_MAX_RECIPES).all<Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>();
+
+  return recipes.results.map(recipe => ({
+    id: recipe.id,
+    title: recipe.title,
+    description: recipe.description,
+    ingredients: parseJsonList(recipe.ingredients),
+    tags: parseJsonList(recipe.tags),
+    prepTime: recipe.prep_time,
+    cookTime: recipe.cook_time,
+    servings: recipe.servings,
+  }));
+}
+
+async function generateMealPlan(env: Env, request: string, recipes: MealPlanRecipeContext[]): Promise<string> {
+  if (!env.OPENAI_API_KEY) {
+    if (env.ENVIRONMENT === 'development') {
+      return buildFallbackMealPlan(request, recipes);
+    }
+
+    throw new Error('OpenAI API key is not configured');
+  }
+
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: env.OPENAI_MODEL || 'gpt-5-mini',
+      instructions: buildMealPlannerInstructions(),
+      input: buildMealPlannerInput(request, recipes),
+      max_output_tokens: 1800,
+    }),
+  });
+
+  if (!response.ok) {
+    console.error('OpenAI meal plan request failed:', response.status, await response.text());
+    throw new Error('OpenAI request failed');
+  }
+
+  const data = await response.json();
+  const suggestion = extractOpenAIResponseText(data);
+  if (!suggestion) {
+    throw new Error('OpenAI response did not include text');
+  }
+
+  return suggestion;
+}
+
+async function handleCreateMealPlan(request: Request, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, env.DB);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+  if (!canAccessMealPlanner(user.id, env, request)) {
+    return errorResponse('Meal planner is not available for this account.', 403, origin);
+  }
+
+  const body = await request.json() as { request?: unknown };
+  const mealPlanRequest = normalizeMealPlanRequest(body.request);
+  if (!mealPlanRequest) {
+    return errorResponse('Meal planning request is required and must be 2000 characters or fewer', 400, origin);
+  }
+
+  const usage = await getMealPlanUsage(env.DB, user.id);
+  if (usage.remainingRequests <= 0) {
+    return jsonResponse(
+      {
+        error: 'Weekly AI meal planning limit reached',
+        code: 'AI_MEAL_PLAN_LIMIT',
+        usage,
+      },
+      402,
+      corsHeaders(origin)
+    );
+  }
+
+  const recipes = await getMealPlanRecipes(env.DB, user.id);
+  let suggestion: string;
+
+  try {
+    suggestion = await generateMealPlan(env, mealPlanRequest, recipes);
+  } catch (error) {
+    console.error('Meal planning generation failed:', error);
+    return errorResponse('AI meal planning is unavailable right now. Please try again shortly.', 503, origin);
+  }
+
+  const now = Date.now();
+  const details = buildMealPlanSuggestionDetails(mealPlanRequest, suggestion, recipes);
+
+  await env.DB.prepare(`
+    INSERT INTO ai_meal_plan_requests (id, user_id, prompt, response, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).bind(generateId(), user.id, mealPlanRequest, details.suggestion, now).run();
+
+  return jsonResponse(
+    {
+      ...details,
+      usage: await getMealPlanUsage(env.DB, user.id, now),
+      recipeCount: recipes.length,
+    },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+function formatBillingStatus(subscription: UserSubscription | null) {
+  const isPaid = isPaidMealPlanSubscription(subscription);
+
+  return {
+    isPaid,
+    planName: isPaid ? MEAL_PLAN_PAID_PLAN_NAME : 'Free',
+    priceCents: MEAL_PLAN_PAID_PRICE_CENTS,
+    currency: 'usd',
+    interval: 'month',
+    freeWeeklyLimit: MEAL_PLAN_FREE_WEEKLY_LIMIT,
+    paidWeeklyLimit: MEAL_PLAN_PAID_WEEKLY_LIMIT,
+    weeklyLimit: getMealPlanLimitForSubscription(subscription),
+    subscription: subscription
+      ? {
+          status: subscription.status,
+          currentPeriodEnd: subscription.current_period_end,
+          cancelAtPeriodEnd: subscription.cancel_at_period_end === 1,
+        }
+      : null,
+  };
+}
+
+async function handleGetBillingStatus(request: Request, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, env.DB);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+  if (!canAccessMealPlanner(user.id, env, request)) {
+    return errorResponse('Meal planner billing is not available for this account.', 403, origin);
+  }
+
+  const subscription = await getUserSubscription(env.DB, user.id);
+  return jsonResponse({ billing: formatBillingStatus(subscription) }, 200, corsHeaders(origin));
+}
+
+async function handleCreateCheckoutSession(request: Request, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, env.DB);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+  if (!canAccessMealPlanner(user.id, env, request)) {
+    return errorResponse('Meal planner billing is not available for this account.', 403, origin);
+  }
+  if (!env.STRIPE_SECRET_KEY) {
+    return errorResponse('Payments are not configured yet.', 503, origin);
+  }
+
+  const existingSubscription = await getUserSubscription(env.DB, user.id);
+  if (isPaidMealPlanSubscription(existingSubscription) && existingSubscription?.stripe_customer_id) {
+    return handleCreatePortalSession(request, env);
+  }
+
+  const appUrl = getAppBaseUrl(env);
+  const params = new URLSearchParams({
+    mode: 'subscription',
+    success_url: `${appUrl}/meal-planner?billing=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/meal-planner?billing=cancel`,
+    client_reference_id: user.id,
+    customer_email: user.email,
+    allow_promotion_codes: 'true',
+    'metadata[userId]': user.id,
+    'subscription_data[metadata][userId]': user.id,
+  });
+
+  if (existingSubscription?.stripe_customer_id) {
+    params.delete('customer_email');
+    params.set('customer', existingSubscription.stripe_customer_id);
+  }
+
+  if (env.STRIPE_PRICE_ID) {
+    params.set('line_items[0][price]', env.STRIPE_PRICE_ID);
+  } else {
+    params.set('line_items[0][price_data][currency]', 'usd');
+    params.set('line_items[0][price_data][unit_amount]', String(MEAL_PLAN_PAID_PRICE_CENTS));
+    params.set('line_items[0][price_data][recurring][interval]', 'month');
+    params.set('line_items[0][price_data][product_data][name]', `Recipesaurus ${MEAL_PLAN_PAID_PLAN_NAME}`);
+  }
+  params.set('line_items[0][quantity]', '1');
+
+  try {
+    const session = await stripePost<StripeCheckoutSession>(env, '/checkout/sessions', params);
+    const customerId = getStripeId(session.customer);
+    if (customerId) {
+      await upsertUserSubscription(env.DB, user.id, {
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: getStripeId(session.subscription),
+        status: existingSubscription?.status || 'checkout_started',
+        currentPeriodEnd: existingSubscription?.current_period_end || null,
+        cancelAtPeriodEnd: existingSubscription?.cancel_at_period_end === 1,
+      });
+    }
+
+    if (!session.url) {
+      return errorResponse('Stripe did not return a checkout URL.', 502, origin);
+    }
+
+    return jsonResponse({ url: session.url }, 200, corsHeaders(origin));
+  } catch (error) {
+    console.error('Stripe checkout session failed:', error);
+    return errorResponse('Unable to start checkout right now.', 502, origin);
+  }
+}
+
+async function handleCreatePortalSession(request: Request, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, env.DB);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+  if (!canAccessMealPlanner(user.id, env, request)) {
+    return errorResponse('Meal planner billing is not available for this account.', 403, origin);
+  }
+  if (!env.STRIPE_SECRET_KEY) {
+    return errorResponse('Payments are not configured yet.', 503, origin);
+  }
+
+  const subscription = await getUserSubscription(env.DB, user.id);
+  if (!subscription?.stripe_customer_id) {
+    return errorResponse('No Stripe customer found for this account.', 404, origin);
+  }
+
+  const params = new URLSearchParams({
+    customer: subscription.stripe_customer_id,
+    return_url: `${getAppBaseUrl(env)}/meal-planner`,
+  });
+
+  try {
+    const session = await stripePost<{ url?: string | null }>(env, '/billing_portal/sessions', params);
+    if (!session.url) {
+      return errorResponse('Stripe did not return a billing portal URL.', 502, origin);
+    }
+
+    return jsonResponse({ url: session.url }, 200, corsHeaders(origin));
+  } catch (error) {
+    console.error('Stripe portal session failed:', error);
+    return errorResponse('Unable to open billing management right now.', 502, origin);
+  }
+}
+
+async function handleCheckoutCompleted(env: Env, session: StripeCheckoutSession): Promise<void> {
+  const userId = session.metadata?.userId || session.client_reference_id;
+  if (!userId) {
+    console.warn('Stripe checkout completed without a user id', session.id);
+    return;
+  }
+
+  const customerId = getStripeId(session.customer);
+  const subscriptionId = getStripeId(session.subscription);
+  if (subscriptionId && env.STRIPE_SECRET_KEY) {
+    const subscription = await stripeGet<StripeSubscription>(env, `/subscriptions/${encodeURIComponent(subscriptionId)}`);
+    await recordStripeSubscription(env.DB, userId, subscription);
+    return;
+  }
+
+  await upsertUserSubscription(env.DB, userId, {
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: subscriptionId,
+    status: 'active',
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+  });
+}
+
+async function handleStripeSubscriptionEvent(db: D1Database, subscription: StripeSubscription): Promise<void> {
+  const userId = await findSubscriptionUserId(db, subscription);
+  if (!userId) {
+    console.warn('Stripe subscription event without a known user id', subscription.id);
+    return;
+  }
+
+  await recordStripeSubscription(db, userId, subscription);
+}
+
+async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
+  if (!env.STRIPE_WEBHOOK_SECRET) {
+    return jsonResponse({ error: 'Stripe webhook secret is not configured' }, 503);
+  }
+
+  const rawBody = await request.text();
+  const isValid = await verifyStripeWebhookSignature(
+    rawBody,
+    request.headers.get('Stripe-Signature'),
+    env.STRIPE_WEBHOOK_SECRET
+  );
+  if (!isValid) {
+    return jsonResponse({ error: 'Invalid Stripe signature' }, 400);
+  }
+
+  let event: StripeEvent;
+  try {
+    event = JSON.parse(rawBody) as StripeEvent;
+  } catch {
+    return jsonResponse({ error: 'Invalid Stripe event payload' }, 400);
+  }
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutCompleted(env, event.data?.object as StripeCheckoutSession);
+        break;
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted':
+        await handleStripeSubscriptionEvent(env.DB, event.data?.object as StripeSubscription);
+        break;
+      default:
+        break;
+    }
+  } catch (error) {
+    console.error('Stripe webhook handling failed:', event.id, event.type, error);
+    return jsonResponse({ error: 'Webhook handling failed' }, 500);
+  }
+
+  return jsonResponse({ received: true }, 200);
 }
 
 async function handleCreateRecipe(request: Request, db: D1Database): Promise<Response> {
@@ -2554,6 +3240,10 @@ export default {
     }
 
     try {
+      if (path === '/api/stripe/webhook' && method === 'POST') {
+        return handleStripeWebhook(request, env);
+      }
+
       // Auth routes
       if (path === '/api/auth/register' && method === 'POST') {
         return handleRegister(request, env.DB, env, ctx);
@@ -2638,6 +3328,21 @@ export default {
       }
       if (path === '/api/recipes/from-preview' && method === 'POST') {
         return handleSavePreviewRecipe(request, env.DB);
+      }
+      if (path === '/api/ai/meal-planner/usage' && method === 'GET') {
+        return handleGetMealPlanUsage(request, env);
+      }
+      if (path === '/api/ai/meal-planner' && method === 'POST') {
+        return handleCreateMealPlan(request, env);
+      }
+      if (path === '/api/billing/status' && method === 'GET') {
+        return handleGetBillingStatus(request, env);
+      }
+      if (path === '/api/billing/create-checkout-session' && method === 'POST') {
+        return handleCreateCheckoutSession(request, env);
+      }
+      if (path === '/api/billing/create-portal-session' && method === 'POST') {
+        return handleCreatePortalSession(request, env);
       }
       if (path === '/api/recipe-shares' && method === 'POST') {
         return handleCreateRecipeShareLink(request, env.DB);

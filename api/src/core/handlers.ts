@@ -15,7 +15,22 @@ import type {
   DbRecipeShareLink,
   RecipeSharePayload,
   RecipeShareLinkInfo,
+  DbUserSubscription,
 } from './types';
+import {
+  MEAL_PLAN_MAX_RECIPES,
+  MEAL_PLAN_FREE_WEEKLY_LIMIT,
+  MEAL_PLAN_PAID_PLAN_NAME,
+  MEAL_PLAN_PAID_PRICE_CENTS,
+  MEAL_PLAN_PAID_WEEKLY_LIMIT,
+  MEAL_PLAN_WEEK_MS,
+  type MealPlanRecipeContext,
+  type MealPlanUsageInfo,
+  type MealPlanSuggestionDetails,
+  buildMealPlanSuggestionDetails,
+  buildFallbackMealPlan,
+  normalizeMealPlanRequest,
+} from './mealPlanner';
 
 // Constants
 const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -242,6 +257,19 @@ function normalizeRecipeSharePayload(data: RecipeSharePayload): RecipeSharePaylo
   return recipe;
 }
 
+function parseJsonList(value: string | null | undefined): string[] {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 // Core handler class
 export class CoreHandlers {
   constructor(
@@ -444,6 +472,125 @@ export class CoreHandlers {
 
     return {
       data: { recipes: dedupeRecipeRows(result.results, user.id).map(r => formatRecipe(r, user.id)) },
+      status: 200,
+    };
+  }
+
+  private async getUserSubscription(userId: string): Promise<DbUserSubscription | null> {
+    return this.db.get<DbUserSubscription>(
+      'SELECT * FROM user_subscriptions WHERE user_id = ?',
+      userId
+    );
+  }
+
+  private isPaidMealPlanSubscription(subscription: DbUserSubscription | null): boolean {
+    return subscription?.status === 'active' || subscription?.status === 'trialing';
+  }
+
+  private async getMealPlanUsageForUser(userId: string, now = Date.now()): Promise<MealPlanUsageInfo> {
+    const windowStartsAt = now - MEAL_PLAN_WEEK_MS;
+    const subscription = await this.getUserSubscription(userId);
+    const isPaid = this.isPaidMealPlanSubscription(subscription);
+    const weeklyLimit = isPaid ? MEAL_PLAN_PAID_WEEKLY_LIMIT : MEAL_PLAN_FREE_WEEKLY_LIMIT;
+    const usage = await this.db.get<{ count: number; oldest_created_at: number | null }>(
+      `SELECT COUNT(*) as count, MIN(created_at) as oldest_created_at
+       FROM ai_meal_plan_requests
+       WHERE user_id = ? AND created_at > ?`,
+      userId,
+      windowStartsAt
+    );
+
+    const usedThisWeek = Number(usage?.count || 0);
+    const remainingRequests = Math.max(0, weeklyLimit - usedThisWeek);
+    const oldestCreatedAt = usage?.oldest_created_at ? Number(usage.oldest_created_at) : null;
+
+    return {
+      weeklyLimit,
+      usedThisWeek,
+      remainingRequests,
+      windowStartsAt,
+      nextResetAt: remainingRequests > 0 ? null : (oldestCreatedAt ? oldestCreatedAt + MEAL_PLAN_WEEK_MS : now + MEAL_PLAN_WEEK_MS),
+      isPaid,
+      planName: isPaid ? MEAL_PLAN_PAID_PLAN_NAME : 'Free',
+      priceCents: MEAL_PLAN_PAID_PRICE_CENTS,
+    };
+  }
+
+  async getMealPlanUsage(ctx: RequestContext): Promise<ApiResult<{ usage: MealPlanUsageInfo }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    return {
+      data: { usage: await this.getMealPlanUsageForUser(user.id) },
+      status: 200,
+    };
+  }
+
+  private async getMealPlanRecipes(userId: string): Promise<MealPlanRecipeContext[]> {
+    const recipes = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
+      `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+       FROM recipes
+       WHERE user_id = ?
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      userId,
+      MEAL_PLAN_MAX_RECIPES
+    );
+
+    return recipes.results.map(recipe => ({
+      id: recipe.id,
+      title: recipe.title,
+      description: recipe.description,
+      ingredients: parseJsonList(recipe.ingredients),
+      tags: parseJsonList(recipe.tags),
+      prepTime: recipe.prep_time,
+      cookTime: recipe.cook_time,
+      servings: recipe.servings,
+    }));
+  }
+
+  async createMealPlan(
+    ctx: RequestContext,
+    requestText: string
+  ): Promise<ApiResult<MealPlanSuggestionDetails & { usage: MealPlanUsageInfo; recipeCount: number }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const request = normalizeMealPlanRequest(requestText);
+    if (!request) {
+      return { error: 'Meal planning request is required and must be 2000 characters or fewer', status: 400 };
+    }
+
+    const usage = await this.getMealPlanUsageForUser(user.id);
+    if (usage.remainingRequests <= 0) {
+      return { error: 'Weekly AI meal planning limit reached', status: 402 };
+    }
+
+    const recipes = await this.getMealPlanRecipes(user.id);
+    const suggestion = buildFallbackMealPlan(request, recipes);
+    const details = buildMealPlanSuggestionDetails(request, suggestion, recipes);
+    const now = Date.now();
+
+    await this.db.run(
+      `INSERT INTO ai_meal_plan_requests (id, user_id, prompt, response, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      this.crypto.generateId(),
+      user.id,
+      request,
+      details.suggestion,
+      now
+    );
+
+    return {
+      data: {
+        ...details,
+        usage: await this.getMealPlanUsageForUser(user.id, now),
+        recipeCount: recipes.length,
+      },
       status: 200,
     };
   }

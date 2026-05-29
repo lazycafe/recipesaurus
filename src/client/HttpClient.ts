@@ -15,6 +15,10 @@ import type {
   CreateCookbookData,
   UpdateCookbookData,
   Notification,
+  MealPlanUsage,
+  MealPlanResult,
+  BillingStatus,
+  BillingSession,
 } from './types';
 
 // Default localStorage-based token storage
@@ -70,10 +74,14 @@ export class HttpTransport implements ITransport {
       const data = await response.json();
 
       if (!response.ok) {
-        return { error: data.error || 'Request failed' };
+        return {
+          error: data.error || 'Request failed',
+          status: response.status,
+          code: data.code,
+        };
       }
 
-      return { data };
+      return { data, status: response.status };
     } catch (error) {
       console.error('API Error:', error);
       return { error: 'Network error. Please try again.' };
@@ -278,6 +286,30 @@ export class HttpClient implements IClient {
 
     decline: (inviteId: string): Promise<ApiResponse<{ success: boolean }>> => {
       return this.transport.request('POST', `/api/invites/${inviteId}/decline`);
+    },
+  };
+
+  ai = {
+    getMealPlanUsage: (): Promise<ApiResponse<{ usage: MealPlanUsage }>> => {
+      return this.transport.request('GET', '/api/ai/meal-planner/usage');
+    },
+
+    createMealPlan: (request: string): Promise<ApiResponse<MealPlanResult>> => {
+      return this.transport.request('POST', '/api/ai/meal-planner', { request });
+    },
+  };
+
+  billing = {
+    getStatus: (): Promise<ApiResponse<{ billing: BillingStatus }>> => {
+      return this.transport.request('GET', '/api/billing/status');
+    },
+
+    createCheckoutSession: (): Promise<ApiResponse<BillingSession>> => {
+      return this.transport.request('POST', '/api/billing/create-checkout-session');
+    },
+
+    createPortalSession: (): Promise<ApiResponse<BillingSession>> => {
+      return this.transport.request('POST', '/api/billing/create-portal-session');
     },
   };
 

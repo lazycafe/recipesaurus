@@ -14,6 +14,10 @@ import type {
   CreateCookbookData,
   UpdateCookbookData,
   Notification,
+  MealPlanUsage,
+  MealPlanResult,
+  BillingStatus,
+  BillingSession,
 } from './types';
 
 // Type definitions for core handlers (matches api/src/core/handlers.ts)
@@ -26,6 +30,7 @@ interface ApiResult<T> {
   data?: T;
   error?: string;
   status: number;
+  code?: string;
 }
 
 // Interface for CoreHandlers - matches the class in api/src/core/handlers.ts
@@ -80,6 +85,9 @@ export interface ICoreHandlers {
   // Invites
   acceptInvite(ctx: RequestContext, inviteId: string): Promise<ApiResult<{ success: boolean; cookbookId: string; cookbookName: string }>>;
   declineInvite(ctx: RequestContext, inviteId: string): Promise<ApiResult<{ success: boolean }>>;
+  // AI meal planning
+  getMealPlanUsage(ctx: RequestContext): Promise<ApiResult<{ usage: MealPlanUsage }>>;
+  createMealPlan(ctx: RequestContext, request: string): Promise<ApiResult<MealPlanResult>>;
 }
 
 // In-memory token storage for testing
@@ -102,9 +110,9 @@ export class InMemoryTokenStorage implements ITokenStorage {
 // Helper to convert ApiResult to ApiResponse
 function toApiResponse<T>(result: ApiResult<T>): ApiResponse<T> {
   if (result.error) {
-    return { error: result.error };
+    return { error: result.error, status: result.status, code: result.code };
   }
-  return { data: result.data };
+  return { data: result.data, status: result.status };
 }
 
 // In-memory client that directly calls core handlers
@@ -335,6 +343,53 @@ export class InMemoryClient implements IClient {
     decline: async (inviteId: string): Promise<ApiResponse<{ success: boolean }>> => {
       const result = await this.handlers.declineInvite(this.getContext(), inviteId);
       return toApiResponse(result);
+    },
+  };
+
+  // AI meal planning
+  ai = {
+    getMealPlanUsage: async (): Promise<ApiResponse<{ usage: MealPlanUsage }>> => {
+      const result = await this.handlers.getMealPlanUsage(this.getContext());
+      return toApiResponse(result);
+    },
+
+    createMealPlan: async (request: string): Promise<ApiResponse<MealPlanResult>> => {
+      const result = await this.handlers.createMealPlan(this.getContext(), request);
+      return toApiResponse(result);
+    },
+  };
+
+  billing = {
+    getStatus: async (): Promise<ApiResponse<{ billing: BillingStatus }>> => {
+      const usageResult = await this.handlers.getMealPlanUsage(this.getContext());
+      if (usageResult.error || !usageResult.data) {
+        return { error: usageResult.error || 'Unable to load billing status', status: usageResult.status };
+      }
+
+      return {
+        data: {
+          billing: {
+            isPaid: usageResult.data.usage.isPaid,
+            planName: usageResult.data.usage.planName,
+            priceCents: usageResult.data.usage.priceCents || 499,
+            currency: 'usd',
+            interval: 'month',
+            freeWeeklyLimit: 2,
+            paidWeeklyLimit: 50,
+            weeklyLimit: usageResult.data.usage.weeklyLimit,
+            subscription: null,
+          },
+        },
+        status: 200,
+      };
+    },
+
+    createCheckoutSession: async (): Promise<ApiResponse<BillingSession>> => {
+      return { error: 'Billing checkout is not available in local test mode', status: 501 };
+    },
+
+    createPortalSession: async (): Promise<ApiResponse<BillingSession>> => {
+      return { error: 'Billing management is not available in local test mode', status: 501 };
     },
   };
 

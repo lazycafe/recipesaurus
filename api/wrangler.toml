@@ -8,6 +8,11 @@ APP_URL = "https://recipesaurus.ai"
 
 # Secrets:
 # - RESEND_API_KEY - set via `wrangler secret put RESEND_API_KEY`
+# - OPENAI_API_KEY - set via `wrangler secret put OPENAI_API_KEY`
+# - OPENAI_MODEL - optional model override, defaults to gpt-5-mini
+# - STRIPE_SECRET_KEY - set via `wrangler secret put STRIPE_SECRET_KEY`
+# - STRIPE_WEBHOOK_SECRET - set via `wrangler secret put STRIPE_WEBHOOK_SECRET`
+# - STRIPE_PRICE_ID - optional recurring Stripe Price id; defaults to inline $4.99/month pricing
 # - DISCORD_SIGNUP_WEBHOOK_URL - set via `wrangler secret put DISCORD_SIGNUP_WEBHOOK_URL`
 # - DISCORD_FEEDBACK_WEBHOOK_URL - set via `wrangler secret put DISCORD_FEEDBACK_WEBHOOK_URL`
 

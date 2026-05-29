@@ -154,6 +154,27 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       success INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS ai_meal_plan_requests (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      response TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_subscriptions (
+      user_id TEXT PRIMARY KEY,
+      stripe_customer_id TEXT,
+      stripe_subscription_id TEXT,
+      status TEXT NOT NULL,
+      current_period_end INTEGER,
+      cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -196,6 +217,9 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
     CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email);
     CREATE INDEX IF NOT EXISTS idx_recipe_share_links_token ON recipe_share_links(token);
     CREATE INDEX IF NOT EXISTS idx_recipe_share_links_created_at ON recipe_share_links(created_at);
+    CREATE INDEX IF NOT EXISTS idx_ai_meal_plan_requests_user_created ON ai_meal_plan_requests(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_user_subscriptions_customer ON user_subscriptions(stripe_customer_id);
+    CREATE INDEX IF NOT EXISTS idx_user_subscriptions_subscription ON user_subscriptions(stripe_subscription_id);
   `);
 
   return db;

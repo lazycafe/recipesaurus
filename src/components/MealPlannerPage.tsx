@@ -1,0 +1,408 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { BookPlus, CalendarDays, CheckCircle, Clock, CreditCard, Loader2, Lock, Send, Sparkles, UtensilsCrossed } from 'lucide-react';
+import { useClient } from '../client/ClientContext';
+import { useRecipes } from '../context/RecipeContext';
+import { useCookbooks } from '../context/CookbookContext';
+import { RecipeDetail } from './RecipeDetail';
+import type { MealPlanResult, MealPlanUsage } from '../client/types';
+import type { Recipe } from '../types/Recipe';
+import type { FormEvent, ReactNode } from 'react';
+
+const MAX_REQUEST_LENGTH = 2000;
+const PAID_WEEKLY_LIMIT = 50;
+
+const SAMPLE_REQUESTS = [
+  'Plan my lunches and dinners for this week using recipes I own and a few new easy recipes. Make them a mix of Asian and healthy dishes.',
+  'Give me three high-protein dinners using my saved chicken recipes and quick vegetable sides.',
+  'Build a low-effort Sunday meal prep plan with leftovers for work lunches.',
+];
+
+function formatResetDate(timestamp: number | null): string {
+  if (!timestamp) return 'next week';
+
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(timestamp));
+}
+
+function formatPrice(cents: number | null | undefined): string {
+  const dollars = (cents ?? 499) / 100;
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: dollars % 1 === 0 ? 0 : 2,
+  }).format(dollars);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export function MealPlannerPage() {
+  const client = useClient();
+  const navigate = useNavigate();
+  const { recipes, isLoading: recipesLoading } = useRecipes();
+  const { createCookbook, refreshCookbooks } = useCookbooks();
+  const [request, setRequest] = useState(SAMPLE_REQUESTS[0]);
+  const [mealPlan, setMealPlan] = useState<MealPlanResult | null>(null);
+  const [usage, setUsage] = useState<MealPlanUsage | null>(null);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUsageLoading, setIsUsageLoading] = useState(true);
+  const [isCreatingCookbook, setIsCreatingCookbook] = useState(false);
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const [isManagingBilling, setIsManagingBilling] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+
+  const charactersRemaining = MAX_REQUEST_LENGTH - request.length;
+  const remainingRequests = usage?.remainingRequests ?? 0;
+  const requestLabel = remainingRequests === 1 ? 'request' : 'requests';
+
+  const quotaText = useMemo(() => {
+    if (!usage) return 'Checking your weekly AI requests...';
+    return `${usage.planName}: ${remainingRequests} ${requestLabel} remaining this week`;
+  }, [remainingRequests, requestLabel, usage]);
+
+  const recipeById = useMemo(() => {
+    const map = new Map<string, Recipe>();
+    recipes.forEach(recipe => map.set(recipe.id, recipe));
+    return map;
+  }, [recipes]);
+
+  const mentionedRecipeDetails = useMemo(() => (
+    mealPlan?.mentionedRecipes
+      .map(recipe => recipeById.get(recipe.id))
+      .filter((recipe): recipe is Recipe => Boolean(recipe)) ?? []
+  ), [mealPlan, recipeById]);
+
+  const renderSuggestion = (): ReactNode[] => {
+    if (!mealPlan) return [];
+
+    const linkableRecipes = mealPlan.mentionedRecipes.filter(recipe => recipeById.has(recipe.id));
+    if (linkableRecipes.length === 0) {
+      return [mealPlan.suggestion];
+    }
+
+    const sortedRecipes = [...linkableRecipes].sort((a, b) => b.title.length - a.title.length);
+    const recipeLookup = new Map(sortedRecipes.map(recipe => [recipe.title.toLowerCase(), recipe]));
+    const pattern = new RegExp(`(${sortedRecipes.map(recipe => escapeRegExp(recipe.title)).join('|')})`, 'gi');
+
+    return mealPlan.suggestion.split(pattern).map((part, index) => {
+      const recipe = recipeLookup.get(part.toLowerCase());
+      if (!recipe) return part;
+
+      return (
+        <button
+          key={`${recipe.id}-${index}`}
+          type="button"
+          className="meal-planner-recipe-link"
+          onClick={() => {
+            const detail = recipeById.get(recipe.id);
+            if (detail) setSelectedRecipe(detail);
+          }}
+        >
+          {part}
+        </button>
+      );
+    });
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadUsage() {
+      setIsUsageLoading(true);
+      const result = await client.ai.getMealPlanUsage();
+      if (!isMounted) return;
+
+      if (result.data?.usage) {
+        setUsage(result.data.usage);
+        setShowPaywall(result.data.usage.remainingRequests <= 0);
+      } else if (result.error) {
+        setError(result.error);
+      }
+      setIsUsageLoading(false);
+    }
+
+    void loadUsage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [client]);
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const trimmedRequest = request.trim();
+
+    if (!trimmedRequest) {
+      setError('Tell Recipesaurus what kind of plan you want.');
+      return;
+    }
+
+    if (usage && usage.remainingRequests <= 0) {
+      setShowPaywall(true);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+    setShowPaywall(false);
+
+    const result = await client.ai.createMealPlan(trimmedRequest);
+
+    if (result.data) {
+      setMealPlan(result.data);
+      setUsage(result.data.usage);
+      setShowPaywall(result.data.usage.remainingRequests <= 0);
+    } else if (result.status === 402 || result.code === 'AI_MEAL_PLAN_LIMIT') {
+      setShowPaywall(true);
+      const usageResult = await client.ai.getMealPlanUsage();
+      if (usageResult.data?.usage) {
+        setUsage(usageResult.data.usage);
+      }
+    } else {
+      setError(result.error || 'Unable to create a meal plan right now.');
+    }
+
+    setIsSubmitting(false);
+  };
+
+  const handleCreateCookbook = async () => {
+    if (!mealPlan || mentionedRecipeDetails.length === 0) return;
+
+    setIsCreatingCookbook(true);
+    setError('');
+
+    const cookbookId = await createCookbook({
+      name: mealPlan.cookbookName,
+      description: `Created from meal planner request: ${request.trim().slice(0, 180)}`,
+    });
+
+    if (!cookbookId) {
+      setError('Unable to create the cookbook right now.');
+      setIsCreatingCookbook(false);
+      return;
+    }
+
+    const addResults = await Promise.all(
+      mentionedRecipeDetails.map(recipe => client.cookbooks.addRecipe(cookbookId, recipe.id))
+    );
+    const failedAdds = addResults.filter(result => result.error);
+
+    await refreshCookbooks();
+    setIsCreatingCookbook(false);
+
+    if (failedAdds.length > 0) {
+      setError('The cookbook was created, but some recipes could not be added.');
+      return;
+    }
+
+    navigate(`/cookbooks/${cookbookId}`);
+  };
+
+  const handleUpgrade = async () => {
+    setIsStartingCheckout(true);
+    setError('');
+
+    const result = await client.billing.createCheckoutSession();
+    if (result.data?.url) {
+      window.location.assign(result.data.url);
+      return;
+    }
+
+    setError(result.error || 'Unable to start checkout right now.');
+    setIsStartingCheckout(false);
+  };
+
+  const handleManageBilling = async () => {
+    setIsManagingBilling(true);
+    setError('');
+
+    const result = await client.billing.createPortalSession();
+    if (result.data?.url) {
+      window.location.assign(result.data.url);
+      return;
+    }
+
+    setError(result.error || 'Unable to open billing right now.');
+    setIsManagingBilling(false);
+  };
+
+  return (
+    <div className="meal-planner-page">
+      <section className="meal-planner-header">
+        <div className="meal-planner-title">
+          <Sparkles size={28} />
+          <h1>AI Meal Planner</h1>
+        </div>
+        <p>Ask for a week, a dinner lineup, a meal prep pass, or ideas that pull from your saved recipes.</p>
+      </section>
+
+      <section className="meal-planner-toolbar" aria-label="Meal planner status">
+        <div className="meal-planner-status-item">
+          <UtensilsCrossed size={18} />
+          <span>{recipesLoading ? 'Loading recipes...' : `${recipes.length} saved recipes available`}</span>
+        </div>
+        <div className="meal-planner-status-item">
+          <Clock size={18} />
+          <span>{isUsageLoading ? 'Checking quota...' : quotaText}</span>
+        </div>
+        {usage?.isPaid && (
+          <button
+            type="button"
+            className="meal-planner-billing-link"
+            onClick={handleManageBilling}
+            disabled={isManagingBilling}
+          >
+            {isManagingBilling ? <Loader2 size={16} className="spin" /> : <CreditCard size={16} />}
+            Manage billing
+          </button>
+        )}
+      </section>
+
+      <form className="meal-planner-form" onSubmit={handleSubmit}>
+        <label htmlFor="meal-planner-request">What should Recipesaurus plan?</label>
+        <textarea
+          id="meal-planner-request"
+          value={request}
+          onChange={event => setRequest(event.target.value.slice(0, MAX_REQUEST_LENGTH))}
+          rows={7}
+          maxLength={MAX_REQUEST_LENGTH}
+          placeholder="Ask for dinners, lunches, prep plans, cuisine mixes, dietary goals, pantry constraints..."
+        />
+        <div className="meal-planner-form-footer">
+          <span>{charactersRemaining} characters left</span>
+          <button
+            type="submit"
+            className="btn-primary meal-planner-submit"
+            disabled={isSubmitting || isUsageLoading || !request.trim()}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 size={18} className="spin" />
+                Planning...
+              </>
+            ) : (
+              <>
+                <Send size={18} />
+                Get Suggestions
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+
+      <section className="meal-planner-samples" aria-label="Sample meal planning requests">
+        {SAMPLE_REQUESTS.map(sample => (
+          <button
+            key={sample}
+            type="button"
+            className="meal-planner-sample"
+            onClick={() => setRequest(sample)}
+          >
+            {sample}
+          </button>
+        ))}
+      </section>
+
+      {error && (
+        <div className="meal-planner-message meal-planner-error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {showPaywall && usage && usage.remainingRequests <= 0 && (
+        <section className="meal-planner-paywall">
+          <Lock size={24} />
+          <div>
+            <h2>{usage.isPaid ? 'Weekly paid plans used' : 'Weekly AI plans used'}</h2>
+            <p>
+              {usage.isPaid
+                ? `${usage.planName} includes ${usage.weeklyLimit} AI meal planning requests each week. Come back ${formatResetDate(usage.nextResetAt)}.`
+                : `Free accounts get ${usage.weeklyLimit} AI meal planning requests each week. Upgrade to ${formatPrice(usage.priceCents)}/month for ${PAID_WEEKLY_LIMIT} weekly requests, or come back ${formatResetDate(usage.nextResetAt)}.`}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-primary meal-planner-paywall-action"
+            onClick={usage.isPaid ? handleManageBilling : handleUpgrade}
+            disabled={isStartingCheckout || isManagingBilling}
+          >
+            {isStartingCheckout || isManagingBilling ? (
+              <>
+                <Loader2 size={18} className="spin" />
+                Opening...
+              </>
+            ) : (
+              <>
+                <CreditCard size={18} />
+                {usage.isPaid ? 'Manage' : 'Upgrade'}
+              </>
+            )}
+          </button>
+        </section>
+      )}
+
+      {mealPlan && (
+        <section className="meal-planner-result">
+          <div className="meal-planner-result-header">
+            <CalendarDays size={22} />
+            <h2>Suggestions</h2>
+          </div>
+          <div className="meal-planner-result-text">{renderSuggestion()}</div>
+
+          {mentionedRecipeDetails.length > 0 && (
+            <div className="meal-planner-cookbook-action">
+              <div>
+                <h3>{mealPlan.cookbookName}</h3>
+                <p>
+                  Create a cookbook with {mentionedRecipeDetails.length} saved recipe{mentionedRecipeDetails.length !== 1 ? 's' : ''} from this plan.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleCreateCookbook}
+                disabled={isCreatingCookbook}
+              >
+                {isCreatingCookbook ? (
+                  <>
+                    <Loader2 size={18} className="spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <BookPlus size={18} />
+                    Create Cookbook
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {mentionedRecipeDetails.length > 0 && (
+            <div className="meal-planner-mentioned">
+              <CheckCircle size={16} />
+              <span>
+                Linked {mentionedRecipeDetails.length} recipe{mentionedRecipeDetails.length !== 1 ? 's' : ''} from your collection.
+              </span>
+            </div>
+          )}
+        </section>
+      )}
+
+      {selectedRecipe && (
+        <RecipeDetail
+          recipe={selectedRecipe}
+          onClose={() => setSelectedRecipe(null)}
+          readOnly
+        />
+      )}
+    </div>
+  );
+}

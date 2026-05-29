@@ -195,6 +195,26 @@ export interface RecipeShareLinkInfo {
   createdAt: number;
 }
 
+// AI meal planning
+export interface DbAiMealPlanRequest {
+  id: string;
+  user_id: string;
+  prompt: string;
+  response: string;
+  created_at: number;
+}
+
+export interface DbUserSubscription {
+  user_id: string;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  status: string;
+  current_period_end: number | null;
+  cancel_at_period_end: number;
+  created_at: number;
+  updated_at: number;
+}
+
 // Notification info
 export interface NotificationInfo {
   id: string;

@@ -104,10 +104,56 @@ export interface UpdateCookbookData {
   isPublic?: boolean;
 }
 
+export interface MealPlanUsage {
+  weeklyLimit: number;
+  usedThisWeek: number;
+  remainingRequests: number;
+  windowStartsAt: number;
+  nextResetAt: number | null;
+  isPaid: boolean;
+  planName: string;
+  priceCents: number | null;
+}
+
+export interface MealPlanMentionedRecipe {
+  id: string;
+  title: string;
+}
+
+export interface MealPlanResult {
+  suggestion: string;
+  mentionedRecipes: MealPlanMentionedRecipe[];
+  cookbookName: string;
+  usage: MealPlanUsage;
+  recipeCount: number;
+}
+
+export interface BillingStatus {
+  isPaid: boolean;
+  planName: string;
+  priceCents: number;
+  currency: string;
+  interval: 'month' | string;
+  freeWeeklyLimit: number;
+  paidWeeklyLimit: number;
+  weeklyLimit: number;
+  subscription: {
+    status: string;
+    currentPeriodEnd: number | null;
+    cancelAtPeriodEnd: boolean;
+  } | null;
+}
+
+export interface BillingSession {
+  url: string;
+}
+
 // API Response types
 export interface ApiResponse<T> {
   data?: T;
   error?: string;
+  status?: number;
+  code?: string;
 }
 
 // Transport layer interface - abstracts HTTP vs in-memory communication
@@ -179,6 +225,17 @@ export interface IClient {
   invites: {
     accept(inviteId: string): Promise<ApiResponse<{ success: boolean; cookbookId: string; cookbookName: string }>>;
     decline(inviteId: string): Promise<ApiResponse<{ success: boolean }>>;
+  };
+
+  ai: {
+    getMealPlanUsage(): Promise<ApiResponse<{ usage: MealPlanUsage }>>;
+    createMealPlan(request: string): Promise<ApiResponse<MealPlanResult>>;
+  };
+
+  billing: {
+    getStatus(): Promise<ApiResponse<{ billing: BillingStatus }>>;
+    createCheckoutSession(): Promise<ApiResponse<BillingSession>>;
+    createPortalSession(): Promise<ApiResponse<BillingSession>>;
   };
 
   discover: {

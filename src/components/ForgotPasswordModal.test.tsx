@@ -28,6 +28,8 @@ describe('ForgotPasswordModal', () => {
       cookbooks: {} as any,
       notifications: {} as any,
       invites: {} as any,
+      ai: {} as any,
+      billing: {} as any,
       discover: {} as any,
     });
   });
