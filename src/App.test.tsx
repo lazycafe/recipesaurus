@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getSharedRecipePreviewData, getSharedRecipeToken } from './App';
+import { getSharedRecipePreviewData, getSharedRecipeToken, isKnownAppPath } from './App';
 
 describe('getSharedRecipePreviewData', () => {
   it('reads encoded recipe data from the public preview route', () => {
@@ -22,5 +22,22 @@ describe('getSharedRecipeToken', () => {
 
   it('ignores unrelated routes', () => {
     expect(getSharedRecipeToken('/preview/encoded-recipe')).toBeNull();
+  });
+});
+
+describe('isKnownAppPath', () => {
+  it('accepts known static app paths', () => {
+    expect(isKnownAppPath('/cookbooks')).toBe(true);
+    expect(isKnownAppPath('/settings')).toBe(true);
+  });
+
+  it('accepts known dynamic app paths', () => {
+    expect(isKnownAppPath('/cookbooks/family-favorites')).toBe(true);
+    expect(isKnownAppPath('/discover/cookbooks/public-cookbook')).toBe(true);
+  });
+
+  it('rejects invalid app paths', () => {
+    expect(isKnownAppPath('/missing-page')).toBe(false);
+    expect(isKnownAppPath('/discover/unknown')).toBe(false);
   });
 });

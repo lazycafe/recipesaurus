@@ -28,8 +28,49 @@ import { DiscoveryPage } from './components/DiscoveryPage';
 import { PublicHomePage } from './components/PublicHomePage';
 import { PublicCookbookDetailPage } from './components/PublicCookbookDetailPage';
 import { MyRecipesPage } from './components/MyRecipesPage';
+import { NotFoundPage } from './components/NotFoundPage';
 import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
+
+const KNOWN_APP_PATHS = new Set([
+  '/',
+  '/discover',
+  '/discover/recipes',
+  '/discover/cookbooks',
+  '/my-recipes',
+  '/recipes',
+  '/cookbooks',
+  '/settings',
+  '/terms',
+  '/feedback',
+]);
+
+function normalizePathname(pathname: string): string {
+  const [path] = pathname.split(/[?#]/);
+  if (!path || path === '/') return '/';
+  return path.replace(/\/+$/, '');
+}
+
+export function isKnownAppPath(pathname: string): boolean {
+  const path = normalizePathname(pathname);
+  return (
+    KNOWN_APP_PATHS.has(path) ||
+    /^\/discover\/cookbooks\/[^/]+$/.test(path) ||
+    /^\/cookbooks\/[^/]+$/.test(path)
+  );
+}
+
+function isSharedCookbookPath(pathname: string): boolean {
+  return /^\/shared\/[^/]+$/.test(normalizePathname(pathname));
+}
+
+function isResetPasswordPath(pathname: string): boolean {
+  return normalizePathname(pathname) === '/reset-password';
+}
+
+function isVerifyEmailPath(pathname: string): boolean {
+  return normalizePathname(pathname) === '/verify-email';
+}
 
 function LoadingScreen() {
   return (
@@ -149,6 +190,10 @@ function RecipeApp() {
               path="/feedback"
               element={<FeedbackPage />}
             />
+            <Route
+              path="*"
+              element={<NotFoundPage />}
+            />
           </Routes>
         </div>
       </main>
@@ -189,6 +234,7 @@ function RecipeApp() {
 
 function AppContent() {
   const { user, isLoading } = useAuth();
+  const { pathname } = useLocation();
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
@@ -197,6 +243,10 @@ function AppContent() {
   }
 
   if (!user) {
+    if (!isKnownAppPath(pathname)) {
+      return <NotFoundPage />;
+    }
+
     return (
       <>
         <PublicHomePage
@@ -324,10 +374,11 @@ function VerifyEmailRoute() {
 }
 
 function AppWithClient({ client }: { client: IClient }) {
-  const isSharedRoute = window.location.pathname.startsWith('/shared/');
-  const isPreviewRoute = getSharedRecipePreviewData() !== null || getSharedRecipeToken() !== null;
-  const isResetPasswordRoute = window.location.pathname.startsWith('/reset-password');
-  const isVerifyEmailRoute = window.location.pathname.startsWith('/verify-email');
+  const { pathname } = useLocation();
+  const isSharedRoute = isSharedCookbookPath(pathname);
+  const isPreviewRoute = getSharedRecipePreviewData(pathname) !== null || getSharedRecipeToken(pathname) !== null;
+  const isResetPasswordRoute = isResetPasswordPath(pathname);
+  const isVerifyEmailRoute = isVerifyEmailPath(pathname);
 
   return (
     <ClientProvider client={client}>
