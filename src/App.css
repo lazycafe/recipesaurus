@@ -4293,9 +4293,8 @@ img {
   margin-top: var(--space-4);
 }
 
-.settings-reinstate-subscription,
-.settings-cancel-subscription {
-  max-width: 260px;
+.settings-manage-billing {
+  max-width: 220px;
 }
 
 .settings-error {
@@ -4319,8 +4318,7 @@ img {
     gap: var(--space-2);
   }
 
-  .settings-reinstate-subscription,
-  .settings-cancel-subscription {
+  .settings-manage-billing {
     max-width: none;
   }
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { SettingsPage } from './SettingsPage';
@@ -21,8 +21,9 @@ describe('SettingsPage', () => {
     name: 'Test User',
   };
   const mockGetBillingStatus = vi.fn();
-  const mockCancelSubscription = vi.fn();
-  const mockReinstateSubscription = vi.fn();
+  const mockCreatePortalSession = vi.fn();
+  const mockAssign = vi.fn();
+  const originalLocation = window.location;
 
   const freeBilling: BillingStatus = {
     isPaid: false,
@@ -72,30 +73,21 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetBillingStatus.mockResolvedValue({ data: { billing: freeBilling } });
-    mockCancelSubscription.mockResolvedValue({
+    mockCreatePortalSession.mockResolvedValue({
       data: {
-        billing: {
-          ...paidBilling,
-          subscription: {
-            ...paidBilling.subscription!,
-            cancelAtPeriodEnd: true,
-          },
-        },
+        url: 'https://billing.stripe.test/session',
       },
     });
-    mockReinstateSubscription.mockResolvedValue({
-      data: {
-        billing: paidBilling,
-      },
+    Object.defineProperty(window, 'location', {
+      value: { assign: mockAssign },
+      writable: true,
     });
 
     vi.mocked(ClientContext.useClient).mockReturnValue({
       billing: {
         getStatus: mockGetBillingStatus,
         createCheckoutSession: vi.fn(),
-        createPortalSession: vi.fn(),
-        cancelSubscription: mockCancelSubscription,
-        reinstateSubscription: mockReinstateSubscription,
+        createPortalSession: mockCreatePortalSession,
       },
     } as unknown as IClient);
 
@@ -108,6 +100,13 @@ describe('SettingsPage', () => {
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      value: originalLocation,
+      writable: true,
     });
   });
 
@@ -171,33 +170,29 @@ describe('SettingsPage', () => {
     });
     expect(screen.getByText('$4.99/month')).toBeDefined();
     expect(screen.getByText('Renews on')).toBeDefined();
-    expect(screen.getByRole('button', { name: /End paid subscription/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /Manage billing/i })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /End paid subscription/i })).toBeNull();
   });
 
-  it('confirms before ending a paid subscription', async () => {
+  it('opens the billing portal for paid subscriptions', async () => {
     mockGetBillingStatus.mockResolvedValue({ data: { billing: paidBilling } });
     mockAuth();
 
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /End paid subscription/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /Manage billing/i })).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /End paid subscription/i }));
-    expect(screen.getByText('End Meal Planner Plus?')).toBeDefined();
-    expect(mockCancelSubscription).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'End subscription' }));
+    fireEvent.click(screen.getByRole('button', { name: /Manage billing/i }));
 
     await waitFor(() => {
-      expect(mockCancelSubscription).toHaveBeenCalledTimes(1);
-      expect(screen.getByText(/will end on/i)).toBeDefined();
-      expect(screen.getByText('Access until')).toBeDefined();
+      expect(mockCreatePortalSession).toHaveBeenCalledTimes(1);
+      expect(mockAssign).toHaveBeenCalledWith('https://billing.stripe.test/session');
     });
   });
 
-  it('restores a paid subscription that was already scheduled to end', async () => {
+  it('shows manage billing for a subscription scheduled to end', async () => {
     const canceledBilling: BillingStatus = {
       ...paidBilling,
       subscription: {
@@ -211,15 +206,10 @@ describe('SettingsPage', () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Restore paid subscription/i })).toBeDefined();
+      expect(screen.getByRole('button', { name: /Manage billing/i })).toBeDefined();
     });
-
-    fireEvent.click(screen.getByRole('button', { name: /Restore paid subscription/i }));
-
-    await waitFor(() => {
-      expect(mockReinstateSubscription).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('Renews on')).toBeDefined();
-      expect(screen.getByRole('button', { name: /End paid subscription/i })).toBeDefined();
-    });
+    expect(screen.getByText(/will end on/i)).toBeDefined();
+    expect(screen.getByText('Access until')).toBeDefined();
+    expect(screen.queryByRole('button', { name: /Restore paid subscription/i })).toBeNull();
   });
 });
