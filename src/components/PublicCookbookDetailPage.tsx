@@ -4,6 +4,7 @@ import { ArrowLeft, BookOpen, Heart, Loader2, User } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useCookbooks } from '../context/CookbookContext';
 import { Recipe, Cookbook } from '../client/types';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
@@ -13,13 +14,15 @@ export function PublicCookbookDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { getPublicCookbook, saveRecipe } = useDiscovery();
+  const { refreshCookbooks } = useCookbooks();
+  const { getPublicCookbook, saveRecipe, saveCookbook } = useDiscovery();
 
   const [cookbook, setCookbook] = useState<Cookbook | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
+  const [isSavingCookbook, setIsSavingCookbook] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -51,6 +54,30 @@ export function PublicCookbookDetailPage() {
         action: {
           label: 'View',
           onClick: () => navigate('/my-recipes'),
+        },
+      });
+    }
+  };
+
+  const handleSaveCookbook = async () => {
+    if (!cookbook) return;
+    if (!user) {
+      showToast({ message: 'Please sign in to save cookbooks', type: 'info' });
+      return;
+    }
+
+    setIsSavingCookbook(true);
+    const savedId = await saveCookbook(cookbook.id);
+    setIsSavingCookbook(false);
+
+    if (savedId) {
+      await refreshCookbooks();
+      showToast({
+        message: 'Cookbook saved to your collection',
+        type: 'success',
+        action: {
+          label: 'View',
+          onClick: () => navigate('/cookbooks'),
         },
       });
     }
@@ -113,6 +140,20 @@ export function PublicCookbookDetailPage() {
               <BookOpen size={14} />
               {cookbook.recipeCount} recipes
             </span>
+          </div>
+          <div className="public-cookbook-actions">
+            <button
+              className="btn-primary"
+              onClick={handleSaveCookbook}
+              disabled={isSavingCookbook}
+            >
+              {isSavingCookbook ? (
+                <Loader2 size={16} className="spin" />
+              ) : (
+                <Heart size={16} />
+              )}
+              <span>Save Cookbook</span>
+            </button>
           </div>
         </div>
       </header>

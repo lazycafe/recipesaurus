@@ -6521,6 +6521,17 @@ img {
   gap: var(--space-1);
 }
 
+.public-cookbook-actions {
+  display: flex;
+  margin-top: var(--space-5);
+}
+
+.public-cookbook-actions .btn-primary:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .public-cookbook-recipes h2 {
   font-family: var(--font-display);
   font-size: var(--text-lg);
@@ -6648,6 +6659,10 @@ img {
   }
 
   .public-cookbook-info .meta {
+    justify-content: center;
+  }
+
+  .public-cookbook-actions {
     justify-content: center;
   }
 
