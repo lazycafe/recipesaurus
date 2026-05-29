@@ -128,6 +128,7 @@ describe('FeedbackPage', () => {
         expect.stringContaining('/api/feedback'),
         expect.objectContaining({
           method: 'POST',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
         })
       );
@@ -139,6 +140,29 @@ describe('FeedbackPage', () => {
       type: 'bug',
       message: 'Found a bug',
       email: 'test@example.com',
+    });
+  });
+
+  it('sends the stored auth token with feedback when available', async () => {
+    localStorageMock.setItem('recipesaurus_token', 'session-token');
+    renderWithRouter();
+
+    const textarea = screen.getByLabelText('Your Message');
+    fireEvent.change(textarea, { target: { value: 'Logged in feedback' } });
+
+    const submitButton = screen.getByText('Send Feedback').closest('button')!;
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/feedback'),
+        expect.objectContaining({
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer session-token',
+          },
+        })
+      );
     });
   });
 

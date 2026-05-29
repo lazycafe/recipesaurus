@@ -448,12 +448,21 @@ async function handleFeedback(request: Request, env: Env): Promise<Response> {
 
   const typeName = feedbackType === 'bug' ? 'Bug' : feedbackType === 'feature' ? 'Feature' : 'Feedback';
   const typeLabel = feedbackType === 'bug' ? 'Bug Report' : feedbackType === 'feature' ? 'Feature Request' : 'General Feedback';
+  const user = await getSessionUser(request, env.DB);
+  const fields = [
+    ...(user ? [
+      { name: 'User ID', value: user.id.slice(0, 1024), inline: true },
+      { name: 'User Email', value: user.email.slice(0, 1024), inline: true },
+    ] : []),
+    ...(email ? [{ name: 'Contact Email', value: email.slice(0, 254) }] : []),
+  ];
+
   const delivered = await postDiscordWebhook(env.DISCORD_FEEDBACK_WEBHOOK_URL, {
     embeds: [{
       title: `${typeName}: ${typeLabel}`,
       description: message,
       color: feedbackType === 'bug' ? 0xc45a5a : feedbackType === 'feature' ? 0x7a9e7e : 0xc9a962,
-      fields: email ? [{ name: 'Contact Email', value: email.slice(0, 254) }] : [],
+      fields,
       timestamp: new Date().toISOString(),
     }],
   });
