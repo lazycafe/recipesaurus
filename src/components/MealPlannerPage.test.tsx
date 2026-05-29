@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { MealPlannerPage } from './MealPlannerPage';
@@ -43,6 +43,8 @@ describe('MealPlannerPage', () => {
   const mockRefreshCookbooks = vi.fn();
   const mockCreateCheckoutSession = vi.fn();
   const mockCreatePortalSession = vi.fn();
+  const mockOpen = vi.fn();
+  const originalOpen = window.open;
 
   function renderMealPlanner() {
     return render(
@@ -74,6 +76,10 @@ describe('MealPlannerPage', () => {
     mockRefreshCookbooks.mockResolvedValue(undefined);
     mockCreateCheckoutSession.mockResolvedValue({ data: { url: 'https://checkout.stripe.test/session' } });
     mockCreatePortalSession.mockResolvedValue({ data: { url: 'https://billing.stripe.test/session' } });
+    Object.defineProperty(window, 'open', {
+      value: mockOpen,
+      writable: true,
+    });
 
     vi.mocked(ClientContext.useClient).mockReturnValue({
       ai: {
@@ -122,6 +128,13 @@ describe('MealPlannerPage', () => {
       addRecipeToCookbook: vi.fn(),
       removeRecipeFromCookbook: vi.fn(),
       refreshCookbooks: mockRefreshCookbooks,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'open', {
+      value: originalOpen,
+      writable: true,
     });
   });
 
@@ -225,6 +238,39 @@ describe('MealPlannerPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Get Suggestions/i }));
     expect(mockCreateMealPlan).not.toHaveBeenCalled();
+  });
+
+  it('opens paid billing management in a new tab without a loading state', async () => {
+    mockGetMealPlanUsage.mockResolvedValue({
+      data: {
+        usage: {
+          ...usage(2),
+          isPaid: true,
+          planName: 'Meal Planner Plus',
+          weeklyLimit: 50,
+        },
+      },
+    });
+
+    renderMealPlanner();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Manage billing/i })).toBeDefined();
+    });
+
+    const manageButton = screen.getByRole('button', { name: /Manage billing/i }) as HTMLButtonElement;
+    expect(manageButton.disabled).toBe(false);
+    fireEvent.click(manageButton);
+    expect(screen.queryByText(/Opening/i)).toBeNull();
+
+    await waitFor(() => {
+      expect(mockCreatePortalSession).toHaveBeenCalledTimes(1);
+      expect(mockOpen).toHaveBeenCalledWith(
+        'https://billing.stripe.test/session',
+        '_blank',
+        'noopener,noreferrer'
+      );
+    });
   });
 
   it('creates a cookbook from linked saved recipes', async () => {

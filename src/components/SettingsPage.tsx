@@ -1,4 +1,4 @@
-import { Calendar, CreditCard, Loader2, Mail, User } from 'lucide-react';
+import { Calendar, CreditCard, Mail, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useClient } from '../client/ClientContext';
 import type { BillingStatus } from '../client/types';
@@ -31,7 +31,6 @@ export function SettingsPage() {
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [billingError, setBillingError] = useState('');
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
-  const [isManagingBilling, setIsManagingBilling] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -74,19 +73,15 @@ export function SettingsPage() {
   const planPrice = formatPlanPrice(billing);
 
   const handleManageBilling = async () => {
-    if (isManagingBilling) return;
-
-    setIsManagingBilling(true);
     setBillingError('');
 
     const result = await client.billing.createPortalSession();
     if (result.data?.url) {
-      window.location.assign(result.data.url);
+      window.open(result.data.url, '_blank', 'noopener,noreferrer');
       return;
     }
 
     setBillingError(result.error || 'Unable to open billing right now.');
-    setIsManagingBilling(false);
   };
 
   if (!user) return null;
@@ -160,9 +155,8 @@ export function SettingsPage() {
                   type="button"
                   className="meal-planner-billing-link settings-manage-billing"
                   onClick={handleManageBilling}
-                  disabled={isManagingBilling}
                 >
-                  {isManagingBilling ? <Loader2 size={16} className="spin" /> : <CreditCard size={16} />}
+                  <CreditCard size={16} />
                   Manage billing
                 </button>
               </div>

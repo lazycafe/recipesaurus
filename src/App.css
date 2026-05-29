@@ -4294,6 +4294,7 @@ img {
 }
 
 .settings-manage-billing {
+  margin-top: var(--space-3);
   max-width: 220px;
 }
 

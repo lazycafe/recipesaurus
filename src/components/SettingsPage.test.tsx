@@ -22,8 +22,8 @@ describe('SettingsPage', () => {
   };
   const mockGetBillingStatus = vi.fn();
   const mockCreatePortalSession = vi.fn();
-  const mockAssign = vi.fn();
-  const originalLocation = window.location;
+  const mockOpen = vi.fn();
+  const originalOpen = window.open;
 
   const freeBilling: BillingStatus = {
     isPaid: false,
@@ -78,8 +78,8 @@ describe('SettingsPage', () => {
         url: 'https://billing.stripe.test/session',
       },
     });
-    Object.defineProperty(window, 'location', {
-      value: { assign: mockAssign },
+    Object.defineProperty(window, 'open', {
+      value: mockOpen,
       writable: true,
     });
 
@@ -104,8 +104,8 @@ describe('SettingsPage', () => {
   });
 
   afterEach(() => {
-    Object.defineProperty(window, 'location', {
-      value: originalLocation,
+    Object.defineProperty(window, 'open', {
+      value: originalOpen,
       writable: true,
     });
   });
@@ -188,7 +188,11 @@ describe('SettingsPage', () => {
 
     await waitFor(() => {
       expect(mockCreatePortalSession).toHaveBeenCalledTimes(1);
-      expect(mockAssign).toHaveBeenCalledWith('https://billing.stripe.test/session');
+      expect(mockOpen).toHaveBeenCalledWith(
+        'https://billing.stripe.test/session',
+        '_blank',
+        'noopener,noreferrer'
+      );
     });
   });
 

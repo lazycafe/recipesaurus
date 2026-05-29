@@ -64,7 +64,6 @@ export function MealPlannerPage() {
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [isCreatingCookbook, setIsCreatingCookbook] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
-  const [isManagingBilling, setIsManagingBilling] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const isSubmittingRef = useRef(false);
@@ -257,17 +256,15 @@ export function MealPlannerPage() {
   };
 
   const handleManageBilling = async () => {
-    setIsManagingBilling(true);
     setError('');
 
     const result = await client.billing.createPortalSession();
     if (result.data?.url) {
-      window.location.assign(result.data.url);
+      window.open(result.data.url, '_blank', 'noopener,noreferrer');
       return;
     }
 
     setError(result.error || 'Unable to open billing right now.');
-    setIsManagingBilling(false);
   };
 
   return (
@@ -294,9 +291,8 @@ export function MealPlannerPage() {
             type="button"
             className="meal-planner-billing-link"
             onClick={handleManageBilling}
-            disabled={isManagingBilling}
           >
-            {isManagingBilling ? <Loader2 size={16} className="spin" /> : <CreditCard size={16} />}
+            <CreditCard size={16} />
             Manage billing
           </button>
         )}
@@ -369,9 +365,9 @@ export function MealPlannerPage() {
             type="button"
             className="btn-primary meal-planner-paywall-action"
             onClick={usage.isPaid ? handleManageBilling : handleUpgrade}
-            disabled={isStartingCheckout || isManagingBilling}
+            disabled={!usage.isPaid && isStartingCheckout}
           >
-            {isStartingCheckout || isManagingBilling ? (
+            {!usage.isPaid && isStartingCheckout ? (
               <>
                 <Loader2 size={18} className="spin" />
                 Opening...
