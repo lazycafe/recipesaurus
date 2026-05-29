@@ -15,6 +15,7 @@ APP_URL = "https://recipesaurus.ai"
 # - STRIPE_PRICE_ID - optional recurring Stripe Price id; defaults to inline $4.99/month pricing
 # - DISCORD_SIGNUP_WEBHOOK_URL - set via `wrangler secret put DISCORD_SIGNUP_WEBHOOK_URL`
 # - DISCORD_FEEDBACK_WEBHOOK_URL - set via `wrangler secret put DISCORD_FEEDBACK_WEBHOOK_URL`
+# - DISCORD_SUBSCRIPTION_WEBHOOK_URL - set via `wrangler secret put DISCORD_SUBSCRIPTION_WEBHOOK_URL`
 
 [[d1_databases]]
 binding = "DB"

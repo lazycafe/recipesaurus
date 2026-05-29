@@ -45,6 +45,7 @@ export interface Env {
   STRIPE_PRICE_ID?: string;
   DISCORD_SIGNUP_WEBHOOK_URL?: string;
   DISCORD_FEEDBACK_WEBHOOK_URL?: string;
+  DISCORD_SUBSCRIPTION_WEBHOOK_URL?: string;
 }
 
 interface User {
@@ -334,6 +335,10 @@ function parseJsonList(value: string | null | undefined): string[] {
 
 function isPaidMealPlanSubscription(subscription: UserSubscription | null): boolean {
   return subscription?.status === 'active' || subscription?.status === 'trialing';
+}
+
+function isPaidStripeSubscription(subscription: StripeSubscription): boolean {
+  return subscription.status === 'active' || subscription.status === 'trialing';
 }
 
 function getMealPlanLimitForSubscription(subscription: UserSubscription | null): number {
@@ -756,6 +761,48 @@ async function notifyDiscordNewUser(webhookUrl: string | undefined, name: string
   await postDiscordWebhook(webhookUrl, {
     content: `New user signed up: **${name}** (${email})`,
   });
+}
+
+type SubscriptionAction = 'subscribed' | 'cancelled';
+
+async function notifyDiscordSubscriptionEvent(
+  webhookUrl: string | undefined,
+  userId: string,
+  email: string,
+  action: SubscriptionAction
+): Promise<void> {
+  const title = action === 'subscribed' ? 'User subscribed' : 'User cancelled subscription';
+  const color = action === 'subscribed' ? 0x7a9e7e : 0xc45a5a;
+
+  await postDiscordWebhook(webhookUrl, {
+    embeds: [{
+      title,
+      color,
+      fields: [
+        { name: 'User ID', value: userId.slice(0, 1024), inline: true },
+        { name: 'Email', value: email.slice(0, 1024), inline: true },
+        { name: 'Action', value: action, inline: true },
+      ],
+      timestamp: new Date().toISOString(),
+    }],
+  });
+}
+
+async function notifyDiscordSubscriptionEventForUser(
+  env: Env,
+  userId: string,
+  action: SubscriptionAction
+): Promise<void> {
+  const user = await env.DB.prepare('SELECT id, email FROM users WHERE id = ?')
+    .bind(userId)
+    .first<{ id: string; email: string }>();
+
+  if (!user) {
+    console.warn('Subscription Discord notification skipped because user was not found', userId);
+    return;
+  }
+
+  await notifyDiscordSubscriptionEvent(env.DISCORD_SUBSCRIPTION_WEBHOOK_URL, user.id, user.email, action);
 }
 
 async function handleFeedback(request: Request, env: Env): Promise<Response> {
@@ -1679,6 +1726,7 @@ async function handleCancelSubscription(request: Request, env: Env): Promise<Res
       params
     );
     await recordStripeSubscription(env.DB, user.id, updatedSubscription);
+    await notifyDiscordSubscriptionEventForUser(env, user.id, 'cancelled');
 
     const refreshedSubscription = await getUserSubscription(env.DB, user.id);
     return jsonResponse({ billing: formatBillingStatus(refreshedSubscription) }, 200, corsHeaders(origin));
@@ -1738,11 +1786,15 @@ async function handleCheckoutCompleted(env: Env, session: StripeCheckoutSession)
     return;
   }
 
+  const existingSubscription = await getUserSubscription(env.DB, userId);
   const customerId = getStripeId(session.customer);
   const subscriptionId = getStripeId(session.subscription);
   if (subscriptionId && env.STRIPE_SECRET_KEY) {
     const subscription = await stripeGet<StripeSubscription>(env, `/subscriptions/${encodeURIComponent(subscriptionId)}`);
     await recordStripeSubscription(env.DB, userId, subscription);
+    if (!isPaidMealPlanSubscription(existingSubscription) && isPaidStripeSubscription(subscription)) {
+      await notifyDiscordSubscriptionEventForUser(env, userId, 'subscribed');
+    }
     return;
   }
 
@@ -1753,16 +1805,35 @@ async function handleCheckoutCompleted(env: Env, session: StripeCheckoutSession)
     currentPeriodEnd: null,
     cancelAtPeriodEnd: false,
   });
+  if (!isPaidMealPlanSubscription(existingSubscription)) {
+    await notifyDiscordSubscriptionEventForUser(env, userId, 'subscribed');
+  }
 }
 
-async function handleStripeSubscriptionEvent(db: D1Database, subscription: StripeSubscription): Promise<void> {
-  const userId = await findSubscriptionUserId(db, subscription);
+async function handleStripeSubscriptionEvent(env: Env, subscription: StripeSubscription, eventType: string): Promise<void> {
+  const userId = await findSubscriptionUserId(env.DB, subscription);
   if (!userId) {
     console.warn('Stripe subscription event without a known user id', subscription.id);
     return;
   }
 
-  await recordStripeSubscription(db, userId, subscription);
+  const existingSubscription = await getUserSubscription(env.DB, userId);
+  await recordStripeSubscription(env.DB, userId, subscription);
+
+  if (!isPaidMealPlanSubscription(existingSubscription) && isPaidStripeSubscription(subscription)) {
+    await notifyDiscordSubscriptionEventForUser(env, userId, 'subscribed');
+    return;
+  }
+
+  const wasAlreadyCancelling = existingSubscription?.cancel_at_period_end === 1;
+  if (eventType === 'customer.subscription.updated' && subscription.cancel_at_period_end === true && !wasAlreadyCancelling) {
+    await notifyDiscordSubscriptionEventForUser(env, userId, 'cancelled');
+    return;
+  }
+
+  if (eventType === 'customer.subscription.deleted' && !wasAlreadyCancelling) {
+    await notifyDiscordSubscriptionEventForUser(env, userId, 'cancelled');
+  }
 }
 
 async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
@@ -1795,7 +1866,7 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
-        await handleStripeSubscriptionEvent(env.DB, event.data?.object as StripeSubscription);
+        await handleStripeSubscriptionEvent(env, event.data?.object as StripeSubscription, event.type);
         break;
       default:
         break;
