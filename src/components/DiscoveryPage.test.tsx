@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { DiscoveryPage } from './DiscoveryPage';
@@ -45,6 +45,9 @@ describe('DiscoveryPage', () => {
   const mockLoadMoreCookbooks = vi.fn();
   const mockSetSelectedTags = vi.fn();
   const mockSaveRecipe = vi.fn();
+  const mockSaveCookbook = vi.fn();
+  const mockRefreshRecipes = vi.fn();
+  const mockRefreshCookbooks = vi.fn();
 
   const mockRecipe = {
     id: 'recipe-1',
@@ -71,6 +74,10 @@ describe('DiscoveryPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSaveRecipe.mockResolvedValue('saved-recipe-1');
+    mockSaveCookbook.mockResolvedValue('saved-cookbook-1');
+    mockRefreshRecipes.mockResolvedValue(undefined);
+    mockRefreshCookbooks.mockResolvedValue(undefined);
 
     vi.mocked(ToastContext.useToast).mockReturnValue({
       showToast: vi.fn(),
@@ -102,7 +109,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
-      saveCookbook: vi.fn(),
+      saveCookbook: mockSaveCookbook,
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -114,7 +121,7 @@ describe('DiscoveryPage', () => {
       updateRecipe: vi.fn(),
       deleteRecipe: vi.fn(),
       getAllTags: vi.fn().mockReturnValue([]),
-      refreshRecipes: vi.fn(),
+      refreshRecipes: mockRefreshRecipes,
     });
 
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
@@ -127,7 +134,7 @@ describe('DiscoveryPage', () => {
       leaveCookbook: vi.fn(),
       addRecipeToCookbook: vi.fn(),
       removeRecipeFromCookbook: vi.fn(),
-      refreshCookbooks: vi.fn(),
+      refreshCookbooks: mockRefreshCookbooks,
     });
   });
 
@@ -193,6 +200,35 @@ describe('DiscoveryPage', () => {
     renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('Test Recipe')).toBeDefined();
     expect(screen.getByText('by Test Chef')).toBeDefined();
+  });
+
+  it('shows saved feedback after saving a recipe from Discover', async () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [mockRecipe],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      saveCookbook: mockSaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+    fireEvent.click(screen.getByLabelText('Save recipe'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Recipe saved')).toBeDefined();
+    });
+    expect(screen.getByText('Saved')).toBeDefined();
   });
 
   it('renders duplicate recipes only once', () => {
@@ -265,6 +301,35 @@ describe('DiscoveryPage', () => {
 
     renderWithRouter(<DiscoveryPage tab="cookbooks" />);
     expect(screen.getByText('Test Cookbook')).toBeDefined();
+  });
+
+  it('shows saved feedback after saving a cookbook from Discover', async () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [],
+      cookbooks: [mockCookbook],
+      recipesTotal: 0,
+      cookbooksTotal: 1,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      saveCookbook: mockSaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+    fireEvent.click(screen.getByLabelText('Save cookbook'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Cookbook saved')).toBeDefined();
+    });
+    expect(screen.getByText('Saved')).toBeDefined();
   });
 
   it('renders duplicate cookbooks only once', () => {
