@@ -1,9 +1,8 @@
-import { Calendar, CreditCard, Mail, Sparkles, User } from 'lucide-react';
+import { Calendar, CreditCard, Loader2, Mail, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useClient } from '../client/ClientContext';
 import type { BillingStatus } from '../client/types';
 import { useAuth } from '../context/AuthContext';
-import { ConfirmModal } from './ConfirmModal';
 
 function formatBillingDate(timestamp: number | null | undefined): string | null {
   if (!timestamp) return null;
@@ -32,9 +31,7 @@ export function SettingsPage() {
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [billingError, setBillingError] = useState('');
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
-  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [isCancelingSubscription, setIsCancelingSubscription] = useState(false);
-  const [isReinstatingSubscription, setIsReinstatingSubscription] = useState(false);
+  const [isManagingBilling, setIsManagingBilling] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -76,37 +73,20 @@ export function SettingsPage() {
   const planName = billing?.planName || 'Free';
   const planPrice = formatPlanPrice(billing);
 
-  const handleCancelSubscription = async () => {
-    if (isCancelingSubscription) return;
+  const handleManageBilling = async () => {
+    if (isManagingBilling) return;
 
-    setIsCancelingSubscription(true);
+    setIsManagingBilling(true);
     setBillingError('');
 
-    const result = await client.billing.cancelSubscription();
-    if (result.data?.billing) {
-      setBilling(result.data.billing);
-      setIsCancelModalOpen(false);
-    } else {
-      setBillingError(result.error || 'Unable to end subscription right now.');
+    const result = await client.billing.createPortalSession();
+    if (result.data?.url) {
+      window.location.assign(result.data.url);
+      return;
     }
 
-    setIsCancelingSubscription(false);
-  };
-
-  const handleReinstateSubscription = async () => {
-    if (isReinstatingSubscription) return;
-
-    setIsReinstatingSubscription(true);
-    setBillingError('');
-
-    const result = await client.billing.reinstateSubscription();
-    if (result.data?.billing) {
-      setBilling(result.data.billing);
-    } else {
-      setBillingError(result.error || 'Unable to restore subscription right now.');
-    }
-
-    setIsReinstatingSubscription(false);
+    setBillingError(result.error || 'Unable to open billing right now.');
+    setIsManagingBilling(false);
   };
 
   if (!user) return null;
@@ -169,35 +149,21 @@ export function SettingsPage() {
               </p>
             )}
 
-            {isPaid && isScheduledToEnd && (
+            {isPaid && (
               <div className="settings-subscription-actions">
                 <p className="settings-subscription-note">
-                  Your Meal Planner Plus subscription will end on {endDate || 'the last day of your current billing period'}. You will keep access until then.
+                  {isScheduledToEnd
+                    ? `Your Meal Planner Plus subscription will end on ${endDate || 'the last day of your current billing period'}. You will keep access until then.`
+                    : `Meal Planner Plus includes ${billing?.paidWeeklyLimit || 50} AI meal planning requests per week.`}
                 </p>
                 <button
                   type="button"
-                  className="btn-primary settings-reinstate-subscription"
-                  onClick={handleReinstateSubscription}
-                  disabled={isReinstatingSubscription}
+                  className="meal-planner-billing-link settings-manage-billing"
+                  onClick={handleManageBilling}
+                  disabled={isManagingBilling}
                 >
-                  <Sparkles size={16} />
-                  {isReinstatingSubscription ? 'Restoring...' : 'Restore paid subscription'}
-                </button>
-              </div>
-            )}
-
-            {isPaid && !isScheduledToEnd && (
-              <div className="settings-subscription-actions">
-                <p className="settings-subscription-note">
-                  Meal Planner Plus includes {billing?.paidWeeklyLimit || 50} AI meal planning requests per week.
-                </p>
-                <button
-                  type="button"
-                  className="btn-danger-outline settings-cancel-subscription"
-                  onClick={() => setIsCancelModalOpen(true)}
-                >
-                  <Sparkles size={16} />
-                  End paid subscription
+                  {isManagingBilling ? <Loader2 size={16} className="spin" /> : <CreditCard size={16} />}
+                  Manage billing
                 </button>
               </div>
             )}
@@ -206,22 +172,6 @@ export function SettingsPage() {
 
         {billingError && <div className="settings-error" role="alert">{billingError}</div>}
       </section>
-
-      {isCancelModalOpen && (
-        <ConfirmModal
-          title="End Meal Planner Plus?"
-          message={`Your subscription will stop renewing, and you will keep Meal Planner Plus access until ${endDate || 'the end of your current billing period'}.`}
-          confirmText={isCancelingSubscription ? 'Ending...' : 'End subscription'}
-          cancelText="Keep subscription"
-          variant="warning"
-          onConfirm={handleCancelSubscription}
-          onCancel={() => {
-            if (!isCancelingSubscription) {
-              setIsCancelModalOpen(false);
-            }
-          }}
-        />
-      )}
     </div>
   );
 }
