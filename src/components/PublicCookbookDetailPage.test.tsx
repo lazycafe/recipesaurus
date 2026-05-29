@@ -69,6 +69,7 @@ describe('PublicCookbookDetailPage', () => {
       cookbook: mockCookbook,
       recipes: [mockRecipe],
     });
+    mockSaveRecipe.mockResolvedValue('saved-recipe-1');
     mockSaveCookbook.mockResolvedValue('saved-cookbook-1');
     mockRefreshCookbooks.mockResolvedValue(undefined);
 
@@ -142,5 +143,17 @@ describe('PublicCookbookDetailPage', () => {
       message: 'Cookbook saved to your collection',
       type: 'success',
     }));
+    expect(screen.getByRole('button', { name: /saved/i })).toBeDefined();
+  });
+
+  it('shows saved feedback after saving a recipe in the cookbook', async () => {
+    renderCookbookDetail();
+
+    fireEvent.click(await screen.findByLabelText('Save recipe'));
+
+    await waitFor(() => {
+      expect(mockSaveRecipe).toHaveBeenCalledWith('recipe-1');
+    });
+    expect(screen.getByLabelText('Recipe saved')).toBeDefined();
   });
 });

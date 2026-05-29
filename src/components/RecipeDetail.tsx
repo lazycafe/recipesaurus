@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User, Share2 } from 'lucide-react';
+import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User, Share2, Loader2, Check } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { Recipe as ClientRecipe } from '../client/types';
 import { DinoMascot } from './DinoMascot';
@@ -12,11 +12,23 @@ interface RecipeDetailProps {
   onDelete?: () => void;
   onEdit?: () => void;
   onSave?: () => void;
+  isSaving?: boolean;
+  isSaved?: boolean;
   readOnly?: boolean;
   isPublicView?: boolean;
 }
 
-export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOnly = false, isPublicView = false }: RecipeDetailProps) {
+export function RecipeDetail({
+  recipe,
+  onClose,
+  onDelete,
+  onEdit,
+  onSave,
+  isSaving = false,
+  isSaved = false,
+  readOnly = false,
+  isPublicView = false,
+}: RecipeDetailProps) {
   const [showShareModal, setShowShareModal] = useState(false);
 
   const handleDelete = () => {
@@ -134,9 +146,15 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
 
         {isPublicView && onSave && (
           <div className="detail-footer">
-            <button className="btn-primary" onClick={onSave}>
-              <Heart size={16} strokeWidth={2} />
-              <span>Save to My Recipes</span>
+            <button className="btn-primary" onClick={onSave} disabled={isSaving || isSaved}>
+              {isSaving ? (
+                <Loader2 size={16} strokeWidth={2} className="spin" />
+              ) : isSaved ? (
+                <Check size={16} strokeWidth={2} />
+              ) : (
+                <Heart size={16} strokeWidth={2} />
+              )}
+              <span>{isSaved ? 'Saved to My Recipes' : 'Save to My Recipes'}</span>
             </button>
           </div>
         )}

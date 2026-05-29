@@ -602,6 +602,12 @@ img {
   transform: translateY(0) scale(0.98);
 }
 
+.btn-primary:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .btn-primary .btn-text {
   color: inherit;
 }
@@ -1976,6 +1982,10 @@ img {
 .detail-footer .btn-secondary {
   height: 40px;
   padding: 0 var(--space-5);
+}
+
+.detail-footer .btn-primary:disabled {
+  transform: none;
 }
 
 /* ========================================
@@ -5160,6 +5170,23 @@ img {
   cursor: wait;
 }
 
+.discovery-save-btn.saved {
+  background: var(--color-terracotta);
+  color: white;
+  opacity: 1;
+  transform: scale(1);
+}
+
+.discovery-save-btn.saved span {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.discovery-save-btn.saved:disabled {
+  cursor: default;
+}
+
 .discovery-card-body {
   padding: var(--space-3);
 }
@@ -6262,6 +6289,21 @@ img {
   cursor: not-allowed;
 }
 
+.discovery-save-btn.saved {
+  background: var(--color-terracotta);
+  color: white;
+  opacity: 1;
+}
+
+.discovery-save-btn.saved:hover {
+  background: var(--color-terracotta);
+  color: white;
+}
+
+.discovery-save-btn.saved:disabled {
+  cursor: default;
+}
+
 .discovery-card-body {
   padding: var(--space-3);
 }
@@ -6374,22 +6416,6 @@ img {
 
 .discovery-card.cookbook-card:hover::before {
   background: linear-gradient(90deg, var(--color-terracotta) 0%, var(--color-terracotta-light) 100%);
-}
-
-/* Cookbook badge */
-.cookbook-badge {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
-  background: var(--color-sage);
-  color: white;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  z-index: 2;
 }
 
 /* ========================================
@@ -6610,6 +6636,18 @@ img {
 .public-recipe-card .save-btn:hover {
   background: var(--color-terracotta-light);
   color: var(--color-terracotta);
+}
+
+.public-recipe-card .save-btn.saved {
+  background: var(--color-terracotta);
+  color: white;
+  opacity: 1;
+  cursor: default;
+}
+
+.public-recipe-card .save-btn.saved:hover {
+  background: var(--color-terracotta);
+  color: white;
 }
 
 .public-recipe-card-body {
