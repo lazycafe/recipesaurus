@@ -62,6 +62,7 @@ export function MealPlannerPage() {
   const charactersRemaining = MAX_REQUEST_LENGTH - request.length;
   const remainingRequests = usage?.remainingRequests ?? 0;
   const requestLabel = remainingRequests === 1 ? 'request' : 'requests';
+  const isSubmitDisabled = isSubmitting || isUsageLoading || !request.trim();
 
   const quotaText = useMemo(() => {
     if (!usage) return 'Checking your weekly AI requests...';
@@ -289,7 +290,8 @@ export function MealPlannerPage() {
           <button
             type="submit"
             className="btn-primary meal-planner-submit"
-            disabled={isSubmitting || isUsageLoading || !request.trim()}
+            disabled={isSubmitDisabled}
+            aria-disabled={isSubmitDisabled}
           >
             {isSubmitting ? (
               <>
