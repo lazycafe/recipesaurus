@@ -1472,9 +1472,6 @@ async function handleGetBillingStatus(request: Request, env: Env): Promise<Respo
   if (!user) {
     return errorResponse('Unauthorized', 401, origin);
   }
-  if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner billing is not available for this account.', 403, origin);
-  }
 
   const subscription = await getUserSubscription(env.DB, user.id);
   return jsonResponse({ billing: formatBillingStatus(subscription) }, 200, corsHeaders(origin));
@@ -1584,6 +1581,49 @@ async function handleCreatePortalSession(request: Request, env: Env): Promise<Re
   } catch (error) {
     console.error('Stripe portal session failed:', error);
     return errorResponse('Unable to open billing management right now.', 502, origin);
+  }
+}
+
+async function handleCancelSubscription(request: Request, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, env.DB);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+  if (!canAccessMealPlanner(user.id, env, request)) {
+    return errorResponse('Meal planner billing is not available for this account.', 403, origin);
+  }
+  if (!env.STRIPE_SECRET_KEY) {
+    return errorResponse('Payments are not configured yet.', 503, origin);
+  }
+
+  const subscription = await getUserSubscription(env.DB, user.id);
+  if (!subscription?.stripe_subscription_id || !isPaidMealPlanSubscription(subscription)) {
+    return errorResponse('No active paid subscription found for this account.', 404, origin);
+  }
+
+  if (subscription.cancel_at_period_end === 1) {
+    return jsonResponse({ billing: formatBillingStatus(subscription) }, 200, corsHeaders(origin));
+  }
+
+  const params = new URLSearchParams({
+    cancel_at_period_end: 'true',
+  });
+
+  try {
+    const updatedSubscription = await stripePost<StripeSubscription>(
+      env,
+      `/subscriptions/${encodeURIComponent(subscription.stripe_subscription_id)}`,
+      params
+    );
+    await recordStripeSubscription(env.DB, user.id, updatedSubscription);
+
+    const refreshedSubscription = await getUserSubscription(env.DB, user.id);
+    return jsonResponse({ billing: formatBillingStatus(refreshedSubscription) }, 200, corsHeaders(origin));
+  } catch (error) {
+    console.error('Stripe subscription cancellation failed:', error);
+    return errorResponse('Unable to end subscription right now.', 502, origin);
   }
 }
 
@@ -3343,6 +3383,9 @@ export default {
       }
       if (path === '/api/billing/create-portal-session' && method === 'POST') {
         return handleCreatePortalSession(request, env);
+      }
+      if (path === '/api/billing/cancel-subscription' && method === 'POST') {
+        return handleCancelSubscription(request, env);
       }
       if (path === '/api/recipe-shares' && method === 'POST') {
         return handleCreateRecipeShareLink(request, env.DB);

@@ -391,6 +391,10 @@ export class InMemoryClient implements IClient {
     createPortalSession: async (): Promise<ApiResponse<BillingSession>> => {
       return { error: 'Billing management is not available in local test mode', status: 501 };
     },
+
+    cancelSubscription: async (): Promise<ApiResponse<{ billing: BillingStatus }>> => {
+      return { error: 'Subscription cancellation is not available in local test mode', status: 501 };
+    },
   };
 
   // Discovery - public content

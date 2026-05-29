@@ -236,6 +236,7 @@ export interface IClient {
     getStatus(): Promise<ApiResponse<{ billing: BillingStatus }>>;
     createCheckoutSession(): Promise<ApiResponse<BillingSession>>;
     createPortalSession(): Promise<ApiResponse<BillingSession>>;
+    cancelSubscription(): Promise<ApiResponse<{ billing: BillingStatus }>>;
   };
 
   discover: {

@@ -311,6 +311,10 @@ export class HttpClient implements IClient {
     createPortalSession: (): Promise<ApiResponse<BillingSession>> => {
       return this.transport.request('POST', '/api/billing/create-portal-session');
     },
+
+    cancelSubscription: (): Promise<ApiResponse<{ billing: BillingStatus }>> => {
+      return this.transport.request('POST', '/api/billing/cancel-subscription');
+    },
   };
 
   discover = {
