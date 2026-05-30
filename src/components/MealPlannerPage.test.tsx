@@ -250,7 +250,7 @@ describe('MealPlannerPage', () => {
     expect(mockCreateMealPlan).not.toHaveBeenCalled();
   });
 
-  it('opens paid billing management in a new tab without a loading state', async () => {
+  it('links toolbar status items to recipes and settings', async () => {
     mockGetMealPlanUsage.mockResolvedValue({
       data: {
         usage: {
@@ -265,22 +265,15 @@ describe('MealPlannerPage', () => {
     renderMealPlanner();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Manage billing/i })).toBeDefined();
+      expect(screen.getByRole('link', { name: /1 saved recipes available/i })).toBeDefined();
     });
 
-    const manageButton = screen.getByRole('button', { name: /Manage billing/i }) as HTMLButtonElement;
-    expect(manageButton.disabled).toBe(false);
-    fireEvent.click(manageButton);
-    expect(screen.queryByText(/Opening/i)).toBeNull();
+    const recipesLink = screen.getByRole('link', { name: /1 saved recipes available/i }) as HTMLAnchorElement;
+    const planLink = screen.getByRole('link', { name: /Meal Planner Plus: 2 requests remaining this week/i }) as HTMLAnchorElement;
 
-    await waitFor(() => {
-      expect(mockCreatePortalSession).toHaveBeenCalledTimes(1);
-      expect(mockOpen).toHaveBeenCalledWith(
-        'https://billing.stripe.test/session',
-        '_blank',
-        'noopener,noreferrer'
-      );
-    });
+    expect(recipesLink.getAttribute('href')).toBe('/my-recipes');
+    expect(planLink.getAttribute('href')).toBe('/settings');
+    expect(screen.queryByRole('button', { name: /Manage billing/i })).toBeNull();
   });
 
   it('creates a cookbook from linked saved recipes', async () => {

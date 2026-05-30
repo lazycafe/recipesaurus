@@ -31,6 +31,7 @@ export function SettingsPage() {
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [billingError, setBillingError] = useState('');
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -82,6 +83,20 @@ export function SettingsPage() {
     }
 
     setBillingError(result.error || 'Unable to open billing right now.');
+  };
+
+  const handleUpgrade = async () => {
+    setIsStartingCheckout(true);
+    setBillingError('');
+
+    const result = await client.billing.createCheckoutSession();
+    if (result.data?.url) {
+      window.location.assign(result.data.url);
+      return;
+    }
+
+    setBillingError(result.error || 'Unable to start checkout right now.');
+    setIsStartingCheckout(false);
   };
 
   if (!user) return null;
@@ -139,9 +154,20 @@ export function SettingsPage() {
             )}
 
             {!isPaid && (
-              <p className="settings-muted">
-                Free includes {billing?.freeWeeklyLimit || 2} AI meal planning requests per week.
-              </p>
+              <div className="settings-subscription-actions">
+                <p className="settings-subscription-note">
+                  Free includes {billing?.freeWeeklyLimit || 2} AI meal planning requests per week.
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary settings-manage-billing"
+                  onClick={handleUpgrade}
+                  disabled={isStartingCheckout}
+                >
+                  <CreditCard size={16} />
+                  {isStartingCheckout ? 'Opening checkout...' : 'Upgrade to Meal Planner Plus'}
+                </button>
+              </div>
             )}
 
             {isPaid && (
@@ -153,7 +179,7 @@ export function SettingsPage() {
                 </p>
                 <button
                   type="button"
-                  className="meal-planner-billing-link settings-manage-billing"
+                  className="settings-billing-button settings-manage-billing"
                   onClick={handleManageBilling}
                 >
                   <CreditCard size={16} />
