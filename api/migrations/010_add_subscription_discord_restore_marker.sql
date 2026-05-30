@@ -1,0 +1,1 @@
+ALTER TABLE user_subscriptions ADD COLUMN discord_restored_notified_at INTEGER;

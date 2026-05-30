@@ -214,6 +214,7 @@ export interface DbUserSubscription {
   cancel_at_period_end: number;
   discord_subscribed_notified_at: number | null;
   discord_cancelled_notified_at: number | null;
+  discord_restored_notified_at: number | null;
   created_at: number;
   updated_at: number;
 }

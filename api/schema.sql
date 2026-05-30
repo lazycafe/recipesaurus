@@ -147,6 +147,7 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
   discord_subscribed_notified_at INTEGER,
   discord_cancelled_notified_at INTEGER,
+  discord_restored_notified_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

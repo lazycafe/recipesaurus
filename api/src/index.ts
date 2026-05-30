@@ -158,6 +158,7 @@ interface UserSubscription {
   cancel_at_period_end: number;
   discord_subscribed_notified_at: number | null;
   discord_cancelled_notified_at: number | null;
+  discord_restored_notified_at: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -548,9 +549,21 @@ async function markSubscriptionDiscordNotified(
   userId: string,
   action: SubscriptionAction
 ): Promise<void> {
-  const column = action === 'subscribed'
-    ? 'discord_subscribed_notified_at'
-    : 'discord_cancelled_notified_at';
+  const column = getSubscriptionNotificationColumn(action);
+  const resetColumn = action === 'cancelled'
+    ? 'discord_restored_notified_at'
+    : action === 'restored'
+      ? 'discord_cancelled_notified_at'
+      : null;
+
+  if (resetColumn) {
+    await db.prepare(`
+      UPDATE user_subscriptions
+      SET ${column} = COALESCE(${column}, ?), ${resetColumn} = NULL
+      WHERE user_id = ? AND ${column} IS NULL
+    `).bind(Date.now(), userId).run();
+    return;
+  }
 
   await db.prepare(`
     UPDATE user_subscriptions
@@ -797,7 +810,25 @@ async function notifyDiscordNewUser(webhookUrl: string | undefined, name: string
   });
 }
 
-type SubscriptionAction = 'subscribed' | 'cancelled';
+type SubscriptionAction = 'subscribed' | 'cancelled' | 'restored';
+
+function getSubscriptionNotificationColumn(action: SubscriptionAction): keyof UserSubscription {
+  if (action === 'subscribed') return 'discord_subscribed_notified_at';
+  if (action === 'cancelled') return 'discord_cancelled_notified_at';
+  return 'discord_restored_notified_at';
+}
+
+function getSubscriptionNotificationTitle(action: SubscriptionAction): string {
+  if (action === 'subscribed') return 'User subscribed';
+  if (action === 'cancelled') return 'User cancelled subscription';
+  return 'User restored subscription';
+}
+
+function getSubscriptionNotificationColor(action: SubscriptionAction): number {
+  if (action === 'subscribed') return 0x7a9e7e;
+  if (action === 'cancelled') return 0xc45a5a;
+  return 0x5b8def;
+}
 
 async function notifyDiscordSubscriptionEvent(
   env: Env,
@@ -805,13 +836,10 @@ async function notifyDiscordSubscriptionEvent(
   email: string,
   action: SubscriptionAction
 ): Promise<boolean> {
-  const title = action === 'subscribed' ? 'User subscribed' : 'User cancelled subscription';
-  const color = action === 'subscribed' ? 0x7a9e7e : 0xc45a5a;
-
   const payload = {
     embeds: [{
-      title,
-      color,
+      title: getSubscriptionNotificationTitle(action),
+      color: getSubscriptionNotificationColor(action),
       fields: [
         { name: 'User ID', value: userId.slice(0, 1024), inline: true },
         { name: 'Email', value: email.slice(0, 1024), inline: true },
@@ -842,9 +870,7 @@ async function notifyDiscordSubscriptionEventOnceForUser(
   userId: string,
   action: SubscriptionAction
 ): Promise<void> {
-  const notificationColumn = action === 'subscribed'
-    ? 'discord_subscribed_notified_at'
-    : 'discord_cancelled_notified_at';
+  const notificationColumn = getSubscriptionNotificationColumn(action);
   const subscription = await getUserSubscription(env.DB, userId);
   if (subscription?.[notificationColumn]) {
     return;
@@ -1723,6 +1749,8 @@ async function handleGetBillingStatus(request: Request, env: Env): Promise<Respo
   const subscription = await getUserSubscription(env.DB, user.id);
   if (subscription?.cancel_at_period_end === 1) {
     await notifyDiscordSubscriptionEventOnceForUser(env, user.id, 'cancelled');
+  } else if (subscription?.discord_cancelled_notified_at && !subscription.discord_restored_notified_at) {
+    await notifyDiscordSubscriptionEventOnceForUser(env, user.id, 'restored');
   }
 
   return jsonResponse({ billing: formatBillingStatus(subscription) }, 200, corsHeaders(origin));
@@ -1913,6 +1941,7 @@ async function handleReinstateSubscription(request: Request, env: Env): Promise<
       params
     );
     await recordStripeSubscription(env.DB, user.id, updatedSubscription);
+    await notifyDiscordSubscriptionEventOnceForUser(env, user.id, 'restored');
 
     const refreshedSubscription = await getUserSubscription(env.DB, user.id);
     return jsonResponse({ billing: formatBillingStatus(refreshedSubscription) }, 200, corsHeaders(origin));
@@ -1970,6 +1999,15 @@ async function handleStripeSubscriptionEvent(env: Env, subscription: StripeSubsc
 
   if (eventType === 'customer.subscription.updated' && subscription.cancel_at_period_end === true) {
     await notifyDiscordSubscriptionEventOnceForUser(env, userId, 'cancelled');
+    return;
+  }
+
+  if (
+    eventType === 'customer.subscription.updated' &&
+    subscription.cancel_at_period_end === false &&
+    existingSubscription?.cancel_at_period_end === 1
+  ) {
+    await notifyDiscordSubscriptionEventOnceForUser(env, userId, 'restored');
     return;
   }
 
