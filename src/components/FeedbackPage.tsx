@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Send, CheckCircle, Loader2 } from 'lucide-react';
+import { getStoredToken } from '../utils/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://recipesaurus-api.andreay226.workers.dev';
 const FEEDBACK_STORAGE_KEY = 'recipesaurus_feedback_timestamps';
@@ -55,9 +56,16 @@ export function FeedbackPage() {
     setIsSubmitting(true);
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const token = getStoredToken();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/feedback`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers,
         body: JSON.stringify({
           type: feedbackType,
           message,

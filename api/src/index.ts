@@ -886,6 +886,12 @@ async function notifyDiscordSubscriptionEventOnceForUser(
 
 async function handleFeedback(request: Request, env: Env): Promise<Response> {
   const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, env.DB);
+
+  if (!user) {
+    return errorResponse('Authentication required', 401, origin);
+  }
+
   const body = await request.json() as {
     type?: 'bug' | 'feature' | 'general';
     message?: string;
@@ -910,12 +916,16 @@ async function handleFeedback(request: Request, env: Env): Promise<Response> {
 
   const typeName = feedbackType === 'bug' ? 'Bug' : feedbackType === 'feature' ? 'Feature' : 'Feedback';
   const typeLabel = feedbackType === 'bug' ? 'Bug Report' : feedbackType === 'feature' ? 'Feature Request' : 'General Feedback';
+  const fields = [
+    { name: 'User ID', value: user.id },
+    ...(email ? [{ name: 'Contact Email', value: email.slice(0, 254) }] : []),
+  ];
   const delivered = await postDiscordWebhook(env.DISCORD_FEEDBACK_WEBHOOK_URL, {
     embeds: [{
       title: `${typeName}: ${typeLabel}`,
       description: message,
       color: feedbackType === 'bug' ? 0xc45a5a : feedbackType === 'feature' ? 0x7a9e7e : 0xc9a962,
-      fields: email ? [{ name: 'Contact Email', value: email.slice(0, 254) }] : [],
+      fields,
       timestamp: new Date().toISOString(),
     }],
   });

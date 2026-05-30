@@ -142,6 +142,30 @@ describe('FeedbackPage', () => {
     });
   });
 
+  it('sends the stored auth token with feedback requests', async () => {
+    localStorageMock.setItem('recipesaurus_token', 'session-token');
+    renderWithRouter();
+
+    const textarea = screen.getByLabelText('Your Message');
+    fireEvent.change(textarea, { target: { value: 'Logged in feedback' } });
+
+    const submitButton = screen.getByText('Send Feedback').closest('button')!;
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/feedback'),
+        expect.objectContaining({
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer session-token',
+          },
+        })
+      );
+    });
+  });
+
   it('shows return to recipes link after submission', async () => {
     renderWithRouter();
 
