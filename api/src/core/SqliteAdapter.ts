@@ -170,6 +170,8 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       status TEXT NOT NULL,
       current_period_end INTEGER,
       cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+      discord_subscribed_notified_at INTEGER,
+      discord_cancelled_notified_at INTEGER,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id)

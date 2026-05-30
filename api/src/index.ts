@@ -156,6 +156,8 @@ interface UserSubscription {
   status: string;
   current_period_end: number | null;
   cancel_at_period_end: number;
+  discord_subscribed_notified_at: number | null;
+  discord_cancelled_notified_at: number | null;
   created_at: number;
   updated_at: number;
 }
@@ -541,6 +543,22 @@ async function upsertUserSubscription(
   ).run();
 }
 
+async function markSubscriptionDiscordNotified(
+  db: D1Database,
+  userId: string,
+  action: SubscriptionAction
+): Promise<void> {
+  const column = action === 'subscribed'
+    ? 'discord_subscribed_notified_at'
+    : 'discord_cancelled_notified_at';
+
+  await db.prepare(`
+    UPDATE user_subscriptions
+    SET ${column} = COALESCE(${column}, ?)
+    WHERE user_id = ? AND ${column} IS NULL
+  `).bind(Date.now(), userId).run();
+}
+
 async function findSubscriptionUserId(db: D1Database, subscription: StripeSubscription): Promise<string | null> {
   if (subscription.metadata?.userId) {
     return subscription.metadata.userId;
@@ -782,15 +800,15 @@ async function notifyDiscordNewUser(webhookUrl: string | undefined, name: string
 type SubscriptionAction = 'subscribed' | 'cancelled';
 
 async function notifyDiscordSubscriptionEvent(
-  webhookUrl: string | undefined,
+  env: Env,
   userId: string,
   email: string,
   action: SubscriptionAction
-): Promise<void> {
+): Promise<boolean> {
   const title = action === 'subscribed' ? 'User subscribed' : 'User cancelled subscription';
   const color = action === 'subscribed' ? 0x7a9e7e : 0xc45a5a;
 
-  await postDiscordWebhook(webhookUrl, {
+  const payload = {
     embeds: [{
       title,
       color,
@@ -801,14 +819,37 @@ async function notifyDiscordSubscriptionEvent(
       ],
       timestamp: new Date().toISOString(),
     }],
-  });
+  };
+
+  const webhookUrls = [
+    env.DISCORD_SUBSCRIPTION_WEBHOOK_URL,
+    env.DISCORD_FEEDBACK_WEBHOOK_URL,
+    env.DISCORD_SIGNUP_WEBHOOK_URL,
+  ].filter((url, index, urls): url is string => Boolean(url) && urls.indexOf(url) === index);
+
+  for (const webhookUrl of webhookUrls) {
+    if (await postDiscordWebhook(webhookUrl, payload)) {
+      return true;
+    }
+    console.warn('Subscription Discord webhook failed; trying next configured webhook');
+  }
+
+  return false;
 }
 
-async function notifyDiscordSubscriptionEventForUser(
+async function notifyDiscordSubscriptionEventOnceForUser(
   env: Env,
   userId: string,
   action: SubscriptionAction
 ): Promise<void> {
+  const notificationColumn = action === 'subscribed'
+    ? 'discord_subscribed_notified_at'
+    : 'discord_cancelled_notified_at';
+  const subscription = await getUserSubscription(env.DB, userId);
+  if (subscription?.[notificationColumn]) {
+    return;
+  }
+
   const user = await env.DB.prepare('SELECT id, email FROM users WHERE id = ?')
     .bind(userId)
     .first<{ id: string; email: string }>();
@@ -818,7 +859,13 @@ async function notifyDiscordSubscriptionEventForUser(
     return;
   }
 
-  await notifyDiscordSubscriptionEvent(env.DISCORD_SUBSCRIPTION_WEBHOOK_URL, user.id, user.email, action);
+  const delivered = await notifyDiscordSubscriptionEvent(env, user.id, user.email, action);
+  if (!delivered) {
+    console.error('Subscription Discord notification was not delivered', action, userId);
+    return;
+  }
+
+  await markSubscriptionDiscordNotified(env.DB, userId, action);
 }
 
 async function handleFeedback(request: Request, env: Env): Promise<Response> {
@@ -1674,6 +1721,10 @@ async function handleGetBillingStatus(request: Request, env: Env): Promise<Respo
   }
 
   const subscription = await getUserSubscription(env.DB, user.id);
+  if (subscription?.cancel_at_period_end === 1) {
+    await notifyDiscordSubscriptionEventOnceForUser(env, user.id, 'cancelled');
+  }
+
   return jsonResponse({ billing: formatBillingStatus(subscription) }, 200, corsHeaders(origin));
 }
 
@@ -1818,7 +1869,7 @@ async function handleCancelSubscription(request: Request, env: Env): Promise<Res
       params
     );
     await recordStripeSubscription(env.DB, user.id, updatedSubscription);
-    await notifyDiscordSubscriptionEventForUser(env, user.id, 'cancelled');
+    await notifyDiscordSubscriptionEventOnceForUser(env, user.id, 'cancelled');
 
     const refreshedSubscription = await getUserSubscription(env.DB, user.id);
     return jsonResponse({ billing: formatBillingStatus(refreshedSubscription) }, 200, corsHeaders(origin));
@@ -1885,7 +1936,7 @@ async function handleCheckoutCompleted(env: Env, session: StripeCheckoutSession)
     const subscription = await stripeGet<StripeSubscription>(env, `/subscriptions/${encodeURIComponent(subscriptionId)}`);
     await recordStripeSubscription(env.DB, userId, subscription);
     if (!isPaidMealPlanSubscription(existingSubscription) && isPaidStripeSubscription(subscription)) {
-      await notifyDiscordSubscriptionEventForUser(env, userId, 'subscribed');
+      await notifyDiscordSubscriptionEventOnceForUser(env, userId, 'subscribed');
     }
     return;
   }
@@ -1898,7 +1949,7 @@ async function handleCheckoutCompleted(env: Env, session: StripeCheckoutSession)
     cancelAtPeriodEnd: false,
   });
   if (!isPaidMealPlanSubscription(existingSubscription)) {
-    await notifyDiscordSubscriptionEventForUser(env, userId, 'subscribed');
+    await notifyDiscordSubscriptionEventOnceForUser(env, userId, 'subscribed');
   }
 }
 
@@ -1913,18 +1964,17 @@ async function handleStripeSubscriptionEvent(env: Env, subscription: StripeSubsc
   await recordStripeSubscription(env.DB, userId, subscription);
 
   if (!isPaidMealPlanSubscription(existingSubscription) && isPaidStripeSubscription(subscription)) {
-    await notifyDiscordSubscriptionEventForUser(env, userId, 'subscribed');
+    await notifyDiscordSubscriptionEventOnceForUser(env, userId, 'subscribed');
     return;
   }
 
-  const wasAlreadyCancelling = existingSubscription?.cancel_at_period_end === 1;
-  if (eventType === 'customer.subscription.updated' && subscription.cancel_at_period_end === true && !wasAlreadyCancelling) {
-    await notifyDiscordSubscriptionEventForUser(env, userId, 'cancelled');
+  if (eventType === 'customer.subscription.updated' && subscription.cancel_at_period_end === true) {
+    await notifyDiscordSubscriptionEventOnceForUser(env, userId, 'cancelled');
     return;
   }
 
-  if (eventType === 'customer.subscription.deleted' && !wasAlreadyCancelling) {
-    await notifyDiscordSubscriptionEventForUser(env, userId, 'cancelled');
+  if (eventType === 'customer.subscription.deleted') {
+    await notifyDiscordSubscriptionEventOnceForUser(env, userId, 'cancelled');
   }
 }
 

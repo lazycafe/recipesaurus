@@ -1,0 +1,2 @@
+ALTER TABLE user_subscriptions ADD COLUMN discord_subscribed_notified_at INTEGER;
+ALTER TABLE user_subscriptions ADD COLUMN discord_cancelled_notified_at INTEGER;

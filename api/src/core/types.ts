@@ -212,6 +212,8 @@ export interface DbUserSubscription {
   status: string;
   current_period_end: number | null;
   cancel_at_period_end: number;
+  discord_subscribed_notified_at: number | null;
+  discord_cancelled_notified_at: number | null;
   created_at: number;
   updated_at: number;
 }
