@@ -1577,6 +1577,8 @@ export class CoreHandlers {
       Date.now()
     );
 
+    await this.copyCookbookRecipesToUserCollection(user.id, invite.cookbook_id);
+
     // Update invite status
     await this.db.run(
       "UPDATE cookbook_invites SET status = 'accepted' WHERE id = ?",
@@ -1928,6 +1930,57 @@ export class CoreHandlers {
     );
 
     return existing?.id || null;
+  }
+
+  private async copyCookbookRecipesToUserCollection(userId: string, cookbookId: string): Promise<void> {
+    const cookbookRecipes = await this.db.all<DbRecipe>(
+      `SELECT r.* FROM recipes r
+       JOIN cookbook_recipes cr ON r.id = cr.recipe_id
+       WHERE cr.cookbook_id = ?`,
+      cookbookId
+    );
+
+    const now = Date.now();
+    const collectionId = await this.getOrCreateRecipeCollection(userId);
+
+    for (const recipe of cookbookRecipes.results) {
+      let savedRecipeId = await this.findExistingSavedRecipeId(userId, recipe);
+
+      if (!savedRecipeId) {
+        savedRecipeId = this.crypto.generateId();
+
+        await this.db.run(
+          `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          savedRecipeId,
+          userId,
+          recipe.owner_id,
+          recipe.title,
+          recipe.description,
+          recipe.ingredients,
+          recipe.instructions,
+          recipe.tags,
+          recipe.image_url,
+          recipe.source_url,
+          recipe.prep_time,
+          recipe.cook_time,
+          recipe.servings,
+          recipe.id,
+          0,
+          now
+        );
+      }
+
+      await this.db.run(
+        'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
+        collectionId,
+        savedRecipeId,
+        userId,
+        now
+      );
+    }
+
+    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, collectionId);
   }
 
   // Save a public recipe to user's collection (creates a copy)

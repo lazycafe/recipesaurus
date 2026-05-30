@@ -4,6 +4,7 @@ import { User, LogOut, Check, X, Book, ChefHat, CheckCheck, Bell, Settings, Tras
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useCookbooks } from '../context/CookbookContext';
+import { useRecipes } from '../context/RecipeContext';
 import type { Notification } from '../client/types';
 
 export function UserMenu() {
@@ -11,6 +12,7 @@ export function UserMenu() {
   const { user, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll, acceptInvite, declineInvite } = useNotifications();
   const { refreshCookbooks } = useCookbooks();
+  const { refreshRecipes } = useRecipes();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -27,7 +29,7 @@ export function UserMenu() {
   const handleAccept = async (inviteId: string) => {
     const result = await acceptInvite(inviteId);
     if (result) {
-      await refreshCookbooks();
+      await Promise.all([refreshCookbooks(), refreshRecipes()]);
       setIsOpen(false);
       navigate(`/cookbooks/${result.cookbookId}`);
     }

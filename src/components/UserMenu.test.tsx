@@ -5,6 +5,7 @@ import { UserMenu } from './UserMenu';
 import * as AuthContext from '../context/AuthContext';
 import * as NotificationContext from '../context/NotificationContext';
 import * as CookbookContext from '../context/CookbookContext';
+import * as RecipeContext from '../context/RecipeContext';
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: vi.fn(),
@@ -16,6 +17,10 @@ vi.mock('../context/NotificationContext', () => ({
 
 vi.mock('../context/CookbookContext', () => ({
   useCookbooks: vi.fn(),
+}));
+
+vi.mock('../context/RecipeContext', () => ({
+  useRecipes: vi.fn(),
 }));
 
 describe('UserMenu', () => {
@@ -64,6 +69,16 @@ describe('UserMenu', () => {
       addRecipeToCookbook: vi.fn(),
       removeRecipeFromCookbook: vi.fn(),
       refreshCookbooks: vi.fn(),
+    });
+
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: vi.fn(),
+      getAllTags: vi.fn(() => []),
+      refreshRecipes: vi.fn(),
     });
   });
 

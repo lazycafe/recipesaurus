@@ -58,7 +58,7 @@ describe('CookbookList', () => {
     );
 
     expect(screen.getByText('No cookbooks yet')).toBeDefined();
-    expect(screen.getByText('Create a cookbook to organize your recipes.')).toBeDefined();
+    expect(screen.getByText('Create a cookbook to organize your recipes. Shared cookbooks will appear here too.')).toBeDefined();
   });
 
   it('shows page header with title and New Cookbook button', () => {
@@ -105,7 +105,7 @@ describe('CookbookList', () => {
     expect(screen.getByText('3 recipes')).toBeDefined();
   });
 
-  it('shows shared tab when shared cookbooks exist', () => {
+  it('renders owned and shared cookbooks together', () => {
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
       ownedCookbooks: [mockCookbook],
       sharedCookbooks: [mockSharedCookbook],
@@ -123,30 +123,11 @@ describe('CookbookList', () => {
       <CookbookList onCreateCookbook={() => {}} />
     );
 
-    expect(screen.getByText('Shared with Me')).toBeDefined();
-  });
-
-  it('switches to shared tab and shows shared cookbooks', () => {
-    vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
-      ownedCookbooks: [mockCookbook],
-      sharedCookbooks: [mockSharedCookbook],
-      isLoading: false,
-      createCookbook: vi.fn(),
-      updateCookbook: vi.fn(),
-      deleteCookbook: vi.fn(),
-      leaveCookbook: vi.fn(),
-      addRecipeToCookbook: vi.fn(),
-      removeRecipeFromCookbook: vi.fn(),
-      refreshCookbooks: vi.fn(),
-    });
-
-    renderWithRouter(
-      <CookbookList onCreateCookbook={() => {}} />
-    );
-
-    fireEvent.click(screen.getByText('Shared with Me'));
     // Cookbook name appears multiple times (spine + cover)
+    expect(screen.getAllByText('Test Cookbook').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Shared Cookbook').length).toBeGreaterThan(0);
+    expect(screen.queryByText('My Cookbooks')).toBeNull();
+    expect(screen.queryByText('Shared with Me')).toBeNull();
   });
 
   it('links to cookbook detail page when cookbook clicked', () => {
@@ -171,7 +152,7 @@ describe('CookbookList', () => {
     expect(link.getAttribute('href')).toBe('/cookbooks/1');
   });
 
-  it('shows tabs only when shared cookbooks exist', () => {
+  it('does not show cookbook section tabs', () => {
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
       ownedCookbooks: [mockCookbook],
       sharedCookbooks: [mockSharedCookbook],
@@ -189,30 +170,7 @@ describe('CookbookList', () => {
       <CookbookList onCreateCookbook={() => {}} />
     );
 
-    // Both tabs should be visible
-    expect(screen.getByText('My Cookbooks')).toBeDefined();
-    expect(screen.getByText('Shared with Me')).toBeDefined();
-  });
-
-  it('hides shared tab when no shared cookbooks', () => {
-    vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
-      ownedCookbooks: [mockCookbook],
-      sharedCookbooks: [],
-      isLoading: false,
-      createCookbook: vi.fn(),
-      updateCookbook: vi.fn(),
-      deleteCookbook: vi.fn(),
-      leaveCookbook: vi.fn(),
-      addRecipeToCookbook: vi.fn(),
-      removeRecipeFromCookbook: vi.fn(),
-      refreshCookbooks: vi.fn(),
-    });
-
-    renderWithRouter(
-      <CookbookList onCreateCookbook={() => {}} />
-    );
-
-    // The shared tab should not be visible when there are no shared cookbooks
+    expect(screen.queryByText('My Cookbooks')).toBeNull();
     expect(screen.queryByText('Shared with Me')).toBeNull();
   });
 });
