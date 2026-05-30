@@ -159,10 +159,22 @@ export interface PageViewCount {
   count: number;
 }
 
+export interface PageViewEvent {
+  id: string;
+  pageKey: string;
+  userId: string | null;
+  viewedAt: number;
+  viewedAtDate: string;
+}
+
 export interface PageViewQuery {
   pageKey?: string;
   from?: number | string | Date;
   to?: number | string | Date;
+}
+
+export interface PageViewEventQuery extends PageViewQuery {
+  limit?: number;
 }
 
 // API Response types
@@ -261,6 +273,7 @@ export interface IClient {
   analytics: {
     trackPageView(pageKey: string): Promise<ApiResponse<{ success: boolean }>>;
     getPageViews(options?: PageViewQuery): Promise<ApiResponse<{ counts: PageViewCount[]; total: number; from: number | null; to: number | null }>>;
+    listPageViews(options?: PageViewEventQuery): Promise<ApiResponse<{ views: PageViewEvent[]; from: number | null; to: number | null; limit: number }>>;
   };
 
   discover: {

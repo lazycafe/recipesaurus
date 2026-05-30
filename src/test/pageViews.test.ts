@@ -41,6 +41,26 @@ describe('Page view tracking', () => {
       from: 1_500,
       to: 2_500,
     });
+
+    const events = await client.analytics.listPageViews({
+      pageKey: 'discover_recipes',
+      from: 1_500,
+      to: 2_500,
+      limit: 10,
+    });
+
+    expect(events.error).toBeUndefined();
+    expect(events.data?.views).toHaveLength(2);
+    expect(events.data?.views[0]).toMatchObject({
+      pageKey: 'discover_recipes',
+      viewedAt: 2_000,
+      viewedAtDate: '1970-01-01T00:00:02.000Z',
+    });
+    expect(events.data?.views[1]).toMatchObject({
+      pageKey: 'discover_recipes',
+      viewedAt: 2_000,
+      viewedAtDate: '1970-01-01T00:00:02.000Z',
+    });
   });
 
   it('can return counts for all page keys in a window', async () => {

@@ -21,6 +21,8 @@ import type {
   BillingStatus,
   BillingSession,
   PageViewCount,
+  PageViewEvent,
+  PageViewEventQuery,
   PageViewQuery,
 } from './types';
 
@@ -346,6 +348,18 @@ export class HttpClient implements IClient {
       if (options?.to !== undefined) params.set('to', formatPageViewTime(options.to));
       const query = params.toString();
       return this.transport.request('GET', `/api/analytics/page-views${query ? `?${query}` : ''}`);
+    },
+
+    listPageViews: (
+      options?: PageViewEventQuery
+    ): Promise<ApiResponse<{ views: PageViewEvent[]; from: number | null; to: number | null; limit: number }>> => {
+      const params = new URLSearchParams();
+      if (options?.pageKey) params.set('key', options.pageKey);
+      if (options?.from !== undefined) params.set('from', formatPageViewTime(options.from));
+      if (options?.to !== undefined) params.set('to', formatPageViewTime(options.to));
+      if (options?.limit !== undefined) params.set('limit', String(options.limit));
+      const query = params.toString();
+      return this.transport.request('GET', `/api/analytics/page-view-events${query ? `?${query}` : ''}`);
     },
   };
 

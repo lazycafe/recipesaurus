@@ -246,8 +246,20 @@ export interface PageViewCountInfo {
   count: number;
 }
 
+export interface PageViewEventInfo {
+  id: string;
+  pageKey: string;
+  userId: string | null;
+  viewedAt: number;
+  viewedAtDate: string;
+}
+
 export interface PageViewCountQuery {
   pageKey?: string;
   from?: number | string;
   to?: number | string;
+}
+
+export interface PageViewEventQuery extends PageViewCountQuery {
+  limit?: number;
 }

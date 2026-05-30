@@ -304,6 +304,19 @@ function parsePageViewTimestamp(value: string | null): number | null {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+function parsePageViewLimit(value: string | null): number {
+  if (value === null) return 100;
+
+  const limit = Number(value);
+  if (!Number.isFinite(limit)) return 100;
+
+  return Math.min(Math.max(Math.floor(limit), 1), 500);
+}
+
+function pageViewDate(timestamp: number): string {
+  return new Date(timestamp).toISOString();
+}
+
 function hasAnalyticsReadAccess(request: Request, env: Env): boolean {
   if (!env.ANALYTICS_READ_TOKEN) return true;
 
@@ -1255,6 +1268,83 @@ async function handleGetPageViewCounts(request: Request, db: D1Database, env: En
     total: counts.reduce((sum, row) => sum + row.count, 0),
     from,
     to,
+  }, 200, corsHeaders(origin));
+}
+
+async function handleGetPageViewEvents(request: Request, db: D1Database, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  if (!hasAnalyticsReadAccess(request, env)) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const url = new URL(request.url);
+  const pageKey = url.searchParams.get('key') ?? url.searchParams.get('pageKey');
+  if (pageKey !== null && !isValidPageKey(pageKey)) {
+    return errorResponse('Invalid page key', 400, origin);
+  }
+
+  const fromParam = url.searchParams.get('from');
+  const toParam = url.searchParams.get('to');
+  const from = parsePageViewTimestamp(fromParam);
+  const to = parsePageViewTimestamp(toParam);
+
+  if (fromParam !== null && from === null) {
+    return errorResponse('Invalid from timestamp', 400, origin);
+  }
+  if (toParam !== null && to === null) {
+    return errorResponse('Invalid to timestamp', 400, origin);
+  }
+  if (from !== null && to !== null && from > to) {
+    return errorResponse('from must be before to', 400, origin);
+  }
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (pageKey) {
+    conditions.push('page_key = ?');
+    params.push(pageKey);
+  }
+  if (from !== null) {
+    conditions.push('viewed_at >= ?');
+    params.push(from);
+  }
+  if (to !== null) {
+    conditions.push('viewed_at < ?');
+    params.push(to);
+  }
+
+  const limit = parsePageViewLimit(url.searchParams.get('limit'));
+  params.push(limit);
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const result = await db.prepare(
+    `SELECT id, page_key, user_id, viewed_at
+     FROM page_views
+     ${where}
+     ORDER BY viewed_at DESC
+     LIMIT ?`
+  ).bind(...params).all<{
+    id: string;
+    page_key: string;
+    user_id: string | null;
+    viewed_at: number;
+  }>();
+
+  return jsonResponse({
+    views: result.results.map(row => {
+      const viewedAt = Number(row.viewed_at);
+      return {
+        id: row.id,
+        pageKey: row.page_key,
+        userId: row.user_id,
+        viewedAt,
+        viewedAtDate: pageViewDate(viewedAt),
+      };
+    }),
+    from,
+    to,
+    limit,
   }, 200, corsHeaders(origin));
 }
 
@@ -3620,6 +3710,9 @@ export default {
       }
       if (path === '/api/analytics/page-views' && method === 'POST') {
         return handleTrackPageView(request, env.DB);
+      }
+      if (path === '/api/analytics/page-view-events' && method === 'GET') {
+        return handleGetPageViewEvents(request, env.DB, env);
       }
       if (path === '/api/analytics/page-views' && method === 'GET') {
         return handleGetPageViewCounts(request, env.DB, env);

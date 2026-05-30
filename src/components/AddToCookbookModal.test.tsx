@@ -118,6 +118,7 @@ describe('AddToCookbookModal', () => {
       analytics: {
         trackPageView: vi.fn(),
         getPageViews: vi.fn(),
+        listPageViews: vi.fn(),
       },
       discover: {
         recipes: vi.fn(),

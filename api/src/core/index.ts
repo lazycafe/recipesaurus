@@ -23,6 +23,8 @@ export type {
   RecipeShareLinkInfo,
   PageViewCountInfo,
   PageViewCountQuery,
+  PageViewEventInfo,
+  PageViewEventQuery,
 } from './types';
 
 export { CoreHandlers, webCryptoProvider } from './handlers';

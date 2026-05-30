@@ -20,6 +20,8 @@ import type {
   BillingStatus,
   BillingSession,
   PageViewCount,
+  PageViewEvent,
+  PageViewEventQuery,
   PageViewQuery,
 } from './types';
 
@@ -95,6 +97,7 @@ export interface ICoreHandlers {
   // Analytics
   trackPageView(ctx: RequestContext, data: { pageKey?: unknown }): Promise<ApiResult<{ success: boolean }>>;
   getPageViewCounts(query?: { pageKey?: string; from?: number | string; to?: number | string }): Promise<ApiResult<{ counts: PageViewCount[]; total: number; from: number | null; to: number | null }>>;
+  getPageViewEvents(query?: { pageKey?: string; from?: number | string; to?: number | string; limit?: number }): Promise<ApiResult<{ views: PageViewEvent[]; from: number | null; to: number | null; limit: number }>>;
 }
 
 // In-memory token storage for testing
@@ -389,6 +392,18 @@ export class InMemoryClient implements IClient {
         pageKey: options?.pageKey,
         from: formatPageViewTime(options?.from),
         to: formatPageViewTime(options?.to),
+      });
+      return toApiResponse(result);
+    },
+
+    listPageViews: async (
+      options?: PageViewEventQuery
+    ): Promise<ApiResponse<{ views: PageViewEvent[]; from: number | null; to: number | null; limit: number }>> => {
+      const result = await this.handlers.getPageViewEvents({
+        pageKey: options?.pageKey,
+        from: formatPageViewTime(options?.from),
+        to: formatPageViewTime(options?.to),
+        limit: options?.limit,
       });
       return toApiResponse(result);
     },

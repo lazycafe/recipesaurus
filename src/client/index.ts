@@ -20,6 +20,8 @@ export type {
   BillingStatus,
   BillingSession,
   PageViewCount,
+  PageViewEvent,
+  PageViewEventQuery,
   PageViewQuery,
 } from './types';
 

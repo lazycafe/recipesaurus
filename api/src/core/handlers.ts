@@ -19,6 +19,8 @@ import type {
   DbAiMealPlanRequest,
   PageViewCountInfo,
   PageViewCountQuery,
+  PageViewEventInfo,
+  PageViewEventQuery,
 } from './types';
 import {
   MEAL_PLAN_HISTORY_LIMIT,
@@ -325,6 +327,43 @@ function normalizePageViewQuery(query: PageViewCountQuery): {
   return { pageKey, from, to };
 }
 
+function normalizePageViewEventQuery(query: PageViewEventQuery = {}): {
+  pageKey?: string;
+  from: number | null;
+  to: number | null;
+  limit: number;
+  error?: string;
+} {
+  const normalized = normalizePageViewQuery(query);
+  if (normalized.error) {
+    return { ...normalized, limit: 100 };
+  }
+
+  const requestedLimit = typeof query.limit === 'number' && Number.isFinite(query.limit)
+    ? Math.floor(query.limit)
+    : 100;
+
+  return {
+    ...normalized,
+    limit: Math.min(Math.max(requestedLimit, 1), 500),
+  };
+}
+
+function formatPageViewEvent(row: {
+  id: string;
+  page_key: string;
+  user_id: string | null;
+  viewed_at: number;
+}): PageViewEventInfo {
+  return {
+    id: row.id,
+    pageKey: row.page_key,
+    userId: row.user_id,
+    viewedAt: Number(row.viewed_at),
+    viewedAtDate: new Date(Number(row.viewed_at)).toISOString(),
+  };
+}
+
 // Core handler class
 export class CoreHandlers {
   constructor(
@@ -598,6 +637,57 @@ export class CoreHandlers {
 
     return {
       data: { recipes: dedupeRecipeRows(result.results, user.id).map(r => formatRecipe(r, user.id)) },
+      status: 200,
+    };
+  }
+
+  async getPageViewEvents(
+    query: PageViewEventQuery = {}
+  ): Promise<ApiResult<{ views: PageViewEventInfo[]; from: number | null; to: number | null; limit: number }>> {
+    const normalized = normalizePageViewEventQuery(query);
+    if (normalized.error) {
+      return { error: normalized.error, status: 400 };
+    }
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (normalized.pageKey) {
+      conditions.push('page_key = ?');
+      params.push(normalized.pageKey);
+    }
+    if (normalized.from !== null) {
+      conditions.push('viewed_at >= ?');
+      params.push(normalized.from);
+    }
+    if (normalized.to !== null) {
+      conditions.push('viewed_at < ?');
+      params.push(normalized.to);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await this.db.all<{
+      id: string;
+      page_key: string;
+      user_id: string | null;
+      viewed_at: number;
+    }>(
+      `SELECT id, page_key, user_id, viewed_at
+       FROM page_views
+       ${where}
+       ORDER BY viewed_at DESC
+       LIMIT ?`,
+      ...params,
+      normalized.limit
+    );
+
+    return {
+      data: {
+        views: result.results.map(formatPageViewEvent),
+        from: normalized.from,
+        to: normalized.to,
+        limit: normalized.limit,
+      },
       status: 200,
     };
   }
