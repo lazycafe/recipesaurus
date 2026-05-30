@@ -16,6 +16,7 @@ import type {
   UpdateCookbookData,
   Notification,
   MealPlanUsage,
+  MealPlanHistoryItem,
   MealPlanResult,
   BillingStatus,
   BillingSession,
@@ -292,6 +293,10 @@ export class HttpClient implements IClient {
   ai = {
     getMealPlanUsage: (): Promise<ApiResponse<{ usage: MealPlanUsage }>> => {
       return this.transport.request('GET', '/api/ai/meal-planner/usage');
+    },
+
+    getMealPlanHistory: (): Promise<ApiResponse<{ history: MealPlanHistoryItem[] }>> => {
+      return this.transport.request('GET', '/api/ai/meal-planner/history');
     },
 
     createMealPlan: (request: string): Promise<ApiResponse<MealPlanResult>> => {

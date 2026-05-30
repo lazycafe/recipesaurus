@@ -8,10 +8,13 @@ import {
   type MealPlanRecipeContext,
   type MealPlanUsageInfo,
   buildFallbackMealPlan,
+  buildMealPlanHistoryItem,
+  buildMealPlannerContinuationInput,
   buildMealPlanSuggestionDetails,
   buildMealPlannerInput,
   buildMealPlannerInstructions,
   extractOpenAIResponseText,
+  getOpenAIResponseId,
   MEAL_PLAN_BILLING_CANCEL_FAILED_CODE,
   MEAL_PLAN_BILLING_CHECKOUT_FAILED_CODE,
   MEAL_PLAN_BILLING_CUSTOMER_NOT_FOUND_CODE,
@@ -22,14 +25,19 @@ import {
   MEAL_PLAN_BILLING_SUBSCRIPTION_NOT_FOUND_CODE,
   MEAL_PLAN_FORBIDDEN_CODE,
   MEAL_PLAN_GENERATION_FAILED_CODE,
+  MEAL_PLAN_HISTORY_LIMIT,
   MEAL_PLAN_INVALID_REQUEST_CODE,
   MEAL_PLAN_LIMIT_CODE,
+  MEAL_PLAN_OPENAI_CONTINUATION_MAX_OUTPUT_TOKENS,
   MEAL_PLAN_OPENAI_EMPTY_RESPONSE_CODE,
+  MEAL_PLAN_OPENAI_MAX_CONTINUATIONS,
+  MEAL_PLAN_OPENAI_MAX_OUTPUT_TOKENS,
   MEAL_PLAN_OPENAI_NETWORK_ERROR_CODE,
   MEAL_PLAN_OPENAI_NOT_CONFIGURED_CODE,
   MEAL_PLAN_UNAUTHORIZED_CODE,
   getMealPlanOpenAIErrorResponseCode,
   normalizeMealPlanRequest,
+  shouldContinueOpenAIResponse,
 } from './core/mealPlanner';
 import { getDefaultRecipesaurusErrorCode } from './core/apiErrors';
 
@@ -149,6 +157,14 @@ interface UserSubscription {
   cancel_at_period_end: number;
   created_at: number;
   updated_at: number;
+}
+
+interface AiMealPlanRequest {
+  id: string;
+  user_id: string;
+  prompt: string;
+  response: string;
+  created_at: number;
 }
 
 interface StripeCheckoutSession {
@@ -1355,6 +1371,43 @@ async function handleGetMealPlanUsage(request: Request, env: Env): Promise<Respo
   return jsonResponse({ usage: await getMealPlanUsage(env.DB, user.id) }, 200, corsHeaders(origin));
 }
 
+async function handleGetMealPlanHistory(request: Request, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, env.DB);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin, MEAL_PLAN_UNAUTHORIZED_CODE);
+  }
+  if (!canAccessMealPlanner(user.id, env, request)) {
+    return errorResponse('Meal planner is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
+  }
+
+  const [recipes, historyRows] = await Promise.all([
+    getMealPlanRecipes(env.DB, user.id),
+    env.DB.prepare(`
+      SELECT id, user_id, prompt, response, created_at
+      FROM ai_meal_plan_requests
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).bind(user.id, MEAL_PLAN_HISTORY_LIMIT).all<AiMealPlanRequest>(),
+  ]);
+
+  return jsonResponse(
+    {
+      history: historyRows.results.map(row => buildMealPlanHistoryItem(
+        row.id,
+        row.prompt,
+        row.response,
+        row.created_at,
+        recipes
+      )),
+    },
+    200,
+    corsHeaders(origin)
+  );
+}
+
 async function getMealPlanRecipes(db: D1Database, userId: string): Promise<MealPlanRecipeContext[]> {
   const recipes = await db.prepare(`
     SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
@@ -1376,18 +1429,10 @@ async function getMealPlanRecipes(db: D1Database, userId: string): Promise<MealP
   }));
 }
 
-async function generateMealPlan(env: Env, request: string, recipes: MealPlanRecipeContext[]): Promise<string> {
-  if (!env.OPENAI_API_KEY) {
-    if (env.ENVIRONMENT === 'development') {
-      return buildFallbackMealPlan(request, recipes);
-    }
-
-    throw new MealPlanGenerationError(
-      'OpenAI API key is not configured',
-      MEAL_PLAN_OPENAI_NOT_CONFIGURED_CODE
-    );
-  }
-
+async function createOpenAIMealPlanResponse(
+  env: Env,
+  body: Record<string, unknown>
+): Promise<unknown> {
   let response: Response;
   try {
     response = await fetch('https://api.openai.com/v1/responses', {
@@ -1396,12 +1441,7 @@ async function generateMealPlan(env: Env, request: string, recipes: MealPlanReci
         'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: env.OPENAI_MODEL || 'gpt-5-mini',
-        instructions: buildMealPlannerInstructions(),
-        input: buildMealPlannerInput(request, recipes),
-        max_output_tokens: 1800,
-      }),
+      body: JSON.stringify(body),
     });
   } catch (error) {
     console.error('OpenAI meal plan request could not be sent:', error);
@@ -1420,8 +1460,56 @@ async function generateMealPlan(env: Env, request: string, recipes: MealPlanReci
     );
   }
 
-  const data = await response.json();
-  const suggestion = extractOpenAIResponseText(data);
+  return response.json();
+}
+
+async function generateMealPlan(env: Env, request: string, recipes: MealPlanRecipeContext[]): Promise<string> {
+  if (!env.OPENAI_API_KEY) {
+    if (env.ENVIRONMENT === 'development') {
+      return buildFallbackMealPlan(request, recipes);
+    }
+
+    throw new MealPlanGenerationError(
+      'OpenAI API key is not configured',
+      MEAL_PLAN_OPENAI_NOT_CONFIGURED_CODE
+    );
+  }
+
+  const model = env.OPENAI_MODEL || 'gpt-5-mini';
+  const instructions = buildMealPlannerInstructions();
+  let data = await createOpenAIMealPlanResponse(env, {
+    model,
+    instructions,
+    input: buildMealPlannerInput(request, recipes),
+    max_output_tokens: MEAL_PLAN_OPENAI_MAX_OUTPUT_TOKENS,
+  });
+  const suggestionParts = [extractOpenAIResponseText(data)].filter(Boolean);
+
+  for (
+    let continuationCount = 0;
+    continuationCount < MEAL_PLAN_OPENAI_MAX_CONTINUATIONS && shouldContinueOpenAIResponse(data);
+    continuationCount += 1
+  ) {
+    const previousResponseId = getOpenAIResponseId(data);
+    if (!previousResponseId) {
+      break;
+    }
+
+    data = await createOpenAIMealPlanResponse(env, {
+      model,
+      instructions,
+      previous_response_id: previousResponseId,
+      input: buildMealPlannerContinuationInput(request),
+      max_output_tokens: MEAL_PLAN_OPENAI_CONTINUATION_MAX_OUTPUT_TOKENS,
+    });
+
+    const continuationText = extractOpenAIResponseText(data);
+    if (continuationText) {
+      suggestionParts.push(continuationText);
+    }
+  }
+
+  const suggestion = suggestionParts.join('\n').trim();
   if (!suggestion) {
     throw new MealPlanGenerationError(
       'OpenAI response did not include text',
@@ -1487,14 +1575,18 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
 
   const now = Date.now();
   const details = buildMealPlanSuggestionDetails(mealPlanRequest, suggestion, recipes);
+  const id = generateId();
 
   await env.DB.prepare(`
     INSERT INTO ai_meal_plan_requests (id, user_id, prompt, response, created_at)
     VALUES (?, ?, ?, ?, ?)
-  `).bind(generateId(), user.id, mealPlanRequest, details.suggestion, now).run();
+  `).bind(id, user.id, mealPlanRequest, details.suggestion, now).run();
 
   return jsonResponse(
     {
+      id,
+      prompt: mealPlanRequest,
+      createdAt: now,
       ...details,
       usage: await getMealPlanUsage(env.DB, user.id, now),
       recipeCount: recipes.length,
@@ -3475,6 +3567,9 @@ export default {
       }
       if (path === '/api/ai/meal-planner/usage' && method === 'GET') {
         return handleGetMealPlanUsage(request, env);
+      }
+      if (path === '/api/ai/meal-planner/history' && method === 'GET') {
+        return handleGetMealPlanHistory(request, env);
       }
       if (path === '/api/ai/meal-planner' && method === 'POST') {
         return handleCreateMealPlan(request, env);

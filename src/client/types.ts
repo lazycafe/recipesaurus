@@ -120,12 +120,18 @@ export interface MealPlanMentionedRecipe {
   title: string;
 }
 
-export interface MealPlanResult {
+export interface MealPlanHistoryItem {
+  id: string;
+  prompt: string;
   suggestion: string;
   mentionedRecipes: MealPlanMentionedRecipe[];
   cookbookName: string;
-  usage: MealPlanUsage;
+  createdAt: number;
   recipeCount: number;
+}
+
+export interface MealPlanResult extends MealPlanHistoryItem {
+  usage: MealPlanUsage;
 }
 
 export interface BillingStatus {
@@ -229,6 +235,7 @@ export interface IClient {
 
   ai: {
     getMealPlanUsage(): Promise<ApiResponse<{ usage: MealPlanUsage }>>;
+    getMealPlanHistory(): Promise<ApiResponse<{ history: MealPlanHistoryItem[] }>>;
     createMealPlan(request: string): Promise<ApiResponse<MealPlanResult>>;
   };
 

@@ -15,6 +15,7 @@ import type {
   UpdateCookbookData,
   Notification,
   MealPlanUsage,
+  MealPlanHistoryItem,
   MealPlanResult,
   BillingStatus,
   BillingSession,
@@ -87,6 +88,7 @@ export interface ICoreHandlers {
   declineInvite(ctx: RequestContext, inviteId: string): Promise<ApiResult<{ success: boolean }>>;
   // AI meal planning
   getMealPlanUsage(ctx: RequestContext): Promise<ApiResult<{ usage: MealPlanUsage }>>;
+  getMealPlanHistory(ctx: RequestContext): Promise<ApiResult<{ history: MealPlanHistoryItem[] }>>;
   createMealPlan(ctx: RequestContext, request: string): Promise<ApiResult<MealPlanResult>>;
 }
 
@@ -350,6 +352,11 @@ export class InMemoryClient implements IClient {
   ai = {
     getMealPlanUsage: async (): Promise<ApiResponse<{ usage: MealPlanUsage }>> => {
       const result = await this.handlers.getMealPlanUsage(this.getContext());
+      return toApiResponse(result);
+    },
+
+    getMealPlanHistory: async (): Promise<ApiResponse<{ history: MealPlanHistoryItem[] }>> => {
+      const result = await this.handlers.getMealPlanHistory(this.getContext());
       return toApiResponse(result);
     },
 

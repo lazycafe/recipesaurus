@@ -36,6 +36,7 @@ function usage(remainingRequests: number): MealPlanUsage {
 
 describe('MealPlannerPage', () => {
   const mockGetMealPlanUsage = vi.fn();
+  const mockGetMealPlanHistory = vi.fn();
   const mockCreateMealPlan = vi.fn();
   const mockCreateCookbook = vi.fn();
   const mockAddRecipe = vi.fn();
@@ -55,11 +56,15 @@ describe('MealPlannerPage', () => {
     vi.clearAllMocks();
 
     mockGetMealPlanUsage.mockResolvedValue({ data: { usage: usage(2) } });
+    mockGetMealPlanHistory.mockResolvedValue({ data: { history: [] } });
     mockCreateMealPlan.mockResolvedValue({
       data: {
+        id: 'meal-plan-1',
+        prompt: samplePrompt,
         suggestion: 'Monday: From your recipes: Herb-Crusted Chicken',
         mentionedRecipes: [{ id: 'recipe-1', title: 'Herb-Crusted Chicken' }],
         cookbookName: 'Healthy Dinner Meal Plan',
+        createdAt: Date.now(),
         usage: usage(1),
         recipeCount: 3,
       },
@@ -73,6 +78,7 @@ describe('MealPlannerPage', () => {
     vi.mocked(ClientContext.useClient).mockReturnValue({
       ai: {
         getMealPlanUsage: mockGetMealPlanUsage,
+        getMealPlanHistory: mockGetMealPlanHistory,
         createMealPlan: mockCreateMealPlan,
       },
       billing: {
@@ -131,11 +137,41 @@ describe('MealPlannerPage', () => {
 
     await waitFor(() => {
       expect(mockCreateMealPlan).toHaveBeenCalledWith(samplePrompt);
-      expect(screen.getByText(/Herb-Crusted Chicken/i)).toBeDefined();
+      expect(screen.getAllByText(/Herb-Crusted Chicken/i).length).toBeGreaterThan(0);
     });
-    expect(screen.getByRole('button', { name: 'Herb-Crusted Chicken' })).toBeDefined();
+    expect(screen.getAllByRole('button', { name: 'Herb-Crusted Chicken' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Create Cookbook/i })).toBeDefined();
     expect(screen.queryByText('AI meal plan draft')).toBeNull();
+  });
+
+  it('shows previous meal planning questions and responses', async () => {
+    mockGetMealPlanHistory.mockResolvedValue({
+      data: {
+        history: [
+          {
+            id: 'history-1',
+            prompt: 'Plan easy dinners for next week.',
+            suggestion: 'Tuesday: From your recipes: Herb-Crusted Chicken',
+            mentionedRecipes: [{ id: 'recipe-1', title: 'Herb-Crusted Chicken' }],
+            cookbookName: 'Easy Dinner Meal Plan',
+            createdAt: new Date('2026-05-01T12:00:00Z').getTime(),
+            recipeCount: 1,
+          },
+        ],
+      },
+    });
+
+    renderMealPlanner();
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'History' })).toBeDefined();
+      expect(screen.getByText('Your previous meal planning questions and responses.')).toBeDefined();
+      expect(screen.getByText('Plan easy dinners for next week.')).toBeDefined();
+      expect(screen.getByText(/Tuesday:/)).toBeDefined();
+    });
+
+    expect(screen.getByText('May 1, 2026')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Herb-Crusted Chicken' })).toBeDefined();
   });
 
   it('keeps the submit button disabled while planning', async () => {
@@ -162,9 +198,12 @@ describe('MealPlannerPage', () => {
 
     resolveMealPlan?.({
       data: {
+        id: 'meal-plan-1',
+        prompt: samplePrompt,
         suggestion: 'Monday: From your recipes: Herb-Crusted Chicken',
         mentionedRecipes: [{ id: 'recipe-1', title: 'Herb-Crusted Chicken' }],
         cookbookName: 'Healthy Dinner Meal Plan',
+        createdAt: Date.now(),
         usage: usage(1),
         recipeCount: 3,
       },

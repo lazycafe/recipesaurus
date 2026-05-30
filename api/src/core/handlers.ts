@@ -16,8 +16,10 @@ import type {
   RecipeSharePayload,
   RecipeShareLinkInfo,
   DbUserSubscription,
+  DbAiMealPlanRequest,
 } from './types';
 import {
+  MEAL_PLAN_HISTORY_LIMIT,
   MEAL_PLAN_MAX_RECIPES,
   MEAL_PLAN_FREE_WEEKLY_LIMIT,
   MEAL_PLAN_PAID_PLAN_NAME,
@@ -28,8 +30,9 @@ import {
   MEAL_PLAN_LIMIT_CODE,
   MEAL_PLAN_UNAUTHORIZED_CODE,
   type MealPlanRecipeContext,
+  type MealPlanHistoryItem,
   type MealPlanUsageInfo,
-  type MealPlanSuggestionDetails,
+  buildMealPlanHistoryItem,
   buildMealPlanSuggestionDetails,
   buildFallbackMealPlan,
   normalizeMealPlanRequest,
@@ -531,6 +534,39 @@ export class CoreHandlers {
     };
   }
 
+  async getMealPlanHistory(ctx: RequestContext): Promise<ApiResult<{ history: MealPlanHistoryItem[] }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401, code: MEAL_PLAN_UNAUTHORIZED_CODE };
+    }
+
+    const [recipes, requests] = await Promise.all([
+      this.getMealPlanRecipes(user.id),
+      this.db.all<DbAiMealPlanRequest>(
+        `SELECT id, user_id, prompt, response, created_at
+         FROM ai_meal_plan_requests
+         WHERE user_id = ?
+         ORDER BY created_at DESC
+         LIMIT ?`,
+        user.id,
+        MEAL_PLAN_HISTORY_LIMIT
+      ),
+    ]);
+
+    return {
+      data: {
+        history: requests.results.map(row => buildMealPlanHistoryItem(
+          row.id,
+          row.prompt,
+          row.response,
+          row.created_at,
+          recipes
+        )),
+      },
+      status: 200,
+    };
+  }
+
   private async getMealPlanRecipes(userId: string): Promise<MealPlanRecipeContext[]> {
     const recipes = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
       `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
@@ -557,7 +593,7 @@ export class CoreHandlers {
   async createMealPlan(
     ctx: RequestContext,
     requestText: string
-  ): Promise<ApiResult<MealPlanSuggestionDetails & { usage: MealPlanUsageInfo; recipeCount: number }>> {
+  ): Promise<ApiResult<MealPlanHistoryItem & { usage: MealPlanUsageInfo }>> {
     const user = await this.getSessionUser(ctx);
     if (!user) {
       return { error: 'Unauthorized', status: 401, code: MEAL_PLAN_UNAUTHORIZED_CODE };
@@ -581,11 +617,12 @@ export class CoreHandlers {
     const suggestion = buildFallbackMealPlan(request, recipes);
     const details = buildMealPlanSuggestionDetails(request, suggestion, recipes);
     const now = Date.now();
+    const id = this.crypto.generateId();
 
     await this.db.run(
       `INSERT INTO ai_meal_plan_requests (id, user_id, prompt, response, created_at)
        VALUES (?, ?, ?, ?, ?)`,
-      this.crypto.generateId(),
+      id,
       user.id,
       request,
       details.suggestion,
@@ -594,6 +631,9 @@ export class CoreHandlers {
 
     return {
       data: {
+        id,
+        prompt: request,
+        createdAt: now,
         ...details,
         usage: await this.getMealPlanUsageForUser(user.id, now),
         recipeCount: recipes.length,

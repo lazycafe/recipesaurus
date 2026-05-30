@@ -5,7 +5,7 @@ import { useClient } from '../client/ClientContext';
 import { useRecipes } from '../context/RecipeContext';
 import { useCookbooks } from '../context/CookbookContext';
 import { RecipeDetail } from './RecipeDetail';
-import type { MealPlanResult, MealPlanUsage } from '../client/types';
+import type { MealPlanHistoryItem, MealPlanResult, MealPlanUsage } from '../client/types';
 import type { Recipe } from '../types/Recipe';
 import type { FormEvent, ReactNode } from 'react';
 
@@ -25,6 +25,14 @@ function formatResetDate(timestamp: number | null): string {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
+  }).format(new Date(timestamp));
+}
+
+function formatHistoryDate(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   }).format(new Date(timestamp));
 }
 
@@ -48,10 +56,12 @@ export function MealPlannerPage() {
   const { createCookbook, refreshCookbooks } = useCookbooks();
   const [request, setRequest] = useState(SAMPLE_REQUESTS[0]);
   const [mealPlan, setMealPlan] = useState<MealPlanResult | null>(null);
+  const [history, setHistory] = useState<MealPlanHistoryItem[]>([]);
   const [usage, setUsage] = useState<MealPlanUsage | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUsageLoading, setIsUsageLoading] = useState(true);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [isCreatingCookbook, setIsCreatingCookbook] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [isManagingBilling, setIsManagingBilling] = useState(false);
@@ -81,19 +91,19 @@ export function MealPlannerPage() {
       .filter((recipe): recipe is Recipe => Boolean(recipe)) ?? []
   ), [mealPlan, recipeById]);
 
-  const renderSuggestion = (): ReactNode[] => {
-    if (!mealPlan) return [];
+  const renderSuggestion = (plan: MealPlanHistoryItem | MealPlanResult): ReactNode[] => {
+    if (!plan) return [];
 
-    const linkableRecipes = mealPlan.mentionedRecipes.filter(recipe => recipeById.has(recipe.id));
+    const linkableRecipes = plan.mentionedRecipes.filter(recipe => recipeById.has(recipe.id));
     if (linkableRecipes.length === 0) {
-      return [mealPlan.suggestion];
+      return [plan.suggestion];
     }
 
     const sortedRecipes = [...linkableRecipes].sort((a, b) => b.title.length - a.title.length);
     const recipeLookup = new Map(sortedRecipes.map(recipe => [recipe.title.toLowerCase(), recipe]));
     const pattern = new RegExp(`(${sortedRecipes.map(recipe => escapeRegExp(recipe.title)).join('|')})`, 'gi');
 
-    return mealPlan.suggestion.split(pattern).map((part, index) => {
+    return plan.suggestion.split(pattern).map((part, index) => {
       const recipe = recipeLookup.get(part.toLowerCase());
       if (!recipe) return part;
 
@@ -118,7 +128,11 @@ export function MealPlannerPage() {
 
     async function loadUsage() {
       setIsUsageLoading(true);
-      const result = await client.ai.getMealPlanUsage();
+      setIsHistoryLoading(true);
+      const [result, historyResult] = await Promise.all([
+        client.ai.getMealPlanUsage(),
+        client.ai.getMealPlanHistory(),
+      ]);
       if (!isMounted) return;
 
       if (result.data?.usage) {
@@ -127,7 +141,15 @@ export function MealPlannerPage() {
       } else if (result.error) {
         setError(result.error);
       }
+
+      if (historyResult.data?.history) {
+        setHistory(historyResult.data.history);
+      } else if (historyResult.error) {
+        setError(historyResult.error);
+      }
+
       setIsUsageLoading(false);
+      setIsHistoryLoading(false);
     }
 
     void loadUsage();
@@ -162,9 +184,14 @@ export function MealPlannerPage() {
       const result = await client.ai.createMealPlan(trimmedRequest);
 
       if (result.data) {
-        setMealPlan(result.data);
-        setUsage(result.data.usage);
-        setShowPaywall(result.data.usage.remainingRequests <= 0);
+        const createdMealPlan = result.data;
+        setMealPlan(createdMealPlan);
+        setUsage(createdMealPlan.usage);
+        setHistory(previous => [
+          createdMealPlan,
+          ...previous.filter(item => item.id !== createdMealPlan.id),
+        ]);
+        setShowPaywall(createdMealPlan.usage.remainingRequests <= 0);
       } else if (result.status === 402 || result.code === 'AI_MEAL_PLAN_LIMIT') {
         setShowPaywall(true);
         const usageResult = await client.ai.getMealPlanUsage();
@@ -365,7 +392,7 @@ export function MealPlannerPage() {
             <CalendarDays size={22} />
             <h2>Suggestions</h2>
           </div>
-          <div className="meal-planner-result-text">{renderSuggestion()}</div>
+          <div className="meal-planner-result-text">{renderSuggestion(mealPlan)}</div>
 
           {mentionedRecipeDetails.length > 0 && (
             <div className="meal-planner-cookbook-action">
@@ -406,6 +433,35 @@ export function MealPlannerPage() {
           )}
         </section>
       )}
+
+      <section className="meal-planner-history" aria-label="Meal planning history">
+        <div className="meal-planner-history-header">
+          <div>
+            <h2>History</h2>
+            <p>Your previous meal planning questions and responses.</p>
+          </div>
+          <Clock size={20} />
+        </div>
+
+        {isHistoryLoading ? (
+          <div className="meal-planner-history-empty">Loading history...</div>
+        ) : history.length === 0 ? (
+          <div className="meal-planner-history-empty">No meal planning history yet.</div>
+        ) : (
+          <div className="meal-planner-history-list">
+            {history.map(item => (
+              <article className="meal-planner-history-item" key={item.id}>
+                <div className="meal-planner-history-meta">
+                  <span>{formatHistoryDate(item.createdAt)}</span>
+                  <span>{item.recipeCount} saved recipe{item.recipeCount !== 1 ? 's' : ''} available</span>
+                </div>
+                <h3>{item.prompt}</h3>
+                <div className="meal-planner-result-text">{renderSuggestion(item)}</div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {selectedRecipe && (
         <RecipeDetail

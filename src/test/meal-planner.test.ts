@@ -11,8 +11,11 @@ import {
   MEAL_PLAN_OPENAI_RATE_LIMITED_CODE,
   MEAL_PLAN_OPENAI_SERVER_ERROR_CODE,
   buildFallbackMealPlan,
+  buildMealPlannerContinuationInput,
   buildMealPlannerInstructions,
+  getOpenAIResponseId,
   getMealPlanOpenAIErrorResponseCode,
+  shouldContinueOpenAIResponse,
   type MealPlanRecipeContext,
 } from '../../api/src/core/mealPlanner';
 
@@ -41,6 +44,14 @@ describe('AI meal planner API', () => {
       const second = await client.ai.createMealPlan('Plan two quick lunches.');
       expect(second.error).toBeUndefined();
       expect(second.data?.usage.remainingRequests).toBe(0);
+
+      const history = await client.ai.getMealPlanHistory();
+      expect(history.error).toBeUndefined();
+      expect(history.data?.history).toHaveLength(2);
+      expect(history.data?.history[0]).toMatchObject({
+        prompt: 'Plan two quick lunches.',
+        suggestion: expect.stringContaining('Suggested starting point'),
+      });
 
       const third = await client.ai.createMealPlan('Plan one more dinner.');
       expect(third.error).toBe('Weekly AI meal planning limit reached');
@@ -107,6 +118,24 @@ describe('AI meal planner API', () => {
     expect(instructions).toContain('Match each recipe to the requested meal slot');
     expect(instructions).toContain('avoid breakfast, brunch, sweet, and dessert recipes');
     expect(instructions).toContain('fill the gaps with savory new ideas');
+  });
+
+  it('detects OpenAI responses that need continuation', () => {
+    const incompleteResponse = {
+      id: 'resp_123',
+      status: 'incomplete',
+      incomplete_details: {
+        reason: 'max_output_tokens',
+      },
+    };
+
+    expect(getOpenAIResponseId(incompleteResponse)).toBe('resp_123');
+    expect(shouldContinueOpenAIResponse(incompleteResponse)).toBe(true);
+    expect(shouldContinueOpenAIResponse({
+      status: 'incomplete',
+      incomplete_details: { reason: 'content_filter' },
+    })).toBe(false);
+    expect(buildMealPlannerContinuationInput('Plan dinners')).toContain('Continue the meal planning answer');
   });
 
   it('maps OpenAI insufficient quota failures to a Recipesaurus error code', () => {

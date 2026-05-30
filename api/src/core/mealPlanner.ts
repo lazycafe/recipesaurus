@@ -6,6 +6,10 @@ export const MEAL_PLAN_PAID_PLAN_NAME = 'Meal Planner Plus';
 export const MEAL_PLAN_MAX_PROMPT_LENGTH = 1000;
 export const MEAL_PLAN_MAX_RECIPES = 80;
 export const MEAL_PLAN_MAX_INGREDIENTS = 14;
+export const MEAL_PLAN_HISTORY_LIMIT = 50;
+export const MEAL_PLAN_OPENAI_MAX_OUTPUT_TOKENS = 4000;
+export const MEAL_PLAN_OPENAI_CONTINUATION_MAX_OUTPUT_TOKENS = 2500;
+export const MEAL_PLAN_OPENAI_MAX_CONTINUATIONS = 2;
 export const MEAL_PLAN_UNAUTHORIZED_CODE = 'AI_MEAL_PLAN_UNAUTHORIZED';
 export const MEAL_PLAN_FORBIDDEN_CODE = 'AI_MEAL_PLAN_FORBIDDEN';
 export const MEAL_PLAN_INVALID_REQUEST_CODE = 'AI_MEAL_PLAN_INVALID_REQUEST';
@@ -61,6 +65,13 @@ export interface MealPlanSuggestionDetails {
   suggestion: string;
   mentionedRecipes: MealPlanMentionedRecipe[];
   cookbookName: string;
+}
+
+export interface MealPlanHistoryItem extends MealPlanSuggestionDetails {
+  id: string;
+  prompt: string;
+  createdAt: number;
+  recipeCount: number;
 }
 
 export function normalizeMealPlanRequest(value: unknown): string | null {
@@ -152,6 +163,22 @@ export function buildMealPlanSuggestionDetails(
   };
 }
 
+export function buildMealPlanHistoryItem(
+  id: string,
+  prompt: string,
+  response: string,
+  createdAt: number,
+  recipes: MealPlanRecipeContext[]
+): MealPlanHistoryItem {
+  return {
+    id,
+    prompt,
+    createdAt,
+    recipeCount: recipes.length,
+    ...buildMealPlanSuggestionDetails(prompt, response, recipes),
+  };
+}
+
 export function summarizeRecipesForMealPlan(recipes: MealPlanRecipeContext[]): MealPlanRecipeContext[] {
   return recipes.slice(0, MEAL_PLAN_MAX_RECIPES).map(recipe => ({
     id: recipe.id,
@@ -187,6 +214,17 @@ export function buildMealPlannerInput(request: string, recipes: MealPlanRecipeCo
     {
       userRequest: request,
       recipeCollection: summarizeRecipesForMealPlan(recipes),
+    },
+    null,
+    2
+  );
+}
+
+export function buildMealPlannerContinuationInput(request: string): string {
+  return JSON.stringify(
+    {
+      userRequest: request,
+      continuationRequest: 'Continue the meal planning answer exactly where the previous response stopped. Do not restart, summarize, or repeat completed text.',
     },
     null,
     2
@@ -262,6 +300,31 @@ type OpenAIContentItem = {
 type OpenAIOutputItem = {
   content?: OpenAIContentItem[];
 };
+
+export function getOpenAIResponseId(data: unknown): string | null {
+  if (!data || typeof data !== 'object') {
+    return null;
+  }
+
+  const response = data as { id?: unknown };
+  return typeof response.id === 'string' && response.id ? response.id : null;
+}
+
+export function shouldContinueOpenAIResponse(data: unknown): boolean {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const response = data as {
+    status?: unknown;
+    incomplete_details?: {
+      reason?: unknown;
+    } | null;
+  };
+
+  return response.status === 'incomplete' &&
+    response.incomplete_details?.reason === 'max_output_tokens';
+}
 
 export function extractOpenAIResponseText(data: unknown): string {
   if (!data || typeof data !== 'object') {
