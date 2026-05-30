@@ -332,6 +332,13 @@ export class CoreHandlers {
     await this.db.run('DELETE FROM login_attempts WHERE attempted_at < ?', oneDayAgo);
   }
 
+  private async clearFailedLoginAttempts(email: string): Promise<void> {
+    await this.db.run(
+      'DELETE FROM login_attempts WHERE email = ? AND success = 0',
+      email.toLowerCase()
+    );
+  }
+
   // Auth handlers
   async register(
     email: string,
@@ -421,6 +428,7 @@ export class CoreHandlers {
       return { error: 'Invalid email or password', status: 401 };
     }
 
+    await this.clearFailedLoginAttempts(normalizedEmail);
     await this.recordLoginAttempt(normalizedEmail, ip, true);
 
     const sessionId = this.crypto.generateId();

@@ -105,22 +105,6 @@ interface Cookbook {
   updated_at: number;
 }
 
-interface CookbookShare {
-  id: string;
-  cookbook_id: string;
-  shared_with_user_id: string;
-  shared_by_user_id: string;
-  created_at: number;
-}
-
-interface CookbookShareLink {
-  id: string;
-  cookbook_id: string;
-  token: string;
-  is_active: number;
-  created_at: number;
-}
-
 interface RecipeSharePayload {
   title: string;
   description?: string | null;
@@ -216,7 +200,6 @@ const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Rate limiting
 const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
 const ATTEMPT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const MAX_RECIPE_SHARE_BYTES = 64 * 1024;
 const MAX_RECIPE_SHARE_ITEMS = 250;
@@ -665,7 +648,7 @@ function validatePassword(password: string): { valid: boolean; error?: string } 
 }
 
 // Rate limiting
-async function checkRateLimit(db: D1Database, email: string, ip: string | null): Promise<{ allowed: boolean; remainingAttempts: number }> {
+async function checkRateLimit(db: D1Database, email: string, _ip: string | null): Promise<{ allowed: boolean; remainingAttempts: number }> {
   const windowStart = Date.now() - ATTEMPT_WINDOW;
 
   // Count recent failed attempts for this email
@@ -693,6 +676,13 @@ async function recordLoginAttempt(db: D1Database, email: string, ip: string | nu
   // Clean up old attempts (older than 24 hours)
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
   await db.prepare('DELETE FROM login_attempts WHERE attempted_at < ?').bind(oneDayAgo).run();
+}
+
+async function clearFailedLoginAttempts(db: D1Database, email: string): Promise<void> {
+  await db.prepare(`
+    DELETE FROM login_attempts
+    WHERE email = ? AND success = 0
+  `).bind(email.toLowerCase()).run();
 }
 
 // Response helpers
@@ -1129,7 +1119,8 @@ async function handleLogin(request: Request, db: D1Database, env: Env): Promise<
     );
   }
 
-  // Record successful attempt
+  // Record successful attempt and clear prior failures for this account.
+  await clearFailedLoginAttempts(db, normalizedEmail);
   await recordLoginAttempt(db, normalizedEmail, ip, true);
 
   // Create session

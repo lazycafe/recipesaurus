@@ -1,17 +1,22 @@
 import { test, expect } from './fixtures';
 
+async function signOut(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: 'User menu' }).click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+}
+
 test.describe('Security Features', () => {
   test.describe('Password Requirements', () => {
     test('should show password requirements hint on registration', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
 
       await expect(page.getByText('8+ characters with uppercase, lowercase, and number')).toBeVisible();
     });
 
     test('should reject password without uppercase letter', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
 
       await page.getByLabel('Name').fill('Test User');
       await page.getByLabel('Email').fill(`test-${Date.now()}@example.com`);
@@ -24,7 +29,7 @@ test.describe('Security Features', () => {
 
     test('should reject password without lowercase letter', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
 
       await page.getByLabel('Name').fill('Test User');
       await page.getByLabel('Email').fill(`test-${Date.now()}@example.com`);
@@ -37,7 +42,7 @@ test.describe('Security Features', () => {
 
     test('should reject password without number', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
 
       await page.getByLabel('Name').fill('Test User');
       await page.getByLabel('Email').fill(`test-${Date.now()}@example.com`);
@@ -56,7 +61,7 @@ test.describe('Security Features', () => {
       };
 
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
 
       await page.getByLabel('Name').fill(user.name);
       await page.getByLabel('Email').fill(user.email);
@@ -69,28 +74,23 @@ test.describe('Security Features', () => {
   });
 
   test.describe('Rate Limiting', () => {
-    const rateLimitUser = {
-      email: `ratelimit-${Date.now()}@example.com`,
-      name: 'Rate Limit User',
-      password: 'RateLimit123!',
-    };
+    test('should show remaining attempts warning after multiple failed logins', async ({ page }) => {
+      const rateLimitUser = {
+        email: `ratelimit-${Date.now()}@example.com`,
+        name: 'Rate Limit User',
+        password: 'RateLimit123!',
+      };
 
-    test.beforeAll(async ({ browser }) => {
-      // Register the user first
-      const page = await browser.newPage();
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
       await page.getByLabel('Name').fill(rateLimitUser.name);
       await page.getByLabel('Email').fill(rateLimitUser.email);
       await page.locator('#password').fill(rateLimitUser.password);
       await page.locator('#confirmPassword').fill(rateLimitUser.password);
       await page.getByRole('button', { name: 'Create Account' }).click();
       await expect(page.getByText(rateLimitUser.name)).toBeVisible({ timeout: 10000 });
-      await page.close();
-    });
 
-    test('should show remaining attempts warning after multiple failed logins', async ({ page }) => {
-      await page.goto('/');
+      await signOut(page);
       await page.getByRole('button', { name: 'Sign In' }).first().click();
 
       // Try 3 failed logins
@@ -120,7 +120,7 @@ test.describe('Security Features', () => {
 
       // Register this user first
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
       await page.getByLabel('Name').fill(blockedUser.name);
       await page.getByLabel('Email').fill(blockedUser.email);
       await page.locator('#password').fill(blockedUser.password);
@@ -129,7 +129,7 @@ test.describe('Security Features', () => {
       await expect(page.getByText(blockedUser.name)).toBeVisible({ timeout: 10000 });
 
       // Logout
-      await page.getByRole('button', { name: 'Sign out' }).click();
+      await signOut(page);
 
       // Try 6 failed logins (exceeds the 5 attempt limit)
       await page.getByRole('button', { name: 'Sign In' }).first().click();

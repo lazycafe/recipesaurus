@@ -146,6 +146,10 @@ export async function createDevClient(): Promise<IClient> {
         isPublic: true,
       });
 
+      if (import.meta.env.VITE_DEV_AUTO_LOGIN === 'false') {
+        await client.auth.logout();
+      }
+
       devClientInstance = client;
       return client;
     } catch (error) {

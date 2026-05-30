@@ -88,7 +88,7 @@ export interface CreateRecipeData {
   isPublic?: boolean;
 }
 
-export interface UpdateRecipeData extends Partial<CreateRecipeData> {}
+export type UpdateRecipeData = Partial<CreateRecipeData>;
 
 export interface CreateCookbookData {
   name: string;
