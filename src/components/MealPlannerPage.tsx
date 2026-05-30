@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookPlus, CalendarDays, CheckCircle, Clock, CreditCard, Loader2, Lock, Send, Sparkles, UtensilsCrossed } from 'lucide-react';
+import {
+  BookPlus,
+  CalendarDays,
+  CheckCircle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CreditCard,
+  Loader2,
+  Lock,
+  Send,
+  Sparkles,
+} from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import { useRecipes } from '../context/RecipeContext';
 import { useCookbooks } from '../context/CookbookContext';
@@ -11,6 +24,7 @@ import type { FormEvent, ReactNode } from 'react';
 
 const MAX_REQUEST_LENGTH = 1000;
 const PAID_WEEKLY_LIMIT = 50;
+const HISTORY_ITEMS_PER_PAGE = 5;
 
 const SAMPLE_REQUESTS = [
   'Plan my lunches and dinners for this week using recipes I own and a few new easy recipes. Make them a mix of Asian and healthy dishes.',
@@ -49,14 +63,67 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function stripHistoryRequestIntro(suggestion: string): string {
+  const trimmedSuggestion = suggestion.trimStart();
+  if (!/^request\s*:/i.test(trimmedSuggestion)) return suggestion;
+
+  const requestParagraph = trimmedSuggestion.match(/^request\s*:[\s\S]*?\r?\n\s*\r?\n/i);
+  if (requestParagraph) {
+    return trimmedSuggestion.slice(requestParagraph[0].length).trimStart();
+  }
+
+  return trimmedSuggestion.replace(/^request\s*:[^\r\n]*(\r?\n)?/i, '').trimStart();
+}
+
+interface MealPlanHistoryCardProps {
+  item: MealPlanHistoryItem;
+  renderSuggestion: (plan: MealPlanHistoryItem | MealPlanResult) => ReactNode[];
+}
+
+function MealPlanHistoryCard({ item, renderSuggestion }: MealPlanHistoryCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const detailId = `meal-planner-history-detail-${item.id}`;
+  const historyItem = {
+    ...item,
+    suggestion: stripHistoryRequestIntro(item.suggestion),
+  };
+
+  return (
+    <article className={`meal-planner-history-item ${isExpanded ? 'is-expanded' : ''}`}>
+      <button
+        type="button"
+        className="meal-planner-history-toggle"
+        aria-expanded={isExpanded}
+        aria-controls={detailId}
+        onClick={() => setIsExpanded(prev => !prev)}
+      >
+        <span className="meal-planner-history-summary">
+          <span className="meal-planner-history-meta">
+            <span>{formatHistoryDate(item.createdAt)}</span>
+          </span>
+          <span className="meal-planner-history-prompt">{item.prompt}</span>
+        </span>
+        <ChevronDown className="meal-planner-history-chevron" size={18} />
+      </button>
+
+      {isExpanded && (
+        <div className="meal-planner-history-detail" id={detailId}>
+          <div className="meal-planner-result-text">{renderSuggestion(historyItem)}</div>
+        </div>
+      )}
+    </article>
+  );
+}
+
 export function MealPlannerPage() {
   const client = useClient();
   const navigate = useNavigate();
-  const { recipes, isLoading: recipesLoading } = useRecipes();
+  const { recipes } = useRecipes();
   const { createCookbook, refreshCookbooks } = useCookbooks();
   const [request, setRequest] = useState(SAMPLE_REQUESTS[0]);
   const [mealPlan, setMealPlan] = useState<MealPlanResult | null>(null);
   const [history, setHistory] = useState<MealPlanHistoryItem[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
   const [usage, setUsage] = useState<MealPlanUsage | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,6 +139,13 @@ export function MealPlannerPage() {
   const remainingRequests = usage?.remainingRequests ?? 0;
   const requestLabel = remainingRequests === 1 ? 'request' : 'requests';
   const isSubmitDisabled = isSubmitting || isUsageLoading || !request.trim();
+  const historyPageCount = Math.max(1, Math.ceil(history.length / HISTORY_ITEMS_PER_PAGE));
+  const paginatedHistory = useMemo(() => (
+    history.slice(
+      (historyPage - 1) * HISTORY_ITEMS_PER_PAGE,
+      historyPage * HISTORY_ITEMS_PER_PAGE
+    )
+  ), [history, historyPage]);
 
   const quotaText = useMemo(() => {
     if (!usage) return 'Checking your weekly AI requests...';
@@ -143,6 +217,7 @@ export function MealPlannerPage() {
 
       if (historyResult.data?.history) {
         setHistory(historyResult.data.history);
+        setHistoryPage(1);
       } else if (historyResult.error) {
         setError(historyResult.error);
       }
@@ -157,6 +232,10 @@ export function MealPlannerPage() {
       isMounted = false;
     };
   }, [client]);
+
+  useEffect(() => {
+    setHistoryPage(prev => Math.min(prev, historyPageCount));
+  }, [historyPageCount]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -190,6 +269,7 @@ export function MealPlannerPage() {
           createdMealPlan,
           ...previous.filter(item => item.id !== createdMealPlan.id),
         ]);
+        setHistoryPage(1);
         setShowPaywall(createdMealPlan.usage.remainingRequests <= 0);
       } else if (result.status === 402 || result.code === 'AI_MEAL_PLAN_LIMIT') {
         setShowPaywall(true);
@@ -278,10 +358,6 @@ export function MealPlannerPage() {
       </section>
 
       <section className="meal-planner-toolbar" aria-label="Meal planner status">
-        <div className="meal-planner-status-item">
-          <UtensilsCrossed size={18} />
-          <span>{recipesLoading ? 'Loading recipes...' : `${recipes.length} saved recipes available`}</span>
-        </div>
         <div className="meal-planner-status-item">
           <Clock size={18} />
           <span>{isUsageLoading ? 'Checking quota...' : quotaText}</span>
@@ -444,18 +520,52 @@ export function MealPlannerPage() {
         ) : history.length === 0 ? (
           <div className="meal-planner-history-empty">No meal planning history yet.</div>
         ) : (
-          <div className="meal-planner-history-list">
-            {history.map(item => (
-              <article className="meal-planner-history-item" key={item.id}>
-                <div className="meal-planner-history-meta">
-                  <span>{formatHistoryDate(item.createdAt)}</span>
-                  <span>{item.recipeCount} saved recipe{item.recipeCount !== 1 ? 's' : ''} available</span>
+          <>
+            <div className="meal-planner-history-list">
+              {paginatedHistory.map(item => (
+                <MealPlanHistoryCard
+                  key={item.id}
+                  item={item}
+                  renderSuggestion={renderSuggestion}
+                />
+              ))}
+            </div>
+
+            {historyPageCount > 1 && (
+              <nav className="recipe-pagination meal-planner-history-pagination" aria-label="Meal planning history pagination">
+                <span className="pagination-status">Page {historyPage} of {historyPageCount}</span>
+                <div className="pagination-buttons">
+                  <button
+                    className="pagination-btn"
+                    onClick={() => setHistoryPage(page => Math.max(1, page - 1))}
+                    disabled={historyPage === 1}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  {Array.from({ length: historyPageCount }, (_, index) => index + 1).map(page => (
+                    <button
+                      key={page}
+                      className={`pagination-page ${page === historyPage ? 'active' : ''}`}
+                      onClick={() => setHistoryPage(page)}
+                      aria-label={`Page ${page}`}
+                      aria-current={page === historyPage ? 'page' : undefined}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    className="pagination-btn"
+                    onClick={() => setHistoryPage(page => Math.min(historyPageCount, page + 1))}
+                    disabled={historyPage === historyPageCount}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
-                <h3>{item.prompt}</h3>
-                <div className="meal-planner-result-text">{renderSuggestion(item)}</div>
-              </article>
-            ))}
-          </div>
+              </nav>
+            )}
+          </>
         )}
       </section>
 

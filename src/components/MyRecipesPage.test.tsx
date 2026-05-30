@@ -159,7 +159,7 @@ describe('MyRecipesPage', () => {
     expect(screen.queryByText('1 recipe')).toBeNull();
   });
 
-  it('keeps recipe history items collapsed until opened', () => {
+  it('shows recipe card details without requiring expansion', () => {
     vi.mocked(RecipeContext.useRecipes).mockReturnValue({
       recipes: [mockRecipe],
       isLoading: false,
@@ -172,15 +172,12 @@ describe('MyRecipesPage', () => {
 
     render(<MyRecipesPage />);
 
-    expect(screen.queryByText('A test recipe')).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: /Test Recipe/ }));
-
+    expect(screen.getByText('Test Recipe')).toBeDefined();
     expect(screen.getByText('A test recipe')).toBeDefined();
-    expect(screen.getByText('View')).toBeDefined();
+    expect(screen.getByLabelText('Add to cookbook')).toBeDefined();
   });
 
-  it('paginates recipe history at five items per page', () => {
+  it('paginates my recipes at five items per page', () => {
     const recipes = Array.from({ length: 6 }, (_, index) => ({
       ...mockRecipe,
       id: `recipe-${index + 1}`,

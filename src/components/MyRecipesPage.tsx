@@ -1,19 +1,16 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import {
-  BookPlus,
   Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Eye,
   Filter,
   Loader2,
   Plus,
   Search,
-  Trash2,
   X,
 } from 'lucide-react';
 import { useRecipes } from '../context/RecipeContext';
+import { RecipeCard } from './RecipeCard';
 import { RecipeDetail } from './RecipeDetail';
 import { AddRecipeModal } from './AddRecipeModal';
 import { ConfirmModal } from './ConfirmModal';
@@ -53,74 +50,6 @@ const parseFormData = (formData: RecipeFormData) => ({
   sourceUrl: formData.sourceUrl?.trim() || undefined,
   isPublic: formData.isPublic,
 });
-
-interface RecipeHistoryItemProps {
-  recipe: ExtendedRecipe;
-  onOpen: () => void;
-  onDelete?: () => void;
-  onAddToCookbook: () => void;
-}
-
-function RecipeHistoryItem({ recipe, onOpen, onDelete, onAddToCookbook }: RecipeHistoryItemProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  return (
-    <article className={`recipe-history-item ${isExpanded ? 'is-expanded' : ''}`}>
-      <button
-        type="button"
-        className="recipe-history-toggle"
-        aria-expanded={isExpanded}
-        onClick={() => setIsExpanded(prev => !prev)}
-      >
-        <span className="recipe-history-thumbnail" aria-hidden="true">
-          {recipe.imageUrl ? (
-            <img src={recipe.imageUrl} alt="" />
-          ) : (
-            <DinoMascot size={40} />
-          )}
-        </span>
-        <span className="recipe-history-copy">
-          <span className="recipe-history-title">{recipe.title}</span>
-          <span className="recipe-history-meta">
-            {recipe.tags.slice(0, 3).join(', ') || 'Untagged recipe'}
-          </span>
-        </span>
-        <ChevronDown className="recipe-history-chevron" size={18} />
-      </button>
-
-      {isExpanded && (
-        <div className="recipe-history-detail">
-          {recipe.description && (
-            <p className="recipe-history-description">{recipe.description}</p>
-          )}
-
-          <div className="recipe-history-tags">
-            {recipe.tags.map(tag => (
-              <span key={tag} className="tag">{tag}</span>
-            ))}
-          </div>
-
-          <div className="recipe-history-actions">
-            <button className="btn-secondary" onClick={onOpen}>
-              <Eye size={16} strokeWidth={2} />
-              <span>View</span>
-            </button>
-            <button className="btn-secondary" onClick={onAddToCookbook}>
-              <BookPlus size={16} strokeWidth={2} />
-              <span>Add to Cookbook</span>
-            </button>
-            {onDelete && (
-              <button className="btn-danger" onClick={onDelete}>
-                <Trash2 size={16} strokeWidth={2} />
-                <span>Delete</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </article>
-  );
-}
 
 export function MyRecipesPage() {
   const { recipes, isLoading, addRecipe, updateRecipe, deleteRecipe, getAllTags } = useRecipes();
@@ -354,12 +283,12 @@ export function MyRecipesPage() {
 
           {filteredRecipes.length > 0 ? (
             <>
-              <div className="recipe-history-list">
+              <div className="recipe-grid">
                 {paginatedRecipes.map(recipe => (
-                  <RecipeHistoryItem
+                  <RecipeCard
                     key={recipe.id}
                     recipe={recipe}
-                    onOpen={() => setSelectedRecipe(recipe)}
+                    onClick={() => setSelectedRecipe(recipe)}
                     onDelete={recipe.isOwner !== false ? () => setRecipeToDelete(recipe) : undefined}
                     onAddToCookbook={() => setAddToCookbookRecipe(recipe)}
                   />
@@ -367,7 +296,7 @@ export function MyRecipesPage() {
               </div>
 
               {pageCount > 1 && (
-                <nav className="recipe-pagination" aria-label="Recipe history pagination">
+                <nav className="recipe-pagination" aria-label="My recipes pagination">
                   <span className="pagination-status">Page {currentPage} of {pageCount}</span>
                   <div className="pagination-buttons">
                     <button

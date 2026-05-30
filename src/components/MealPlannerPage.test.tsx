@@ -157,14 +157,14 @@ describe('MealPlannerPage', () => {
     expect(screen.queryByText('AI meal plan draft')).toBeNull();
   });
 
-  it('shows previous meal planning questions and responses', async () => {
+  it('keeps previous meal planning responses collapsed until opened', async () => {
     mockGetMealPlanHistory.mockResolvedValue({
       data: {
         history: [
           {
             id: 'history-1',
             prompt: 'Plan easy dinners for next week.',
-            suggestion: 'Tuesday: From your recipes: Herb-Crusted Chicken',
+            suggestion: 'Request: Plan easy dinners for next week.\n\nTuesday: From your recipes: Herb-Crusted Chicken',
             mentionedRecipes: [{ id: 'recipe-1', title: 'Herb-Crusted Chicken' }],
             cookbookName: 'Easy Dinner Meal Plan',
             createdAt: new Date('2026-05-01T12:00:00Z').getTime(),
@@ -180,11 +180,48 @@ describe('MealPlannerPage', () => {
       expect(screen.getByRole('heading', { name: 'History' })).toBeDefined();
       expect(screen.getByText('Your previous meal planning questions and responses.')).toBeDefined();
       expect(screen.getByText('Plan easy dinners for next week.')).toBeDefined();
-      expect(screen.getByText(/Tuesday:/)).toBeDefined();
     });
 
     expect(screen.getByText('May 1, 2026')).toBeDefined();
+    expect(screen.queryByText(/Tuesday:/)).toBeNull();
+    expect(screen.queryByText('1 saved recipe available')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /Plan easy dinners for next week/i }));
+
+    expect(screen.queryByText(/^Request:/)).toBeNull();
+    expect(screen.getByText(/Tuesday:/)).toBeDefined();
     expect(screen.getByRole('button', { name: 'Herb-Crusted Chicken' })).toBeDefined();
+  });
+
+  it('paginates meal planning history at five items per page', async () => {
+    mockGetMealPlanHistory.mockResolvedValue({
+      data: {
+        history: Array.from({ length: 6 }, (_, index) => ({
+          id: `history-${index + 1}`,
+          prompt: `History prompt ${index + 1}`,
+          suggestion: `Suggestion ${index + 1}`,
+          mentionedRecipes: [],
+          cookbookName: `Meal Plan ${index + 1}`,
+          createdAt: new Date(`2026-05-${String(index + 1).padStart(2, '0')}T12:00:00Z`).getTime(),
+          recipeCount: index + 1,
+        })),
+      },
+    });
+
+    renderMealPlanner();
+
+    await waitFor(() => {
+      expect(screen.getByText('History prompt 1')).toBeDefined();
+      expect(screen.getByText('History prompt 5')).toBeDefined();
+    });
+
+    expect(screen.queryByText('History prompt 6')).toBeNull();
+    expect(screen.getByText('Page 1 of 2')).toBeDefined();
+
+    fireEvent.click(screen.getByLabelText('Next page'));
+
+    expect(screen.getByText('History prompt 6')).toBeDefined();
+    expect(screen.queryByText('History prompt 1')).toBeNull();
   });
 
   it('keeps the submit button disabled while planning', async () => {
