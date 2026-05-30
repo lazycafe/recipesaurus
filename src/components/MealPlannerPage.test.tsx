@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { MealPlannerPage } from './MealPlannerPage';
 import * as ClientContext from '../client/ClientContext';
@@ -177,13 +177,23 @@ describe('MealPlannerPage', () => {
     renderMealPlanner();
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'History' })).toBeDefined();
+      expect(screen.getByRole('button', { name: /expand history/i })).toBeDefined();
       expect(screen.getByText('Your previous meal planning questions and responses.')).toBeDefined();
-      expect(screen.getByText('Plan easy dinners for next week.')).toBeDefined();
-      expect(screen.getByText(/Tuesday:/)).toBeDefined();
     });
 
+    const historySection = screen.getByLabelText('Meal planning history');
+    const historyButton = screen.getByRole('button', { name: /expand history/i });
+    expect(historyButton.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByText('Plan easy dinners for next week.')).toBeNull();
+
+    fireEvent.click(historyButton);
+
+    expect(historyButton.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: /collapse history/i })).toBeDefined();
+    expect(screen.getByText('Plan easy dinners for next week.')).toBeDefined();
+    expect(screen.getByText(/Tuesday:/)).toBeDefined();
     expect(screen.getByText('May 1, 2026')).toBeDefined();
+    expect(within(historySection).queryByText(/saved recipe/)).toBeNull();
     expect(screen.getByRole('button', { name: 'Herb-Crusted Chicken' })).toBeDefined();
   });
 

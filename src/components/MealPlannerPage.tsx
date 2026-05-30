@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookPlus, CalendarDays, CheckCircle, Clock, CreditCard, Loader2, Lock, Send, Sparkles, UtensilsCrossed } from 'lucide-react';
+import { BookPlus, CalendarDays, CheckCircle, ChevronDown, Clock, CreditCard, Loader2, Lock, Send, Sparkles, UtensilsCrossed } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import { useRecipes } from '../context/RecipeContext';
 import { useCookbooks } from '../context/CookbookContext';
@@ -62,6 +62,7 @@ export function MealPlannerPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUsageLoading, setIsUsageLoading] = useState(true);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isCreatingCookbook, setIsCreatingCookbook] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -431,31 +432,44 @@ export function MealPlannerPage() {
       )}
 
       <section className="meal-planner-history" aria-label="Meal planning history">
-        <div className="meal-planner-history-header">
-          <div>
-            <h2>History</h2>
-            <p>Your previous meal planning questions and responses.</p>
-          </div>
-          <Clock size={20} />
-        </div>
+        <button
+          type="button"
+          className="meal-planner-history-header"
+          aria-label={isHistoryOpen ? 'Collapse history' : 'Expand history'}
+          aria-expanded={isHistoryOpen}
+          onClick={() => setIsHistoryOpen(value => !value)}
+        >
+          <span className="meal-planner-history-heading">
+            <Clock size={20} />
+            <span>
+              <h2>History</h2>
+              <p>Your previous meal planning questions and responses.</p>
+            </span>
+          </span>
+          <ChevronDown
+            size={20}
+            className={`meal-planner-history-chevron ${isHistoryOpen ? 'open' : ''}`}
+          />
+        </button>
 
-        {isHistoryLoading ? (
-          <div className="meal-planner-history-empty">Loading history...</div>
-        ) : history.length === 0 ? (
-          <div className="meal-planner-history-empty">No meal planning history yet.</div>
-        ) : (
-          <div className="meal-planner-history-list">
-            {history.map(item => (
-              <article className="meal-planner-history-item" key={item.id}>
-                <div className="meal-planner-history-meta">
-                  <span>{formatHistoryDate(item.createdAt)}</span>
-                  <span>{item.recipeCount} saved recipe{item.recipeCount !== 1 ? 's' : ''} available</span>
-                </div>
-                <h3>{item.prompt}</h3>
-                <div className="meal-planner-result-text">{renderSuggestion(item)}</div>
-              </article>
-            ))}
-          </div>
+        {isHistoryOpen && (
+          isHistoryLoading ? (
+            <div className="meal-planner-history-empty">Loading history...</div>
+          ) : history.length === 0 ? (
+            <div className="meal-planner-history-empty">No meal planning history yet.</div>
+          ) : (
+            <div className="meal-planner-history-list">
+              {history.map(item => (
+                <article className="meal-planner-history-item" key={item.id}>
+                  <div className="meal-planner-history-meta">
+                    <span>{formatHistoryDate(item.createdAt)}</span>
+                  </div>
+                  <h3>{item.prompt}</h3>
+                  <div className="meal-planner-result-text">{renderSuggestion(item)}</div>
+                </article>
+              ))}
+            </div>
+          )
         )}
       </section>
 
