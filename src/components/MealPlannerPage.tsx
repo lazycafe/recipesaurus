@@ -129,6 +129,7 @@ export function MealPlannerPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUsageLoading, setIsUsageLoading] = useState(true);
   const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isCreatingCookbook, setIsCreatingCookbook] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -507,65 +508,79 @@ export function MealPlannerPage() {
       )}
 
       <section className="meal-planner-history" aria-label="Meal planning history">
-        <div className="meal-planner-history-header">
-          <div>
-            <h2>History</h2>
-            <p>Your previous meal planning questions and responses.</p>
-          </div>
-          <Clock size={20} />
-        </div>
+        <button
+          type="button"
+          className="meal-planner-history-header"
+          aria-label={isHistoryOpen ? 'Collapse history' : 'Expand history'}
+          aria-expanded={isHistoryOpen}
+          onClick={() => setIsHistoryOpen(value => !value)}
+        >
+          <span className="meal-planner-history-heading">
+            <Clock size={20} />
+            <span>
+              <h2>History</h2>
+              <p>Your previous meal planning questions and responses.</p>
+            </span>
+          </span>
+          <ChevronDown
+            size={20}
+            className={`meal-planner-history-chevron ${isHistoryOpen ? 'open' : ''}`}
+          />
+        </button>
 
-        {isHistoryLoading ? (
-          <div className="meal-planner-history-empty">Loading history...</div>
-        ) : history.length === 0 ? (
-          <div className="meal-planner-history-empty">No meal planning history yet.</div>
-        ) : (
-          <>
-            <div className="meal-planner-history-list">
-              {paginatedHistory.map(item => (
-                <MealPlanHistoryCard
-                  key={item.id}
-                  item={item}
-                  renderSuggestion={renderSuggestion}
-                />
-              ))}
-            </div>
+        {isHistoryOpen && (
+          isHistoryLoading ? (
+            <div className="meal-planner-history-empty">Loading history...</div>
+          ) : history.length === 0 ? (
+            <div className="meal-planner-history-empty">No meal planning history yet.</div>
+          ) : (
+            <>
+              <div className="meal-planner-history-list">
+                {paginatedHistory.map(item => (
+                  <MealPlanHistoryCard
+                    key={item.id}
+                    item={item}
+                    renderSuggestion={renderSuggestion}
+                  />
+                ))}
+              </div>
 
-            {historyPageCount > 1 && (
-              <nav className="recipe-pagination meal-planner-history-pagination" aria-label="Meal planning history pagination">
-                <span className="pagination-status">Page {historyPage} of {historyPageCount}</span>
-                <div className="pagination-buttons">
-                  <button
-                    className="pagination-btn"
-                    onClick={() => setHistoryPage(page => Math.max(1, page - 1))}
-                    disabled={historyPage === 1}
-                    aria-label="Previous page"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  {Array.from({ length: historyPageCount }, (_, index) => index + 1).map(page => (
+              {historyPageCount > 1 && (
+                <nav className="recipe-pagination meal-planner-history-pagination" aria-label="Meal planning history pagination">
+                  <span className="pagination-status">Page {historyPage} of {historyPageCount}</span>
+                  <div className="pagination-buttons">
                     <button
-                      key={page}
-                      className={`pagination-page ${page === historyPage ? 'active' : ''}`}
-                      onClick={() => setHistoryPage(page)}
-                      aria-label={`Page ${page}`}
-                      aria-current={page === historyPage ? 'page' : undefined}
+                      className="pagination-btn"
+                      onClick={() => setHistoryPage(page => Math.max(1, page - 1))}
+                      disabled={historyPage === 1}
+                      aria-label="Previous page"
                     >
-                      {page}
+                      <ChevronLeft size={16} />
                     </button>
-                  ))}
-                  <button
-                    className="pagination-btn"
-                    onClick={() => setHistoryPage(page => Math.min(historyPageCount, page + 1))}
-                    disabled={historyPage === historyPageCount}
-                    aria-label="Next page"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </nav>
-            )}
-          </>
+                    {Array.from({ length: historyPageCount }, (_, index) => index + 1).map(page => (
+                      <button
+                        key={page}
+                        className={`pagination-page ${page === historyPage ? 'active' : ''}`}
+                        onClick={() => setHistoryPage(page)}
+                        aria-label={`Page ${page}`}
+                        aria-current={page === historyPage ? 'page' : undefined}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      className="pagination-btn"
+                      onClick={() => setHistoryPage(page => Math.min(historyPageCount, page + 1))}
+                      disabled={historyPage === historyPageCount}
+                      aria-label="Next page"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </nav>
+              )}
+            </>
+          )
         )}
       </section>
 
