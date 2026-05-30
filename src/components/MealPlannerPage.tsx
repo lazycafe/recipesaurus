@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   BookPlus,
   CalendarDays,
@@ -13,6 +13,7 @@ import {
   Lock,
   Send,
   Sparkles,
+  UtensilsCrossed,
 } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import { useRecipes } from '../context/RecipeContext';
@@ -118,7 +119,7 @@ function MealPlanHistoryCard({ item, renderSuggestion }: MealPlanHistoryCardProp
 export function MealPlannerPage() {
   const client = useClient();
   const navigate = useNavigate();
-  const { recipes } = useRecipes();
+  const { recipes, isLoading: recipesLoading } = useRecipes();
   const { createCookbook, refreshCookbooks } = useCookbooks();
   const [request, setRequest] = useState(SAMPLE_REQUESTS[0]);
   const [mealPlan, setMealPlan] = useState<MealPlanResult | null>(null);
@@ -359,19 +360,20 @@ export function MealPlannerPage() {
       </section>
 
       <section className="meal-planner-toolbar" aria-label="Meal planner status">
-        <div className="meal-planner-status-item">
-          <Clock size={18} />
-          <span>{isUsageLoading ? 'Checking quota...' : quotaText}</span>
-        </div>
-        {usage?.isPaid && (
-          <button
-            type="button"
-            className="meal-planner-billing-link"
-            onClick={handleManageBilling}
-          >
-            <CreditCard size={16} />
-            Manage billing
-          </button>
+        <Link className="meal-planner-status-item meal-planner-status-link" to="/my-recipes">
+          <UtensilsCrossed size={18} />
+          <span>{recipesLoading ? 'Loading recipes...' : `${recipes.length} saved recipes available`}</span>
+        </Link>
+        {isUsageLoading || !usage ? (
+          <div className="meal-planner-status-item">
+            <Clock size={18} />
+            <span>Checking quota...</span>
+          </div>
+        ) : (
+          <Link className="meal-planner-status-item meal-planner-status-link" to="/settings">
+            <Clock size={18} />
+            <span>{quotaText}</span>
+          </Link>
         )}
       </section>
 

@@ -21,9 +21,12 @@ describe('SettingsPage', () => {
     name: 'Test User',
   };
   const mockGetBillingStatus = vi.fn();
+  const mockCreateCheckoutSession = vi.fn();
   const mockCreatePortalSession = vi.fn();
   const mockOpen = vi.fn();
+  const mockAssign = vi.fn();
   const originalOpen = window.open;
+  const originalLocation = window.location;
 
   const freeBilling: BillingStatus = {
     isPaid: false,
@@ -74,6 +77,11 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetBillingStatus.mockResolvedValue({ data: { billing: freeBilling } });
+    mockCreateCheckoutSession.mockResolvedValue({
+      data: {
+        url: 'https://checkout.stripe.test/session',
+      },
+    });
     mockCreatePortalSession.mockResolvedValue({
       data: {
         url: 'https://billing.stripe.test/session',
@@ -83,11 +91,15 @@ describe('SettingsPage', () => {
       value: mockOpen,
       writable: true,
     });
+    Object.defineProperty(window, 'location', {
+      value: { assign: mockAssign },
+      writable: true,
+    });
 
     vi.mocked(ClientContext.useClient).mockReturnValue({
       billing: {
         getStatus: mockGetBillingStatus,
-        createCheckoutSession: vi.fn(),
+        createCheckoutSession: mockCreateCheckoutSession,
         createPortalSession: mockCreatePortalSession,
       },
     } as unknown as IClient);
@@ -108,6 +120,10 @@ describe('SettingsPage', () => {
   afterEach(() => {
     Object.defineProperty(window, 'open', {
       value: originalOpen,
+      writable: true,
+    });
+    Object.defineProperty(window, 'location', {
+      value: originalLocation,
       writable: true,
     });
   });
@@ -158,7 +174,24 @@ describe('SettingsPage', () => {
       expect(screen.getByText('Free')).toBeDefined();
     });
     expect(screen.getByText(/2 AI meal planning requests per week/i)).toBeDefined();
-    expect(screen.queryByRole('button', { name: /Upgrade to Meal Planner Plus/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /Upgrade to Meal Planner Plus/i })).toBeDefined();
+  });
+
+  it('starts checkout from the free subscription plan', async () => {
+    mockAuth();
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Upgrade to Meal Planner Plus/i })).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Upgrade to Meal Planner Plus/i }));
+
+    await waitFor(() => {
+      expect(mockCreateCheckoutSession).toHaveBeenCalledTimes(1);
+      expect(mockAssign).toHaveBeenCalledWith('https://checkout.stripe.test/session');
+    });
   });
 
   it('shows the paid subscription plan', async () => {
