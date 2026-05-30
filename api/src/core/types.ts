@@ -86,6 +86,13 @@ export interface DbLoginAttempt {
   success: number;
 }
 
+export interface DbPageView {
+  id: string;
+  page_key: string;
+  user_id: string | null;
+  viewed_at: number;
+}
+
 // Query result types
 export interface QueryResult<T> {
   results: T[];
@@ -232,4 +239,15 @@ export interface NotificationInfo {
   } | null;
   isRead: boolean;
   createdAt: number;
+}
+
+export interface PageViewCountInfo {
+  pageKey: string;
+  count: number;
+}
+
+export interface PageViewCountQuery {
+  pageKey?: string;
+  from?: number | string;
+  to?: number | string;
 }

@@ -51,6 +51,7 @@ export interface Env {
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_PRICE_ID?: string;
+  ANALYTICS_READ_TOKEN?: string;
   DISCORD_SIGNUP_WEBHOOK_URL?: string;
   DISCORD_FEEDBACK_WEBHOOK_URL?: string;
 }
@@ -285,6 +286,31 @@ function normalizeRecipeSharePayload(data: RecipeSharePayload): RecipeSharePaylo
   }
 
   return recipe;
+}
+
+const PAGE_KEY_PATTERN = /^[a-z][a-z0-9_.-]{0,127}$/;
+
+function isValidPageKey(pageKey: unknown): pageKey is string {
+  return typeof pageKey === 'string' && PAGE_KEY_PATTERN.test(pageKey);
+}
+
+function parsePageViewTimestamp(value: string | null): number | null {
+  if (value === null) return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const timestamp = /^\d+$/.test(trimmed) ? Number(trimmed) : Date.parse(trimmed);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function hasAnalyticsReadAccess(request: Request, env: Env): boolean {
+  if (!env.ANALYTICS_READ_TOKEN) return true;
+
+  const token = request.headers.get('X-Analytics-Token');
+  const authHeader = request.headers.get('Authorization');
+  const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  return token === env.ANALYTICS_READ_TOKEN || bearer === env.ANALYTICS_READ_TOKEN;
 }
 
 const RECIPE_DEDUPE_SEPARATOR = '\u001f';
@@ -716,7 +742,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': allowOrigin!,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Analytics-Token',
     'Access-Control-Allow-Credentials': 'true',
   };
 }
@@ -1146,6 +1172,90 @@ async function handleGetSession(request: Request, db: D1Database): Promise<Respo
     200,
     corsHeaders(origin)
   );
+}
+
+async function handleTrackPageView(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const body = await request.json() as { pageKey?: unknown };
+
+  if (!isValidPageKey(body.pageKey)) {
+    return errorResponse('Invalid page key', 400, origin);
+  }
+
+  const user = await getSessionUser(request, db);
+  await db.prepare(
+    `INSERT INTO page_views (id, page_key, user_id, viewed_at)
+     VALUES (?, ?, ?, ?)`
+  ).bind(generateId(), body.pageKey, user?.id ?? null, Date.now()).run();
+
+  return jsonResponse({ success: true }, 201, corsHeaders(origin));
+}
+
+async function handleGetPageViewCounts(request: Request, db: D1Database, env: Env): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  if (!hasAnalyticsReadAccess(request, env)) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const url = new URL(request.url);
+  const pageKey = url.searchParams.get('key') ?? url.searchParams.get('pageKey');
+  if (pageKey !== null && !isValidPageKey(pageKey)) {
+    return errorResponse('Invalid page key', 400, origin);
+  }
+
+  const fromParam = url.searchParams.get('from');
+  const toParam = url.searchParams.get('to');
+  const from = parsePageViewTimestamp(fromParam);
+  const to = parsePageViewTimestamp(toParam);
+
+  if (fromParam !== null && from === null) {
+    return errorResponse('Invalid from timestamp', 400, origin);
+  }
+  if (toParam !== null && to === null) {
+    return errorResponse('Invalid to timestamp', 400, origin);
+  }
+  if (from !== null && to !== null && from > to) {
+    return errorResponse('from must be before to', 400, origin);
+  }
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (pageKey) {
+    conditions.push('page_key = ?');
+    params.push(pageKey);
+  }
+  if (from !== null) {
+    conditions.push('viewed_at >= ?');
+    params.push(from);
+  }
+  if (to !== null) {
+    conditions.push('viewed_at < ?');
+    params.push(to);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const stmt = db.prepare(
+    `SELECT page_key, COUNT(*) as count
+     FROM page_views
+     ${where}
+     GROUP BY page_key
+     ORDER BY count DESC, page_key ASC`
+  );
+  const query = params.length > 0 ? stmt.bind(...params) : stmt;
+  const result = await query.all<{ page_key: string; count: number }>();
+
+  const counts = result.results.map(row => ({
+    pageKey: row.page_key,
+    count: Number(row.count),
+  }));
+
+  return jsonResponse({
+    counts,
+    total: counts.reduce((sum, row) => sum + row.count, 0),
+    from,
+    to,
+  }, 200, corsHeaders(origin));
 }
 
 async function handleForgotPassword(request: Request, db: D1Database, env: Env): Promise<Response> {
@@ -3507,6 +3617,12 @@ export default {
       }
       if (path === '/api/feedback' && method === 'POST') {
         return handleFeedback(request, env);
+      }
+      if (path === '/api/analytics/page-views' && method === 'POST') {
+        return handleTrackPageView(request, env.DB);
+      }
+      if (path === '/api/analytics/page-views' && method === 'GET') {
+        return handleGetPageViewCounts(request, env.DB, env);
       }
 
       // Proxy fetch for recipe import

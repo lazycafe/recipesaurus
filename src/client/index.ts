@@ -19,6 +19,8 @@ export type {
   MealPlanResult,
   BillingStatus,
   BillingSession,
+  PageViewCount,
+  PageViewQuery,
 } from './types';
 
 export { HttpClient, HttpTransport, LocalStorageTokenStorage, createHttpClient } from './HttpClient';

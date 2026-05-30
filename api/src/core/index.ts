@@ -13,6 +13,7 @@ export type {
   DbCookbookShareLink,
   DbRecipeShareLink,
   DbLoginAttempt,
+  DbPageView,
   UserInfo,
   RecipeInfo,
   CookbookInfo,
@@ -20,6 +21,8 @@ export type {
   CookbookShareLinkInfo,
   RecipeSharePayload,
   RecipeShareLinkInfo,
+  PageViewCountInfo,
+  PageViewCountQuery,
 } from './types';
 
 export { CoreHandlers, webCryptoProvider } from './handlers';

@@ -212,6 +212,7 @@ export class ReactTestHarness {
     this.db.run('DELETE FROM cookbook_share_links');
     this.db.run('DELETE FROM cookbook_shares');
     this.db.run('DELETE FROM cookbook_recipes');
+    this.db.run('DELETE FROM page_views');
     this.db.run('DELETE FROM cookbooks');
     this.db.run('DELETE FROM recipes');
     this.db.run('DELETE FROM ai_meal_plan_requests');

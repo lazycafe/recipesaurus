@@ -19,6 +19,8 @@ import type {
   MealPlanResult,
   BillingStatus,
   BillingSession,
+  PageViewCount,
+  PageViewQuery,
 } from './types';
 
 // Type definitions for core handlers (matches api/src/core/handlers.ts)
@@ -90,6 +92,9 @@ export interface ICoreHandlers {
   getMealPlanUsage(ctx: RequestContext): Promise<ApiResult<{ usage: MealPlanUsage }>>;
   getMealPlanHistory(ctx: RequestContext): Promise<ApiResult<{ history: MealPlanHistoryItem[] }>>;
   createMealPlan(ctx: RequestContext, request: string): Promise<ApiResult<MealPlanResult>>;
+  // Analytics
+  trackPageView(ctx: RequestContext, data: { pageKey?: unknown }): Promise<ApiResult<{ success: boolean }>>;
+  getPageViewCounts(query?: { pageKey?: string; from?: number | string; to?: number | string }): Promise<ApiResult<{ counts: PageViewCount[]; total: number; from: number | null; to: number | null }>>;
 }
 
 // In-memory token storage for testing
@@ -115,6 +120,11 @@ function toApiResponse<T>(result: ApiResult<T>): ApiResponse<T> {
     return { error: result.error, status: result.status, code: result.code };
   }
   return { data: result.data, status: result.status };
+}
+
+function formatPageViewTime(value: number | string | Date | undefined): number | string | undefined {
+  if (value === undefined) return undefined;
+  return value instanceof Date ? value.toISOString() : value;
 }
 
 // In-memory client that directly calls core handlers
@@ -362,6 +372,24 @@ export class InMemoryClient implements IClient {
 
     createMealPlan: async (request: string): Promise<ApiResponse<MealPlanResult>> => {
       const result = await this.handlers.createMealPlan(this.getContext(), request);
+      return toApiResponse(result);
+    },
+  };
+
+  analytics = {
+    trackPageView: async (pageKey: string): Promise<ApiResponse<{ success: boolean }>> => {
+      const result = await this.handlers.trackPageView(this.getContext(), { pageKey });
+      return toApiResponse(result);
+    },
+
+    getPageViews: async (
+      options?: PageViewQuery
+    ): Promise<ApiResponse<{ counts: PageViewCount[]; total: number; from: number | null; to: number | null }>> => {
+      const result = await this.handlers.getPageViewCounts({
+        pageKey: options?.pageKey,
+        from: formatPageViewTime(options?.from),
+        to: formatPageViewTime(options?.to),
+      });
       return toApiResponse(result);
     },
   };

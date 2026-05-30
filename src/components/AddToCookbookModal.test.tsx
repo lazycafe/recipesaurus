@@ -115,6 +115,10 @@ describe('AddToCookbookModal', () => {
       },
       ai: {} as IClient['ai'],
       billing: {} as IClient['billing'],
+      analytics: {
+        trackPageView: vi.fn(),
+        getPageViews: vi.fn(),
+      },
       discover: {
         recipes: vi.fn(),
         cookbooks: vi.fn(),

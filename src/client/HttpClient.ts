@@ -20,6 +20,8 @@ import type {
   MealPlanResult,
   BillingStatus,
   BillingSession,
+  PageViewCount,
+  PageViewQuery,
 } from './types';
 
 // Default localStorage-based token storage
@@ -88,6 +90,10 @@ export class HttpTransport implements ITransport {
       return { error: 'Network error. Please try again.' };
     }
   }
+}
+
+function formatPageViewTime(value: number | string | Date): string {
+  return value instanceof Date ? value.toISOString() : String(value);
 }
 
 // HTTP Client implementation
@@ -323,6 +329,23 @@ export class HttpClient implements IClient {
 
     reinstateSubscription: (): Promise<ApiResponse<{ billing: BillingStatus }>> => {
       return this.transport.request('POST', '/api/billing/reinstate-subscription');
+    },
+  };
+
+  analytics = {
+    trackPageView: (pageKey: string): Promise<ApiResponse<{ success: boolean }>> => {
+      return this.transport.request('POST', '/api/analytics/page-views', { pageKey });
+    },
+
+    getPageViews: (
+      options?: PageViewQuery
+    ): Promise<ApiResponse<{ counts: PageViewCount[]; total: number; from: number | null; to: number | null }>> => {
+      const params = new URLSearchParams();
+      if (options?.pageKey) params.set('key', options.pageKey);
+      if (options?.from !== undefined) params.set('from', formatPageViewTime(options.from));
+      if (options?.to !== undefined) params.set('to', formatPageViewTime(options.to));
+      const query = params.toString();
+      return this.transport.request('GET', `/api/analytics/page-views${query ? `?${query}` : ''}`);
     },
   };
 

@@ -17,6 +17,8 @@ import type {
   RecipeShareLinkInfo,
   DbUserSubscription,
   DbAiMealPlanRequest,
+  PageViewCountInfo,
+  PageViewCountQuery,
 } from './types';
 import {
   MEAL_PLAN_HISTORY_LIMIT,
@@ -276,6 +278,53 @@ function parseJsonList(value: string | null | undefined): string[] {
   }
 }
 
+const PAGE_KEY_PATTERN = /^[a-z][a-z0-9_.-]{0,127}$/;
+
+function isValidPageKey(pageKey: unknown): pageKey is string {
+  return typeof pageKey === 'string' && PAGE_KEY_PATTERN.test(pageKey);
+}
+
+function parsePageViewTimestamp(value: number | string | undefined): number | null {
+  if (value === undefined) return null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const timestamp = /^\d+$/.test(trimmed) ? Number(trimmed) : Date.parse(trimmed);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function normalizePageViewQuery(query: PageViewCountQuery): {
+  pageKey?: string;
+  from: number | null;
+  to: number | null;
+  error?: string;
+} {
+  const pageKey = query.pageKey?.trim();
+  if (pageKey && !isValidPageKey(pageKey)) {
+    return { from: null, to: null, error: 'Invalid page key' };
+  }
+
+  const from = parsePageViewTimestamp(query.from);
+  if (query.from !== undefined && from === null) {
+    return { from: null, to: null, error: 'Invalid from timestamp' };
+  }
+
+  const to = parsePageViewTimestamp(query.to);
+  if (query.to !== undefined && to === null) {
+    return { from: null, to: null, error: 'Invalid to timestamp' };
+  }
+
+  if (from !== null && to !== null && from > to) {
+    return { from: null, to: null, error: 'from must be before to' };
+  }
+
+  return { pageKey, from, to };
+}
+
 // Core handler class
 export class CoreHandlers {
   constructor(
@@ -456,6 +505,77 @@ export class CoreHandlers {
     }
     return {
       data: { user: { id: user.id, email: user.email, name: user.name } },
+      status: 200,
+    };
+  }
+
+  async trackPageView(
+    ctx: RequestContext,
+    data: { pageKey?: unknown }
+  ): Promise<ApiResult<{ success: boolean }>> {
+    if (!isValidPageKey(data.pageKey)) {
+      return { error: 'Invalid page key', status: 400 };
+    }
+
+    const user = await this.getSessionUser(ctx);
+    await this.db.run(
+      `INSERT INTO page_views (id, page_key, user_id, viewed_at)
+       VALUES (?, ?, ?, ?)`,
+      this.crypto.generateId(),
+      data.pageKey,
+      user?.id ?? null,
+      Date.now()
+    );
+
+    return { data: { success: true }, status: 201 };
+  }
+
+  async getPageViewCounts(
+    query: PageViewCountQuery = {}
+  ): Promise<ApiResult<{ counts: PageViewCountInfo[]; total: number; from: number | null; to: number | null }>> {
+    const normalized = normalizePageViewQuery(query);
+    if (normalized.error) {
+      return { error: normalized.error, status: 400 };
+    }
+
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (normalized.pageKey) {
+      conditions.push('page_key = ?');
+      params.push(normalized.pageKey);
+    }
+    if (normalized.from !== null) {
+      conditions.push('viewed_at >= ?');
+      params.push(normalized.from);
+    }
+    if (normalized.to !== null) {
+      conditions.push('viewed_at < ?');
+      params.push(normalized.to);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await this.db.all<{ page_key: string; count: number }>(
+      `SELECT page_key, COUNT(*) as count
+       FROM page_views
+       ${where}
+       GROUP BY page_key
+       ORDER BY count DESC, page_key ASC`,
+      ...params
+    );
+
+    const counts = result.results.map(row => ({
+      pageKey: row.page_key,
+      count: Number(row.count),
+    }));
+
+    return {
+      data: {
+        counts,
+        total: counts.reduce((sum, row) => sum + row.count, 0),
+        from: normalized.from,
+        to: normalized.to,
+      },
       status: 200,
     };
   }

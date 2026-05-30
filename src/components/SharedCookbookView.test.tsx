@@ -52,6 +52,7 @@ describe('SharedCookbookView', () => {
       invites: {} as IClient['invites'],
       ai: {} as IClient['ai'],
       billing: {} as IClient['billing'],
+      analytics: {} as IClient['analytics'],
       discover: {} as IClient['discover'],
     });
   });

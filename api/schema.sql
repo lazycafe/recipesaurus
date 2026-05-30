@@ -99,6 +99,15 @@ CREATE TABLE IF NOT EXISTS recipe_share_links (
   created_at INTEGER NOT NULL
 );
 
+-- Page view tracking by stable page keys
+CREATE TABLE IF NOT EXISTS page_views (
+  id TEXT PRIMARY KEY,
+  page_key TEXT NOT NULL,
+  user_id TEXT,
+  viewed_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 -- Notifications table
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
@@ -176,3 +185,5 @@ CREATE INDEX IF NOT EXISTS idx_recipe_share_links_created_at ON recipe_share_lin
 CREATE INDEX IF NOT EXISTS idx_ai_meal_plan_requests_user_created ON ai_meal_plan_requests(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_customer ON user_subscriptions(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_subscription ON user_subscriptions(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_page_views_page_key_viewed_at ON page_views(page_key, viewed_at);
+CREATE INDEX IF NOT EXISTS idx_page_views_viewed_at ON page_views(viewed_at);

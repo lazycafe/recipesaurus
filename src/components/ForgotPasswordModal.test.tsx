@@ -30,6 +30,7 @@ describe('ForgotPasswordModal', () => {
       invites: {} as any,
       ai: {} as any,
       billing: {} as any,
+      analytics: {} as any,
       discover: {} as any,
     });
   });

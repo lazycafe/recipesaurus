@@ -41,6 +41,92 @@ function LoadingScreen() {
   );
 }
 
+export const PAGE_KEYS = {
+  publicHome: 'public_home',
+  discoverRecipes: 'discover_recipes',
+  discoverCookbooks: 'discover_cookbooks',
+  discoverCookbookDetail: 'discover_cookbook_detail',
+  myRecipes: 'my_recipes',
+  cookbooks: 'cookbooks',
+  cookbookDetail: 'cookbook_detail',
+  settings: 'settings',
+  terms: 'terms',
+  feedback: 'feedback',
+  sharedCookbook: 'shared_cookbook',
+  sharedRecipePreview: 'shared_recipe_preview',
+  resetPassword: 'reset_password',
+  verifyEmail: 'verify_email',
+} as const;
+
+type PageKey = typeof PAGE_KEYS[keyof typeof PAGE_KEYS];
+
+interface PageKeyContext {
+  isAuthenticated: boolean;
+  isAuthLoading: boolean;
+}
+
+const trackedPageViewSignatures = new Set<string>();
+
+function rememberTrackedPageView(signature: string): void {
+  trackedPageViewSignatures.add(signature);
+  if (trackedPageViewSignatures.size > 100) {
+    const first = trackedPageViewSignatures.values().next();
+    if (!first.done) {
+      trackedPageViewSignatures.delete(first.value);
+    }
+  }
+}
+
+export function getPageKeyForPath(pathname: string, context: PageKeyContext): PageKey | null {
+  if (pathname.startsWith('/reset-password')) return PAGE_KEYS.resetPassword;
+  if (pathname.startsWith('/verify-email')) return PAGE_KEYS.verifyEmail;
+  if (/^\/shared\/[^/]+$/.test(pathname)) return PAGE_KEYS.sharedCookbook;
+  if (getSharedRecipePreviewData(pathname) !== null || getSharedRecipeToken(pathname) !== null) {
+    return PAGE_KEYS.sharedRecipePreview;
+  }
+
+  if (context.isAuthLoading) return null;
+  if (!context.isAuthenticated) return PAGE_KEYS.publicHome;
+
+  if (pathname === '/' || pathname === '/discover' || pathname === '/recipes') return null;
+  if (pathname === '/discover/recipes') return PAGE_KEYS.discoverRecipes;
+  if (pathname === '/discover/cookbooks') return PAGE_KEYS.discoverCookbooks;
+  if (/^\/discover\/cookbooks\/[^/]+$/.test(pathname)) return PAGE_KEYS.discoverCookbookDetail;
+  if (pathname === '/my-recipes') return PAGE_KEYS.myRecipes;
+  if (pathname === '/cookbooks') return PAGE_KEYS.cookbooks;
+  if (/^\/cookbooks\/[^/]+$/.test(pathname)) return PAGE_KEYS.cookbookDetail;
+  if (pathname === '/settings') return PAGE_KEYS.settings;
+  if (pathname === '/terms') return PAGE_KEYS.terms;
+  if (pathname === '/feedback') return PAGE_KEYS.feedback;
+
+  return null;
+}
+
+function PageViewTracker({ client }: { client: IClient }) {
+  const location = useLocation();
+  const { user, isLoading } = useAuth();
+  const pageKey = getPageKeyForPath(location.pathname, {
+    isAuthenticated: !!user,
+    isAuthLoading: isLoading,
+  });
+
+  useEffect(() => {
+    if (!pageKey) return;
+
+    const signature = `${location.key}:${pageKey}`;
+    if (trackedPageViewSignatures.has(signature)) return;
+
+    rememberTrackedPageView(signature);
+    void client.analytics.trackPageView(pageKey).then(result => {
+      if (result.error && import.meta.env.DEV) {
+        console.warn('Failed to track page view:', result.error);
+      }
+    });
+  }, [client, location.key, pageKey]);
+
+  return null;
+}
+
 function CookbooksView({
   onCreateCookbook,
 }: {
@@ -341,6 +427,7 @@ function AppWithClient({ client }: { client: IClient }) {
     <ClientProvider client={client}>
       <AuthProvider>
         <div className="app">
+          <PageViewTracker client={client} />
           {isResetPasswordRoute ? (
             <ResetPasswordRoute />
           ) : isVerifyEmailRoute ? (

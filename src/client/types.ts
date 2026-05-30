@@ -154,6 +154,17 @@ export interface BillingSession {
   url: string;
 }
 
+export interface PageViewCount {
+  pageKey: string;
+  count: number;
+}
+
+export interface PageViewQuery {
+  pageKey?: string;
+  from?: number | string | Date;
+  to?: number | string | Date;
+}
+
 // API Response types
 export interface ApiResponse<T> {
   data?: T;
@@ -245,6 +256,11 @@ export interface IClient {
     createPortalSession(): Promise<ApiResponse<BillingSession>>;
     cancelSubscription(): Promise<ApiResponse<{ billing: BillingStatus }>>;
     reinstateSubscription(): Promise<ApiResponse<{ billing: BillingStatus }>>;
+  };
+
+  analytics: {
+    trackPageView(pageKey: string): Promise<ApiResponse<{ success: boolean }>>;
+    getPageViews(options?: PageViewQuery): Promise<ApiResponse<{ counts: PageViewCount[]; total: number; from: number | null; to: number | null }>>;
   };
 
   discover: {

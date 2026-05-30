@@ -146,6 +146,14 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       created_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS page_views (
+      id TEXT PRIMARY KEY,
+      page_key TEXT NOT NULL,
+      user_id TEXT,
+      viewed_at INTEGER NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS login_attempts (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL,
@@ -220,6 +228,8 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
     CREATE INDEX IF NOT EXISTS idx_ai_meal_plan_requests_user_created ON ai_meal_plan_requests(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_user_subscriptions_customer ON user_subscriptions(stripe_customer_id);
     CREATE INDEX IF NOT EXISTS idx_user_subscriptions_subscription ON user_subscriptions(stripe_subscription_id);
+    CREATE INDEX IF NOT EXISTS idx_page_views_page_key_viewed_at ON page_views(page_key, viewed_at);
+    CREATE INDEX IF NOT EXISTS idx_page_views_viewed_at ON page_views(viewed_at);
   `);
 
   return db;
