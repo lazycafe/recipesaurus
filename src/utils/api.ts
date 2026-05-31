@@ -128,6 +128,25 @@ export interface RecipeResponse {
   createdAt: number;
   addedByUserId?: string;
   addedByUserName?: string | null;
+  sourceRecipeId?: string | null;
+  sourceRecipe?: RecipeSourceSnapshot | null;
+}
+
+export interface RecipeSourceSnapshot {
+  id: string;
+  title: string;
+  description: string;
+  ingredients: string[];
+  instructions: string[];
+  tags: string[];
+  imageUrl?: string | null;
+  sourceUrl?: string | null;
+  prepTime?: string | null;
+  cookTime?: string | null;
+  servings?: string | null;
+  ownerId?: string | null;
+  ownerName?: string | null;
+  createdAt?: number | null;
 }
 
 export interface CreateRecipeData {
@@ -141,6 +160,9 @@ export interface CreateRecipeData {
   prepTime?: string;
   cookTime?: string;
   servings?: string;
+  isPublic?: boolean;
+  sourceRecipeId?: string | null;
+  sourceRecipe?: RecipeSourceSnapshot | null;
 }
 
 export const recipesApi = {

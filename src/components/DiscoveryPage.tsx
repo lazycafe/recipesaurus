@@ -13,15 +13,27 @@ import { RecipeDetail } from './RecipeDetail';
 import { AddRecipeModal } from './AddRecipeModal';
 import { ConfirmModal } from './ConfirmModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { buildRemixDraft } from '../utils/recipeRemix';
+import { findDuplicateRecipe } from '../utils/recipeDedupe';
+import { isRecipeModifiedFromSource } from '../utils/recipeChanges';
 
 interface RecipeCardCompactProps {
   recipe: Recipe;
-  onSave: () => void;
+  onToggleSave: () => void;
   onClick: () => void;
-  isSaving?: boolean;
+  isTogglingSave?: boolean;
+  isSaved?: boolean;
+  canToggleSave?: boolean;
 }
 
-function RecipeCardCompact({ recipe, onSave, onClick, isSaving }: RecipeCardCompactProps) {
+function RecipeCardCompact({
+  recipe,
+  onToggleSave,
+  onClick,
+  isTogglingSave,
+  isSaved,
+  canToggleSave = true,
+}: RecipeCardCompactProps) {
   return (
     <article className="discovery-card" onClick={onClick}>
       <div className="discovery-card-image">
@@ -32,22 +44,33 @@ function RecipeCardCompact({ recipe, onSave, onClick, isSaving }: RecipeCardComp
             <DinoMascot size={48} />
           </div>
         )}
-        <button
-          className="discovery-save-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSave();
-          }}
-          disabled={isSaving}
-          aria-label="Save recipe"
-        >
-          {isSaving ? <Loader2 size={16} className="spin" /> : <Heart size={16} />}
-        </button>
+        {canToggleSave && (
+          <button
+            className={`discovery-save-btn ${isSaved ? 'saved' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSave();
+            }}
+            disabled={isTogglingSave}
+            aria-label={isSaved ? 'Recipe saved' : 'Save recipe'}
+            aria-pressed={isSaved}
+            title={isSaved ? 'Remove saved copy' : 'Save to My Recipes'}
+          >
+            {isTogglingSave ? (
+              <Loader2 size={16} className="spin" />
+            ) : (
+              <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
+            )}
+          </button>
+        )}
       </div>
       <div className="discovery-card-body">
         <h3 className="discovery-card-title">{recipe.title}</h3>
         {recipe.ownerName && (
           <p className="discovery-card-author">by {recipe.ownerName}</p>
+        )}
+        {recipe.sourceRecipe && (
+          <p className="discovery-card-remix">Version of {recipe.sourceRecipe.title}</p>
         )}
         {recipe.tags.length > 0 && (
           <div className="discovery-card-tags">
@@ -140,42 +163,199 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     selectedTags,
     setSelectedTags,
     saveRecipe,
+    remixRecipe,
     saveCookbook,
   } = useDiscovery();
 
-  const { updateRecipe, deleteRecipe, refreshRecipes } = useRecipes();
+  const { recipes: myRecipes, updateRecipe, deleteRecipe, refreshRecipes } = useRecipes();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
-  const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
+  const [togglingRecipeId, setTogglingRecipeId] = useState<string | null>(null);
+  const [remixingRecipeId, setRemixingRecipeId] = useState<string | null>(null);
   const [savingCookbookId, setSavingCookbookId] = useState<string | null>(null);
+  const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(() => new Set());
+  const [savedRecipeCopyIds, setSavedRecipeCopyIds] = useState<Map<string, string>>(() => new Map());
+  const [hiddenSavedRecipeIds, setHiddenSavedRecipeIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     loadRecipes();
     loadCookbooks();
-  }, [loadRecipes, loadCookbooks]);
+    if (user) {
+      void refreshRecipes();
+    }
+  }, [loadRecipes, loadCookbooks, refreshRecipes, user]);
 
-  const handleSaveRecipe = async (recipe: Recipe) => {
+  const getSavedRecipeCopies = (recipe: Recipe): LocalRecipe[] => {
+    if (recipe.isOwner) {
+      return myRecipes.filter(savedRecipe => savedRecipe.id === recipe.id);
+    }
+
+    const savedCopies = myRecipes.filter(savedRecipe =>
+      savedRecipe.sourceRecipeId === recipe.id ||
+      savedRecipe.sourceRecipe?.id === recipe.id
+    );
+    const duplicateRecipe = findDuplicateRecipe(myRecipes, recipe);
+
+    if (duplicateRecipe && !savedCopies.some(savedCopy => savedCopy.id === duplicateRecipe.id)) {
+      return [...savedCopies, duplicateRecipe];
+    }
+
+    return savedCopies;
+  };
+
+  const findUnmodifiedSavedRecipeCopy = (recipe: Recipe): LocalRecipe | undefined => {
+    return getSavedRecipeCopies(recipe).find(savedCopy =>
+      savedCopy.id !== recipe.id &&
+      savedCopy.isPublic !== true &&
+      !isRecipeModifiedFromSource(savedCopy)
+    );
+  };
+
+  const handleToggleSaveRecipe = async (recipe: Recipe) => {
     if (!user) {
       showToast({ message: 'Please sign in to save recipes', type: 'info' });
       return;
     }
-    setSavingRecipeId(recipe.id);
-    const savedId = await saveRecipe(recipe.id);
-    setSavingRecipeId(null);
 
-    if (savedId) {
-      // Refresh the recipes list so it shows the new recipe
+    if (recipe.isOwner) {
+      return;
+    }
+
+    const unmodifiedSavedCopy = findUnmodifiedSavedRecipeCopy(recipe);
+    if (unmodifiedSavedCopy) {
+      setTogglingRecipeId(recipe.id);
+      try {
+        await deleteRecipe(unmodifiedSavedCopy.id);
+        setSavedRecipeIds(prev => {
+          const next = new Set(prev);
+          next.delete(recipe.id);
+          return next;
+        });
+        setSavedRecipeCopyIds(prev => {
+          const next = new Map(prev);
+          next.delete(recipe.id);
+          return next;
+        });
+        setHiddenSavedRecipeIds(prev => new Set(prev).add(recipe.id));
+        await refreshRecipes();
+        showToast({
+          message: 'Removed saved copy from My Recipes',
+          type: 'success',
+        });
+      } finally {
+        setTogglingRecipeId(null);
+      }
+      return;
+    }
+
+    if (savedRecipeIds.has(recipe.id)) {
+      const savedCopyId = savedRecipeCopyIds.get(recipe.id);
+      if (savedCopyId && savedCopyId !== recipe.id) {
+        setTogglingRecipeId(recipe.id);
+        try {
+          await deleteRecipe(savedCopyId);
+          setSavedRecipeIds(prev => {
+            const next = new Set(prev);
+            next.delete(recipe.id);
+            return next;
+          });
+          setSavedRecipeCopyIds(prev => {
+            const next = new Map(prev);
+            next.delete(recipe.id);
+            return next;
+          });
+          setHiddenSavedRecipeIds(prev => new Set(prev).add(recipe.id));
+          await refreshRecipes();
+          showToast({
+            message: 'Removed saved copy from My Recipes',
+            type: 'success',
+          });
+        } finally {
+          setTogglingRecipeId(null);
+        }
+      } else {
+        setSavedRecipeIds(prev => {
+          const next = new Set(prev);
+          next.delete(recipe.id);
+          return next;
+        });
+        setSavedRecipeCopyIds(prev => {
+          const next = new Map(prev);
+          next.delete(recipe.id);
+          return next;
+        });
+        setHiddenSavedRecipeIds(prev => new Set(prev).add(recipe.id));
+      }
+      return;
+    }
+
+    if (isRecipeSaved(recipe)) {
+      setHiddenSavedRecipeIds(prev => new Set(prev).add(recipe.id));
+      return;
+    }
+
+    setTogglingRecipeId(recipe.id);
+    try {
+      const savedId = await saveRecipe(recipe.id);
+
+      if (savedId) {
+        setSavedRecipeIds(prev => new Set(prev).add(recipe.id));
+        setSavedRecipeCopyIds(prev => {
+          const next = new Map(prev);
+          next.set(recipe.id, savedId);
+          return next;
+        });
+        setHiddenSavedRecipeIds(prev => {
+          const next = new Set(prev);
+          next.delete(recipe.id);
+          return next;
+        });
+        // Refresh the recipes list so it shows the new recipe
+        await refreshRecipes();
+        showToast({
+          message: 'Saved as a private copy in My Recipes',
+          type: 'success',
+          action: {
+            label: 'View',
+            onClick: () => navigate('/my-recipes'),
+          },
+        });
+      } else {
+        showToast({
+          message: 'Could not save recipe. Please try again.',
+          type: 'error',
+        });
+      }
+    } finally {
+      setTogglingRecipeId(null);
+    }
+  };
+
+  const handleRemixRecipe = async (recipe: Recipe) => {
+    if (!user) {
+      showToast({ message: 'Please sign in to make your own version', type: 'info' });
+      return;
+    }
+
+    setRemixingRecipeId(recipe.id);
+    const remixedId = await remixRecipe(recipe.id);
+    setRemixingRecipeId(null);
+
+    if (remixedId) {
       await refreshRecipes();
+      setSelectedRecipe(null);
+      setEditingRecipe(buildRemixDraft(recipe, remixedId, user));
       showToast({
-        message: 'Saved to My Recipes',
+        message: 'Your version is ready to edit',
         type: 'success',
-        action: {
-          label: 'View',
-          onClick: () => navigate('/my-recipes'),
-        },
+      });
+    } else {
+      showToast({
+        message: 'Could not make your version. Please try again.',
+        type: 'error',
       });
     }
   };
@@ -199,6 +379,11 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
           label: 'View',
           onClick: () => navigate('/cookbooks'),
         },
+      });
+    } else {
+      showToast({
+        message: 'Could not save cookbook. Please try again.',
+        type: 'error',
       });
     }
   };
@@ -261,6 +446,17 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
 
   const uniqueRecipes = uniqueById(recipes);
   const uniqueCookbooks = uniqueById(cookbooks);
+
+  const isRecipeSaved = (recipe: Recipe): boolean => {
+    if (hiddenSavedRecipeIds.has(recipe.id)) {
+      return false;
+    }
+
+    return (
+      savedRecipeIds.has(recipe.id) ||
+      Boolean(findUnmodifiedSavedRecipeCopy(recipe))
+    );
+  };
 
   const filteredRecipes = searchQuery
     ? uniqueRecipes.filter(r =>
@@ -371,8 +567,10 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
                     key={recipe.id}
                     recipe={recipe}
                     onClick={() => setSelectedRecipe(recipe)}
-                    onSave={() => handleSaveRecipe(recipe)}
-                    isSaving={savingRecipeId === recipe.id}
+                    onToggleSave={() => handleToggleSaveRecipe(recipe)}
+                    isTogglingSave={togglingRecipeId === recipe.id}
+                    isSaved={isRecipeSaved(recipe)}
+                    canToggleSave={!recipe.isOwner}
                   />
                 ))}
               </div>
@@ -434,7 +632,11 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
         <RecipeDetail
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
-          onSave={!selectedRecipe.isOwner ? () => handleSaveRecipe(selectedRecipe) : undefined}
+          onSave={!selectedRecipe.isOwner ? () => handleToggleSaveRecipe(selectedRecipe) : undefined}
+          isSaved={isRecipeSaved(selectedRecipe)}
+          isSaving={togglingRecipeId === selectedRecipe.id}
+          onRemix={!selectedRecipe.isOwner ? () => handleRemixRecipe(selectedRecipe) : undefined}
+          isRemixing={remixingRecipeId === selectedRecipe.id}
           onEdit={selectedRecipe.isOwner ? () => {
             setEditingRecipe(selectedRecipe);
             setSelectedRecipe(null);

@@ -1,6 +1,7 @@
 import { Clock, Users, X, BookPlus, User } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
+import { isRecipeModifiedFromSource } from '../utils/recipeChanges';
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -11,6 +12,8 @@ interface RecipeCardProps {
 }
 
 export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook, addedByUserName }: RecipeCardProps) {
+  const hasSourceChanges = isRecipeModifiedFromSource(recipe);
+
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     onDelete?.();
@@ -50,6 +53,15 @@ export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook, addedBy
 
       <div className="card-body">
         <h3 className="card-title">{recipe.title}</h3>
+        {recipe.sourceRecipe && (
+          <p className="card-remix-source">
+            {hasSourceChanges
+              ? `Version of ${recipe.sourceRecipe.title}`
+              : recipe.sourceRecipe.ownerName
+                ? `Original by ${recipe.sourceRecipe.ownerName}`
+                : `Saved from ${recipe.sourceRecipe.title}`}
+          </p>
+        )}
         <p className="card-description">{recipe.description}</p>
 
         <div className="card-meta">

@@ -4,6 +4,7 @@ import type { Recipe, Cookbook } from '../client/types';
 import { SAMPLE_RECIPES } from '../data/sampleRecipes';
 import { SAMPLE_COOKBOOKS, COOKBOOK_RECIPES } from '../data/sampleCookbooks';
 import { findDuplicateRecipe } from '../utils/recipeDedupe';
+import { buildSourceSnapshot } from '../utils/recipeRemix';
 
 interface DiscoveryState {
   recipes: Recipe[];
@@ -22,6 +23,7 @@ interface DiscoveryContextType extends DiscoveryState {
   loadMoreCookbooks: () => Promise<void>;
   setSelectedTags: (tags: string[]) => void;
   saveRecipe: (recipeId: string) => Promise<string | null>;
+  remixRecipe: (recipeId: string) => Promise<string | null>;
   saveCookbook: (cookbookId: string) => Promise<string | null>;
   getPublicRecipe: (id: string) => Promise<Recipe | null>;
   getPublicCookbook: (id: string) => Promise<{ cookbook: Cookbook; recipes: Recipe[] } | null>;
@@ -266,6 +268,8 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
             cookTime: sampleRecipe.cookTime ?? undefined,
             servings: sampleRecipe.servings ?? undefined,
             isPublic: false,
+            sourceRecipeId: sampleRecipe.id,
+            sourceRecipe: buildSourceSnapshot(sampleRecipe),
           });
           if (result.data) {
             return result.data.id;
@@ -282,6 +286,38 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       return null;
     } catch (error) {
       console.error('Failed to save recipe:', error);
+      return null;
+    }
+  }, [client]);
+
+  const remixRecipe = useCallback(async (recipeId: string): Promise<string | null> => {
+    try {
+      if (recipeId.startsWith('sample-')) {
+        const sampleRecipe = SAMPLE_RECIPES.find(r => r.id === recipeId);
+        if (!sampleRecipe) return null;
+
+        const result = await client.recipes.create({
+          title: sampleRecipe.title,
+          description: sampleRecipe.description,
+          ingredients: sampleRecipe.ingredients,
+          instructions: sampleRecipe.instructions,
+          tags: sampleRecipe.tags,
+          imageUrl: sampleRecipe.imageUrl ?? undefined,
+          prepTime: sampleRecipe.prepTime ?? undefined,
+          cookTime: sampleRecipe.cookTime ?? undefined,
+          servings: sampleRecipe.servings ?? undefined,
+          isPublic: false,
+          sourceRecipeId: sampleRecipe.id,
+          sourceRecipe: buildSourceSnapshot(sampleRecipe),
+        });
+
+        return result.data?.id || null;
+      }
+
+      const result = await client.discover.remixRecipe(recipeId);
+      return result.data?.id || null;
+    } catch (error) {
+      console.error('Failed to remix recipe:', error);
       return null;
     }
   }, [client]);
@@ -328,6 +364,8 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
                     cookTime: sampleRecipe.cookTime ?? undefined,
                     servings: sampleRecipe.servings ?? undefined,
                     isPublic: false,
+                    sourceRecipeId: sampleRecipe.id,
+                    sourceRecipe: buildSourceSnapshot(sampleRecipe),
                   });
 
               // Add to cookbook
@@ -417,6 +455,7 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         loadMoreCookbooks,
         setSelectedTags,
         saveRecipe,
+        remixRecipe,
         saveCookbook,
         getPublicRecipe,
         getPublicCookbook,

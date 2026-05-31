@@ -17,6 +17,7 @@ import type {
   RecipeShareLinkInfo,
   DbUserSubscription,
   DbAiMealPlanRequest,
+  RecipeSourceSnapshot,
 } from './types';
 import {
   MEAL_PLAN_HISTORY_LIMIT,
@@ -156,15 +157,81 @@ function validatePassword(password: string): { valid: boolean; error?: string } 
   return { valid: true };
 }
 
+function parseJsonList(value: string | null | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseSourceRecipeSnapshot(value: string | null | undefined): RecipeSourceSnapshot | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<RecipeSourceSnapshot>;
+    if (!parsed || typeof parsed.id !== 'string' || typeof parsed.title !== 'string') {
+      return null;
+    }
+
+    return {
+      id: parsed.id,
+      title: parsed.title,
+      description: typeof parsed.description === 'string' ? parsed.description : '',
+      ingredients: Array.isArray(parsed.ingredients) ? parsed.ingredients.filter((item): item is string => typeof item === 'string') : [],
+      instructions: Array.isArray(parsed.instructions) ? parsed.instructions.filter((item): item is string => typeof item === 'string') : [],
+      tags: Array.isArray(parsed.tags) ? parsed.tags.filter((item): item is string => typeof item === 'string') : [],
+      imageUrl: typeof parsed.imageUrl === 'string' ? parsed.imageUrl : null,
+      sourceUrl: typeof parsed.sourceUrl === 'string' ? parsed.sourceUrl : null,
+      prepTime: typeof parsed.prepTime === 'string' ? parsed.prepTime : null,
+      cookTime: typeof parsed.cookTime === 'string' ? parsed.cookTime : null,
+      servings: typeof parsed.servings === 'string' ? parsed.servings : null,
+      ownerId: typeof parsed.ownerId === 'string' ? parsed.ownerId : null,
+      ownerName: typeof parsed.ownerName === 'string' ? parsed.ownerName : null,
+      createdAt: typeof parsed.createdAt === 'number' ? parsed.createdAt : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildSourceRecipeSnapshot(recipe: DbRecipe & { owner_name?: string | null }): RecipeSourceSnapshot {
+  return {
+    id: recipe.id,
+    title: recipe.title,
+    description: recipe.description,
+    ingredients: parseJsonList(recipe.ingredients),
+    instructions: parseJsonList(recipe.instructions),
+    tags: parseJsonList(recipe.tags),
+    imageUrl: recipe.image_url,
+    sourceUrl: recipe.source_url,
+    prepTime: recipe.prep_time,
+    cookTime: recipe.cook_time,
+    servings: recipe.servings,
+    ownerId: recipe.owner_id,
+    ownerName: recipe.owner_name || null,
+    createdAt: recipe.created_at,
+  };
+}
+
+function serializeSourceRecipeSnapshot(source: RecipeSourceSnapshot | null | undefined): string | null {
+  if (!source) return null;
+  const parsed = parseSourceRecipeSnapshot(JSON.stringify(source));
+  return parsed ? JSON.stringify(parsed) : null;
+}
+
 // Helper to format recipe
 function formatRecipe(r: DbRecipe & { owner_name?: string | null }, currentUserId?: string, addedByUserName?: string | null): RecipeInfo {
+  const sourceRecipe = parseSourceRecipeSnapshot(r.source_recipe_snapshot);
+
   return {
     id: r.id,
     title: r.title,
     description: r.description,
-    ingredients: JSON.parse(r.ingredients),
-    instructions: JSON.parse(r.instructions),
-    tags: r.tags ? JSON.parse(r.tags) : [],
+    ingredients: parseJsonList(r.ingredients),
+    instructions: parseJsonList(r.instructions),
+    tags: parseJsonList(r.tags),
     imageUrl: r.image_url,
     sourceUrl: r.source_url,
     prepTime: r.prep_time,
@@ -176,6 +243,8 @@ function formatRecipe(r: DbRecipe & { owner_name?: string | null }, currentUserI
     isOwner: currentUserId ? r.owner_id === currentUserId : undefined,
     createdAt: r.created_at,
     addedByUserName,
+    sourceRecipeId: r.source_recipe_id || sourceRecipe?.id || null,
+    sourceRecipe,
   };
 }
 
@@ -261,19 +330,6 @@ function normalizeRecipeSharePayload(data: RecipeSharePayload): RecipeSharePaylo
   }
 
   return recipe;
-}
-
-function parseJsonList(value: string | null | undefined): string[] {
-  if (!value) return [];
-
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === 'string')
-      : [];
-  } catch {
-    return [];
-  }
 }
 
 // Core handler class
@@ -656,6 +712,8 @@ export class CoreHandlers {
       cookTime?: string;
       servings?: string;
       isPublic?: boolean;
+      sourceRecipeId?: string | null;
+      sourceRecipe?: RecipeSourceSnapshot | null;
     }
   ): Promise<ApiResult<{ id: string }>> {
     const user = await this.getSessionUser(ctx);
@@ -664,9 +722,11 @@ export class CoreHandlers {
     }
 
     const recipeId = this.crypto.generateId();
+    const sourceSnapshot = serializeSourceRecipeSnapshot(data.sourceRecipe);
+    const sourceRecipeId = data.sourceRecipeId || data.sourceRecipe?.id || null;
     await this.db.run(
-      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, source_recipe_snapshot, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       recipeId,
       user.id,
       user.id, // owner_id is the same as user_id when creating
@@ -680,6 +740,8 @@ export class CoreHandlers {
       data.prepTime || null,
       data.cookTime || null,
       data.servings || null,
+      sourceRecipeId,
+      sourceSnapshot,
       data.isPublic ? 1 : 0,
       Date.now()
     );
@@ -1886,7 +1948,19 @@ export class CoreHandlers {
        WHERE user_id = ?
          AND (
            id = ?
-           OR source_recipe_id = ?
+           OR (
+             source_recipe_id = ?
+             AND title = ?
+             AND COALESCE(description, '') = COALESCE(?, '')
+             AND ingredients = ?
+             AND instructions = ?
+             AND COALESCE(tags, '') = COALESCE(?, '')
+             AND COALESCE(image_url, '') = COALESCE(?, '')
+             AND COALESCE(source_url, '') = COALESCE(?, '')
+             AND COALESCE(prep_time, '') = COALESCE(?, '')
+             AND COALESCE(cook_time, '') = COALESCE(?, '')
+             AND COALESCE(servings, '') = COALESCE(?, '')
+           )
            OR (
              owner_id = ?
              AND title = ?
@@ -1912,6 +1986,16 @@ export class CoreHandlers {
       userId,
       recipe.id,
       recipe.id,
+      recipe.title,
+      recipe.description,
+      recipe.ingredients,
+      recipe.instructions,
+      recipe.tags,
+      recipe.image_url,
+      recipe.source_url,
+      recipe.prep_time,
+      recipe.cook_time,
+      recipe.servings,
       recipe.owner_id,
       recipe.title,
       recipe.description,
@@ -1941,8 +2025,11 @@ export class CoreHandlers {
     }
 
     // Get the public recipe
-    const recipe = await this.db.get<DbRecipe>(
-      'SELECT * FROM recipes WHERE id = ? AND is_public = 1',
+    const recipe = await this.db.get<DbRecipe & { owner_name: string | null }>(
+      `SELECT r.*, u.name as owner_name
+       FROM recipes r
+       LEFT JOIN users u ON r.owner_id = u.id
+       WHERE r.id = ? AND r.is_public = 1`,
       recipeId
     );
 
@@ -1957,12 +2044,13 @@ export class CoreHandlers {
 
     // Create a copy of the recipe for the user
     const newRecipeId = this.crypto.generateId();
+    const sourceSnapshot = JSON.stringify(buildSourceRecipeSnapshot(recipe));
     await this.db.run(
-      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, source_recipe_snapshot, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       newRecipeId,
       user.id,
-      recipe.owner_id, // Keep original owner reference
+      user.id,
       recipe.title,
       recipe.description,
       recipe.ingredients,
@@ -1974,6 +2062,7 @@ export class CoreHandlers {
       recipe.cook_time,
       recipe.servings,
       recipe.id,
+      sourceSnapshot,
       0, // saved copies are private by default
       Date.now()
     );
@@ -1988,6 +2077,67 @@ export class CoreHandlers {
       Date.now()
     );
     await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', Date.now(), collectionId);
+
+    return { data: { id: newRecipeId }, status: 201 };
+  }
+
+  // Remix a public recipe into an editable, user-owned private copy.
+  async remixRecipe(
+    ctx: RequestContext,
+    recipeId: string
+  ): Promise<ApiResult<{ id: string }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const recipe = await this.db.get<DbRecipe & { owner_name: string | null }>(
+      `SELECT r.*, u.name as owner_name
+       FROM recipes r
+       LEFT JOIN users u ON r.owner_id = u.id
+       WHERE r.id = ? AND r.is_public = 1`,
+      recipeId
+    );
+
+    if (!recipe) {
+      return { error: 'Recipe not found or not public', status: 404 };
+    }
+
+    const now = Date.now();
+    const newRecipeId = this.crypto.generateId();
+    const sourceSnapshot = JSON.stringify(buildSourceRecipeSnapshot(recipe));
+
+    await this.db.run(
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, source_recipe_snapshot, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      newRecipeId,
+      user.id,
+      user.id,
+      recipe.title,
+      recipe.description,
+      recipe.ingredients,
+      recipe.instructions,
+      recipe.tags,
+      recipe.image_url,
+      recipe.source_url,
+      recipe.prep_time,
+      recipe.cook_time,
+      recipe.servings,
+      recipe.id,
+      sourceSnapshot,
+      0,
+      now
+    );
+
+    const collectionId = await this.getOrCreateRecipeCollection(user.id);
+    await this.db.run(
+      'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
+      collectionId,
+      newRecipeId,
+      user.id,
+      now
+    );
+    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, collectionId);
 
     return { data: { id: newRecipeId }, status: 201 };
   }
@@ -2013,9 +2163,10 @@ export class CoreHandlers {
     }
 
     // Get all recipes in the cookbook
-    const cookbookRecipes = await this.db.all<DbRecipe>(
-      `SELECT r.* FROM recipes r
+    const cookbookRecipes = await this.db.all<DbRecipe & { owner_name: string | null }>(
+      `SELECT r.*, u.name as owner_name FROM recipes r
        JOIN cookbook_recipes cr ON r.id = cr.recipe_id
+       LEFT JOIN users u ON r.owner_id = u.id
        WHERE cr.cookbook_id = ?`,
       cookbookId
     );
@@ -2046,13 +2197,14 @@ export class CoreHandlers {
 
       if (!savedRecipeId) {
         savedRecipeId = this.crypto.generateId();
+        const sourceSnapshot = JSON.stringify(buildSourceRecipeSnapshot(recipe));
 
         await this.db.run(
-          `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, source_recipe_snapshot, is_public, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           savedRecipeId,
           user.id,
-          recipe.owner_id,
+          user.id,
           recipe.title,
           recipe.description,
           recipe.ingredients,
@@ -2064,6 +2216,7 @@ export class CoreHandlers {
           recipe.cook_time,
           recipe.servings,
           recipe.id,
+          sourceSnapshot,
           0, // private
           now
         );

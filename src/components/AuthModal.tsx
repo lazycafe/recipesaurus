@@ -81,6 +81,27 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
     setResendStatus('sent');
   };
 
+  const handleDevLogin = async () => {
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const result = await devLogin();
+      if (result.requiresVerification) {
+        setVerificationPending(true);
+        setVerificationEmail(result.email || 'dev@example.com');
+        return;
+      }
+      if (!result.success) {
+        setError(result.error || 'Dev login failed');
+        return;
+      }
+      onClose();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const toggleMode = () => {
     setMode(mode === 'login' ? 'register' : 'login');
     setError(null);
@@ -272,10 +293,8 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
           <button
             type="button"
             className="dev-login-btn"
-            onClick={() => {
-              devLogin();
-              onClose();
-            }}
+            onClick={() => void handleDevLogin()}
+            disabled={isLoading}
           >
             <Bug size={16} />
             Dev Login (skip verification)

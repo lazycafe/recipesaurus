@@ -142,6 +142,25 @@ describe('RecipeCard', () => {
     expect(screen.getByText('4')).toBeDefined();
   });
 
+  it('cites the original author for unmodified saved copies', () => {
+    render(
+      <RecipeCard
+        recipe={{
+          ...mockRecipe,
+          sourceRecipeId: 'original-1',
+          sourceRecipe: {
+            ...mockRecipe,
+            id: 'original-1',
+            ownerName: 'Original Chef',
+          },
+        }}
+        onClick={() => {}}
+      />
+    );
+
+    expect(screen.getByText('Original by Original Chef')).toBeDefined();
+  });
+
   it('hides actions when no callbacks provided', () => {
     const { container } = render(
       <RecipeCard recipe={mockRecipe} onClick={() => {}} />

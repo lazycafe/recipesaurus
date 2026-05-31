@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS recipes (
   cook_time TEXT,
   servings TEXT,
   source_recipe_id TEXT,
+  source_recipe_snapshot TEXT,
   is_public INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,

@@ -4,22 +4,29 @@ import { ArrowLeft, BookOpen, Heart, Loader2, User } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useRecipes } from '../context/RecipeContext';
 import { Recipe, Cookbook } from '../client/types';
+import { Recipe as LocalRecipe, RecipeFormData } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
+import { AddRecipeModal } from './AddRecipeModal';
+import { buildRemixDraft } from '../utils/recipeRemix';
 
 export function PublicCookbookDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { getPublicCookbook, saveRecipe } = useDiscovery();
+  const { getPublicCookbook, saveRecipe, remixRecipe } = useDiscovery();
+  const { updateRecipe, refreshRecipes } = useRecipes();
 
   const [cookbook, setCookbook] = useState<Cookbook | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
+  const [remixingRecipeId, setRemixingRecipeId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -53,6 +60,60 @@ export function PublicCookbookDetailPage() {
           onClick: () => navigate('/my-recipes'),
         },
       });
+    }
+  };
+
+  const handleRemixRecipe = async (recipe: Recipe) => {
+    if (!user) {
+      showToast({ message: 'Please sign in to make your own version', type: 'info' });
+      return;
+    }
+
+    setRemixingRecipeId(recipe.id);
+    const remixedId = await remixRecipe(recipe.id);
+    setRemixingRecipeId(null);
+
+    if (remixedId) {
+      await refreshRecipes();
+      setSelectedRecipe(null);
+      setEditingRecipe(buildRemixDraft(recipe, remixedId, user));
+      showToast({
+        message: 'Your version is ready to edit',
+        type: 'success',
+      });
+    }
+  };
+
+  const parseFormData = (formData: RecipeFormData) => ({
+    title: formData.title.trim(),
+    description: formData.description.trim(),
+    ingredients: formData.ingredients
+      .split('\n')
+      .map((ingredient: string) => ingredient.trim())
+      .filter(Boolean),
+    instructions: formData.instructions
+      .split('\n')
+      .map((step: string) => step.trim())
+      .filter(Boolean),
+    tags: formData.tags
+      .split(',')
+      .map((tag: string) => tag.trim().toLowerCase())
+      .filter(Boolean),
+    imageUrl: formData.imageUrl?.trim() || undefined,
+    prepTime: formData.prepTime?.trim() || undefined,
+    cookTime: formData.cookTime?.trim() || undefined,
+    servings: formData.servings?.trim() || undefined,
+    sourceUrl: formData.sourceUrl?.trim() || undefined,
+    isPublic: formData.isPublic,
+  });
+
+  const handleUpdateRecipe = async (formData: RecipeFormData) => {
+    if (!editingRecipe) return;
+    try {
+      await updateRecipe(editingRecipe.id, parseFormData(formData));
+      setEditingRecipe(null);
+    } catch (error) {
+      console.error('Failed to update remixed recipe:', error);
     }
   };
 
@@ -157,6 +218,9 @@ export function PublicCookbookDetailPage() {
                 </div>
                 <div className="public-recipe-card-body">
                   <h3>{recipe.title}</h3>
+                  {recipe.sourceRecipe && (
+                    <p className="public-recipe-card-remix">Version of {recipe.sourceRecipe.title}</p>
+                  )}
                   {recipe.tags.length > 0 && (
                     <div className="tags">
                       {recipe.tags.slice(0, 3).map(tag => (
@@ -176,7 +240,24 @@ export function PublicCookbookDetailPage() {
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
           onSave={() => handleSaveRecipe(selectedRecipe)}
+          onRemix={() => handleRemixRecipe(selectedRecipe)}
+          isRemixing={remixingRecipeId === selectedRecipe.id}
           isPublicView={true}
+        />
+      )}
+
+      {editingRecipe && (
+        <AddRecipeModal
+          recipe={{
+            ...editingRecipe,
+            imageUrl: editingRecipe.imageUrl ?? undefined,
+            sourceUrl: editingRecipe.sourceUrl ?? undefined,
+            prepTime: editingRecipe.prepTime ?? undefined,
+            cookTime: editingRecipe.cookTime ?? undefined,
+            servings: editingRecipe.servings ?? undefined,
+          } as LocalRecipe}
+          onClose={() => setEditingRecipe(null)}
+          onSubmit={handleUpdateRecipe}
         />
       )}
     </div>

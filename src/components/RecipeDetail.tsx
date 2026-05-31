@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User, Share2 } from 'lucide-react';
+import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User, Share2, GitFork, Loader2 } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { Recipe as ClientRecipe } from '../client/types';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
 import { ShareRecipeModal } from './ShareRecipeModal';
+import { getRecipeChangeSummary, isRecipeModifiedFromSource } from '../utils/recipeChanges';
 
 interface RecipeDetailProps {
   recipe: Recipe | ClientRecipe;
@@ -12,11 +13,27 @@ interface RecipeDetailProps {
   onDelete?: () => void;
   onEdit?: () => void;
   onSave?: () => void;
+  isSaving?: boolean;
+  isSaved?: boolean;
+  onRemix?: () => void;
+  isRemixing?: boolean;
   readOnly?: boolean;
   isPublicView?: boolean;
 }
 
-export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOnly = false, isPublicView = false }: RecipeDetailProps) {
+export function RecipeDetail({
+  recipe,
+  onClose,
+  onDelete,
+  onEdit,
+  onSave,
+  isSaving = false,
+  isSaved = false,
+  onRemix,
+  isRemixing = false,
+  readOnly = false,
+  isPublicView = false,
+}: RecipeDetailProps) {
   const [showShareModal, setShowShareModal] = useState(false);
 
   const handleDelete = () => {
@@ -25,6 +42,9 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
 
   // Type guard for ClientRecipe with owner info
   const ownerName = 'ownerName' in recipe ? recipe.ownerName : null;
+  const sourceRecipe = 'sourceRecipe' in recipe ? recipe.sourceRecipe : null;
+  const changeGroups = getRecipeChangeSummary(recipe as ClientRecipe);
+  const hasSourceChanges = isRecipeModifiedFromSource(recipe as ClientRecipe);
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -50,6 +70,13 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
               <p className="detail-author">
                 <User size={14} />
                 by {ownerName}
+              </p>
+            )}
+            {sourceRecipe && (
+              <p className="detail-remix-source">
+                <GitFork size={14} />
+                {hasSourceChanges ? 'Based on' : 'Saved from'} <span>{sourceRecipe.title}</span>
+                {sourceRecipe.ownerName ? ` by ${sourceRecipe.ownerName}` : ''}
               </p>
             )}
             <p className="detail-description">{recipe.description}</p>
@@ -130,14 +157,53 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
               ))}
             </ol>
           </section>
+
+          {changeGroups.length > 0 && (
+            <section className="detail-section detail-changes-section">
+              <h3>What Changed</h3>
+              <div className="recipe-changes">
+                {changeGroups.map(group => (
+                  <div className="recipe-change-group" key={group.label}>
+                    <h4>{group.label}</h4>
+                    <ul>
+                      {group.items.map(item => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
-        {isPublicView && onSave && (
+        {isPublicView && (onSave || onRemix) && (
           <div className="detail-footer">
-            <button className="btn-primary" onClick={onSave}>
-              <Heart size={16} strokeWidth={2} />
-              <span>Save to My Recipes</span>
-            </button>
+            {onSave && (
+              <button
+                className="btn-secondary"
+                onClick={onSave}
+                disabled={isSaving}
+                aria-pressed={isSaved}
+              >
+                {isSaving ? (
+                  <Loader2 size={16} strokeWidth={2} className="spin" />
+                ) : (
+                  <Heart size={16} strokeWidth={2} fill={isSaved ? 'currentColor' : 'none'} />
+                )}
+                <span>{isSaved ? 'Saved' : 'Save'}</span>
+              </button>
+            )}
+            {onRemix && (
+              <button className="btn-primary" onClick={onRemix} disabled={isRemixing}>
+                {isRemixing ? (
+                  <Loader2 size={16} strokeWidth={2} className="spin" />
+                ) : (
+                  <GitFork size={16} strokeWidth={2} />
+                )}
+                <span>Make My Version</span>
+              </button>
+            )}
           </div>
         )}
 

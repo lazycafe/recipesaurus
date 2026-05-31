@@ -42,6 +42,9 @@ function mapRecipeResponse(r: ClientRecipe): CookbookRecipe {
     addedByUserName: r.addedByUserName,
     ownerId: r.ownerId,
     isOwner: r.isOwner,
+    ownerName: r.ownerName,
+    sourceRecipeId: r.sourceRecipeId || undefined,
+    sourceRecipe: r.sourceRecipe || undefined,
   };
 }
 

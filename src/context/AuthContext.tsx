@@ -23,7 +23,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   verifyEmail: (token: string) => Promise<AuthResult>;
   resendVerification: (email: string) => Promise<{ success: boolean; error?: string }>;
-  devLogin: () => void;
+  devLogin: () => Promise<AuthResult>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,18 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function checkSession() {
-    // In dev mode, check for dev token and restore dev user
-    if (import.meta.env.DEV) {
-      const storedToken = localStorage.getItem('recipesaurus_token');
-      if (storedToken === 'dev-token') {
-        setUser({
-          id: 'dev-user-id',
-          email: 'dev@example.com',
-          name: 'Dev User',
-        });
-        setIsLoading(false);
-        return;
-      }
+    if (import.meta.env.DEV && localStorage.getItem('recipesaurus_token') === 'dev-token') {
+      clearStoredToken();
     }
 
     try {
@@ -160,15 +150,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
-  const devLogin = () => {
-    if (import.meta.env.DEV) {
-      const devUser: User = {
-        id: 'dev-user-id',
-        email: 'dev@example.com',
-        name: 'Dev User',
-      };
-      setStoredToken('dev-token');
-      setUser(devUser);
+  const devLogin = async (): Promise<AuthResult> => {
+    if (!import.meta.env.DEV) {
+      return { success: false, error: 'Dev login is only available in development' };
+    }
+
+    try {
+      const session = await client.auth.getSession();
+      if (session.data?.user) {
+        setUser(session.data.user);
+        return { success: true };
+      }
+
+      const loginResult = await client.auth.login('dev@example.com', 'DevPassword123');
+      const result = loginResult.error
+        ? await client.auth.register('dev@example.com', 'Dev User', 'DevPassword123')
+        : loginResult;
+
+      if (result.error) {
+        return { success: false, error: result.error };
+      }
+      if (result.data?.requiresVerification) {
+        return { success: false, requiresVerification: true, email: result.data.email };
+      }
+      if (result.data?.token) {
+        setStoredToken(result.data.token);
+      }
+      if (result.data?.user) {
+        setUser(result.data.user);
+        return { success: true };
+      }
+
+      return { success: false, error: 'Dev login failed' };
+    } catch (error) {
+      console.error('Dev login failed:', error);
+      return { success: false, error: 'Dev login failed' };
     }
   };
 

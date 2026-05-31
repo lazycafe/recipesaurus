@@ -66,6 +66,7 @@ export interface ICoreHandlers {
   getPublicRecipe(recipeId: string): Promise<ApiResult<{ recipe: Recipe }>>;
   getPublicCookbook(cookbookId: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   saveRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ id: string }>>;
+  remixRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ id: string }>>;
   saveCookbook(ctx: RequestContext, cookbookId: string): Promise<ApiResult<{ id: string }>>;
   savePreviewRecipe(ctx: RequestContext, data: {
     title: string;
@@ -432,6 +433,11 @@ export class InMemoryClient implements IClient {
 
     saveRecipe: async (recipeId: string): Promise<ApiResponse<{ id: string }>> => {
       const result = await this.handlers.saveRecipe(this.getContext(), recipeId);
+      return toApiResponse(result);
+    },
+
+    remixRecipe: async (recipeId: string): Promise<ApiResponse<{ id: string }>> => {
+      const result = await this.handlers.remixRecipe(this.getContext(), recipeId);
       return toApiResponse(result);
     },
 

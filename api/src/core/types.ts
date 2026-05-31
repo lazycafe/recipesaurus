@@ -31,6 +31,7 @@ export interface DbRecipe {
   cook_time: string | null;
   servings: string | null;
   source_recipe_id?: string | null;
+  source_recipe_snapshot?: string | null;
   is_public: number; // 0 = private, 1 = public
   created_at: number;
 }
@@ -144,6 +145,25 @@ export interface RecipeInfo {
   createdAt: number;
   addedByUserId?: string | null;
   addedByUserName?: string | null;
+  sourceRecipeId?: string | null;
+  sourceRecipe?: RecipeSourceSnapshot | null;
+}
+
+export interface RecipeSourceSnapshot {
+  id: string;
+  title: string;
+  description: string;
+  ingredients: string[];
+  instructions: string[];
+  tags: string[];
+  imageUrl?: string | null;
+  sourceUrl?: string | null;
+  prepTime?: string | null;
+  cookTime?: string | null;
+  servings?: string | null;
+  ownerId?: string | null;
+  ownerName?: string | null;
+  createdAt?: number | null;
 }
 
 // Public cookbook format

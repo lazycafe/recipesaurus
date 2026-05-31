@@ -33,6 +33,10 @@ function mapRecipeResponse(r: ClientRecipe): Recipe {
     cookTime: r.cookTime || undefined,
     servings: r.servings || undefined,
     createdAt: r.createdAt,
+    ownerName: r.ownerName,
+    isOwner: r.isOwner,
+    sourceRecipeId: r.sourceRecipeId || undefined,
+    sourceRecipe: r.sourceRecipe || undefined,
   };
 }
 

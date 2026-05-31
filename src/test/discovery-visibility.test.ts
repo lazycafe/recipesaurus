@@ -116,6 +116,11 @@ describe('public discovery visibility', () => {
     const recipesResult = await saverClient.recipes.list();
     const savedCopies = recipesResult.data!.recipes.filter(recipe => recipe.title === 'Shareable Lentil Soup');
     expect(savedCopies).toHaveLength(1);
+    expect(savedCopies[0].isPublic).toBe(false);
+    expect(savedCopies[0].isOwner).toBe(true);
+    expect(savedCopies[0].ownerName).toBe('Saver');
+    expect(savedCopies[0].sourceRecipeId).toBe(recipeResult.data!.id);
+    expect(savedCopies[0].sourceRecipe?.ownerName).toBe('Chef');
   });
 
   it('does not duplicate a user-owned public recipe when saved from Discover', async () => {
@@ -135,5 +140,53 @@ describe('public discovery visibility', () => {
     const recipesResult = await client.recipes.list();
     const matchingRecipes = recipesResult.data!.recipes.filter(recipe => recipe.title === 'Own Public Salad');
     expect(matchingRecipes).toHaveLength(1);
+  });
+
+  it('creates editable public remixes with stable source attribution', async () => {
+    const ownerClient = harness.getClient();
+    const recipeResult = await ownerClient.recipes.create({
+      title: 'Original Citrus Noodles',
+      description: 'Bright noodles',
+      ingredients: ['noodles', 'lime'],
+      instructions: ['Boil noodles', 'Toss with lime'],
+      tags: ['dinner'],
+      isPublic: true,
+    });
+
+    const saverClient = harness.createClient();
+    const registerResult = await saverClient.auth.register('remixer@example.com', 'Remixer', 'Password123');
+    const remixer = registerResult.data!.user!;
+
+    const remixResult = await saverClient.discover.remixRecipe(recipeResult.data!.id);
+    expect(remixResult.error).toBeUndefined();
+
+    const remixedId = remixResult.data!.id;
+    const remixedRecipes = await saverClient.recipes.list();
+    const draft = remixedRecipes.data!.recipes.find(recipe => recipe.id === remixedId);
+    expect(draft?.isOwner).toBe(true);
+    expect(draft?.ownerName).toBe(remixer.name);
+    expect(draft?.sourceRecipeId).toBe(recipeResult.data!.id);
+    expect(draft?.sourceRecipe?.title).toBe('Original Citrus Noodles');
+    expect(draft?.sourceRecipe?.ownerName).toBe('Chef');
+
+    const updateResult = await saverClient.recipes.update(remixedId, {
+      title: 'Spicy Citrus Noodles',
+      ingredients: ['noodles', 'lime', 'chili crisp'],
+      instructions: ['Boil noodles', 'Toss with lime and chili crisp'],
+      isPublic: true,
+    });
+    expect(updateResult.error).toBeUndefined();
+
+    await ownerClient.recipes.update(recipeResult.data!.id, {
+      title: 'Renamed Original Citrus Noodles',
+    });
+
+    const discoverResult = await saverClient.discover.recipes({ limit: 20 });
+    const publicRemix = discoverResult.data!.recipes.find(recipe => recipe.id === remixedId);
+    expect(publicRemix?.title).toBe('Spicy Citrus Noodles');
+    expect(publicRemix?.ownerName).toBe('Remixer');
+    expect(publicRemix?.sourceRecipe?.title).toBe('Original Citrus Noodles');
+    expect(publicRemix?.sourceRecipe?.ingredients).toEqual(['noodles', 'lime']);
+    expect(publicRemix?.ingredients).toContain('chili crisp');
   });
 });

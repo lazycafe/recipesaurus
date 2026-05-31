@@ -17,12 +17,7 @@ interface RecipeContextType {
 
 const RecipeContext = createContext<RecipeContextType | undefined>(undefined);
 
-interface ExtendedRecipe extends Recipe {
-  ownerName?: string;
-  isOwner?: boolean;
-}
-
-function mapRecipeResponse(r: ClientRecipe): ExtendedRecipe {
+function mapRecipeResponse(r: ClientRecipe): Recipe {
   return {
     id: r.id,
     title: r.title,
@@ -39,6 +34,8 @@ function mapRecipeResponse(r: ClientRecipe): ExtendedRecipe {
     createdAt: r.createdAt,
     ownerName: r.ownerName || undefined,
     isOwner: r.isOwner,
+    sourceRecipeId: r.sourceRecipeId || undefined,
+    sourceRecipe: r.sourceRecipe || undefined,
   };
 }
 
@@ -85,6 +82,8 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
       cookTime: recipeData.cookTime,
       servings: recipeData.servings,
       isPublic: recipeData.isPublic,
+      sourceRecipeId: recipeData.sourceRecipeId,
+      sourceRecipe: recipeData.sourceRecipe,
     });
 
     if (data?.id) {

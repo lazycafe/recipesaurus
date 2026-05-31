@@ -25,6 +25,25 @@ export interface Recipe {
   createdAt: number;
   addedByUserId?: string | null;
   addedByUserName?: string | null;
+  sourceRecipeId?: string | null;
+  sourceRecipe?: RecipeSourceSnapshot | null;
+}
+
+export interface RecipeSourceSnapshot {
+  id: string;
+  title: string;
+  description: string;
+  ingredients: string[];
+  instructions: string[];
+  tags: string[];
+  imageUrl?: string | null;
+  sourceUrl?: string | null;
+  prepTime?: string | null;
+  cookTime?: string | null;
+  servings?: string | null;
+  ownerId?: string | null;
+  ownerName?: string | null;
+  createdAt?: number | null;
 }
 
 export interface Cookbook {
@@ -86,6 +105,8 @@ export interface CreateRecipeData {
   cookTime?: string;
   servings?: string;
   isPublic?: boolean;
+  sourceRecipeId?: string | null;
+  sourceRecipe?: RecipeSourceSnapshot | null;
 }
 
 export interface UpdateRecipeData extends Partial<CreateRecipeData> {}
@@ -253,6 +274,7 @@ export interface IClient {
     getRecipe(id: string): Promise<ApiResponse<{ recipe: Recipe }>>;
     getCookbook(id: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>>;
     saveRecipe(recipeId: string): Promise<ApiResponse<{ id: string }>>;
+    remixRecipe(recipeId: string): Promise<ApiResponse<{ id: string }>>;
     saveCookbook(cookbookId: string): Promise<ApiResponse<{ id: string }>>;
   };
 }

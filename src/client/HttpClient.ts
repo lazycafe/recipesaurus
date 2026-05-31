@@ -356,6 +356,10 @@ export class HttpClient implements IClient {
       return this.transport.request('POST', `/api/discover/recipes/${recipeId}/save`);
     },
 
+    remixRecipe: (recipeId: string): Promise<ApiResponse<{ id: string }>> => {
+      return this.transport.request('POST', `/api/discover/recipes/${recipeId}/remix`);
+    },
+
     saveCookbook: (cookbookId: string): Promise<ApiResponse<{ id: string }>> => {
       return this.transport.request('POST', `/api/discover/cookbooks/${cookbookId}/save`);
     },

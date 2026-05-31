@@ -39,6 +39,8 @@ function mapRecipeResponse(r: RecipeResponse): CookbookRecipe {
     createdAt: r.createdAt,
     addedByUserId: r.addedByUserId,
     addedByUserName: r.addedByUserName,
+    sourceRecipeId: r.sourceRecipeId || undefined,
+    sourceRecipe: r.sourceRecipe || undefined,
   };
 }
 

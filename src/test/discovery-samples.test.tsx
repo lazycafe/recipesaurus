@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ClientProvider } from '../client/ClientContext';
@@ -15,9 +15,11 @@ function createClientMock() {
       getRecipe: vi.fn(),
       getCookbook: vi.fn(),
       saveRecipe: vi.fn(),
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
     },
     recipes: {
+      list: vi.fn().mockResolvedValue({ data: { recipes: [] } }),
       create: vi.fn(),
     },
     cookbooks: {
@@ -36,7 +38,9 @@ function DiscoveryProbe() {
     loadRecipes,
     loadCookbooks,
     loadMoreRecipes,
+    saveRecipe,
   } = useDiscovery();
+  const [savedRecipeId, setSavedRecipeId] = useState<string | null>(null);
 
   useEffect(() => {
     void loadRecipes();
@@ -54,6 +58,10 @@ function DiscoveryProbe() {
         <p key={cookbook.id}>{cookbook.name}</p>
       ))}
       <button onClick={() => void loadMoreRecipes()}>More recipes</button>
+      <button onClick={() => void saveRecipe(SAMPLE_RECIPES[0].id).then(setSavedRecipeId)}>
+        Save sample
+      </button>
+      {savedRecipeId && <p>Saved recipe: {savedRecipeId}</p>}
     </div>
   );
 }
@@ -143,5 +151,34 @@ describe('Discovery sample fallback', () => {
 
     expect(screen.getByText(`Recipes total: ${SAMPLE_RECIPES.length + 1}`)).toBeDefined();
     expect(screen.getByText(`Cookbooks total: ${SAMPLE_COOKBOOKS.length + 1}`)).toBeDefined();
+  });
+
+  it('saves sample recipes through the recipe client', async () => {
+    const client = createClientMock();
+    vi.mocked(client.recipes.create).mockResolvedValue({ data: { id: 'saved-sample-recipe' } });
+    renderDiscovery(client);
+
+    await waitFor(() => {
+      expect(screen.getByText(SAMPLE_RECIPES[0].title)).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Save sample'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Saved recipe: saved-sample-recipe')).toBeDefined();
+    });
+
+    expect(client.recipes.list).toHaveBeenCalled();
+    expect(client.recipes.create).toHaveBeenCalledWith(expect.objectContaining({
+      title: SAMPLE_RECIPES[0].title,
+      ingredients: SAMPLE_RECIPES[0].ingredients,
+      instructions: SAMPLE_RECIPES[0].instructions,
+      isPublic: false,
+      sourceRecipeId: SAMPLE_RECIPES[0].id,
+      sourceRecipe: expect.objectContaining({
+        id: SAMPLE_RECIPES[0].id,
+        ownerName: SAMPLE_RECIPES[0].ownerName,
+      }),
+    }));
   });
 });

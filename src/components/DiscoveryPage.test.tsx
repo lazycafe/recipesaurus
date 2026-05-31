@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { DiscoveryPage } from './DiscoveryPage';
@@ -45,6 +45,9 @@ describe('DiscoveryPage', () => {
   const mockLoadMoreCookbooks = vi.fn();
   const mockSetSelectedTags = vi.fn();
   const mockSaveRecipe = vi.fn();
+  const mockDeleteRecipe = vi.fn();
+  const mockShowToast = vi.fn();
+  const mockRefreshRecipes = vi.fn();
 
   const mockRecipe = {
     id: 'recipe-1',
@@ -73,7 +76,7 @@ describe('DiscoveryPage', () => {
     vi.clearAllMocks();
 
     vi.mocked(ToastContext.useToast).mockReturnValue({
-      showToast: vi.fn(),
+      showToast: mockShowToast,
       hideToast: vi.fn(),
     });
 
@@ -102,6 +105,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -112,9 +116,9 @@ describe('DiscoveryPage', () => {
       isLoading: false,
       addRecipe: vi.fn(),
       updateRecipe: vi.fn(),
-      deleteRecipe: vi.fn(),
+      deleteRecipe: mockDeleteRecipe,
       getAllTags: vi.fn().mockReturnValue([]),
-      refreshRecipes: vi.fn(),
+      refreshRecipes: mockRefreshRecipes,
     });
 
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
@@ -165,6 +169,11 @@ describe('DiscoveryPage', () => {
     expect(mockLoadCookbooks).toHaveBeenCalled();
   });
 
+  it('refreshes my recipes on mount so saved hearts hydrate when revisiting discover', () => {
+    renderWithRouter(<DiscoveryPage />);
+    expect(mockRefreshRecipes).toHaveBeenCalled();
+  });
+
   it('shows empty state when no recipes', () => {
     renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('No recipes found')).toBeDefined();
@@ -185,6 +194,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -193,6 +203,292 @@ describe('DiscoveryPage', () => {
     renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('Test Recipe')).toBeDefined();
     expect(screen.getByText('by Test Chef')).toBeDefined();
+  });
+
+  it('saves a recipe from discover and refreshes my recipes', async () => {
+    mockSaveRecipe.mockResolvedValue('saved-recipe-1');
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [mockRecipe],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: vi.fn(),
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+    fireEvent.click(screen.getByLabelText('Save recipe'));
+
+    await waitFor(() => {
+      expect(mockSaveRecipe).toHaveBeenCalledWith('recipe-1');
+    });
+    await waitFor(() => {
+      expect(mockRefreshRecipes).toHaveBeenCalled();
+    });
+    expect(mockShowToast).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'Saved as a private copy in My Recipes',
+      type: 'success',
+    }));
+    expect(screen.getByLabelText('Recipe saved')).toBeDefined();
+
+    fireEvent.click(screen.getByLabelText('Recipe saved'));
+
+    expect(mockSaveRecipe).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(mockDeleteRecipe).toHaveBeenCalledWith('saved-recipe-1');
+    });
+    await waitFor(() => {
+      expect(screen.getByLabelText('Save recipe')).toBeDefined();
+    });
+    expect(mockShowToast).toHaveBeenCalledWith({
+      message: 'Removed saved copy from My Recipes',
+      type: 'success',
+    });
+  });
+
+  it('shows recipes already saved to My Recipes as saved', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [mockRecipe],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: vi.fn(),
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [{
+        ...mockRecipe,
+        id: 'saved-recipe-1',
+        sourceRecipeId: 'recipe-1',
+        isPublic: false,
+        isOwner: true,
+      }],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: vi.fn().mockReturnValue([]),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+
+    expect(screen.getByLabelText('Recipe saved')).toBeDefined();
+  });
+
+  it('does not show a save heart on user-owned discover recipes', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [{ ...mockRecipe, isOwner: true }],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: vi.fn(),
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [{ ...mockRecipe, isOwner: true }],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: vi.fn().mockReturnValue([]),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+
+    expect(screen.queryByLabelText('Recipe saved')).toBeNull();
+    expect(screen.queryByLabelText('Save recipe')).toBeNull();
+    expect(mockSaveRecipe).not.toHaveBeenCalled();
+    expect(mockDeleteRecipe).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
+  });
+
+  it('removes an unmodified saved copy when toggling a saved public recipe off', async () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [mockRecipe],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: vi.fn(),
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [{
+        ...mockRecipe,
+        id: 'saved-recipe-1',
+        sourceRecipeId: 'recipe-1',
+        sourceRecipe: {
+          id: 'recipe-1',
+          title: 'Test Recipe',
+          description: 'A test recipe',
+          ingredients: ['ingredient 1'],
+          instructions: ['step 1'],
+          tags: ['dinner', 'quick'],
+          imageUrl: 'https://example.com/image.jpg',
+          ownerName: 'Test Chef',
+          createdAt: mockRecipe.createdAt,
+        },
+        isPublic: false,
+        isOwner: true,
+      }],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: vi.fn().mockReturnValue([]),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+    fireEvent.click(screen.getByLabelText('Recipe saved'));
+
+    await waitFor(() => {
+      expect(mockDeleteRecipe).toHaveBeenCalledWith('saved-recipe-1');
+    });
+    await waitFor(() => {
+      expect(mockRefreshRecipes).toHaveBeenCalled();
+    });
+    expect(mockSaveRecipe).not.toHaveBeenCalled();
+    expect(mockShowToast).toHaveBeenCalledWith({
+      message: 'Removed saved copy from My Recipes',
+      type: 'success',
+    });
+  });
+
+  it('does not treat an edited saved copy as a saved heart', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [mockRecipe],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: vi.fn(),
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [{
+        ...mockRecipe,
+        id: 'saved-recipe-1',
+        ingredients: ['ingredient 1', 'ingredient 2'],
+        sourceRecipeId: 'recipe-1',
+        sourceRecipe: {
+          id: 'recipe-1',
+          title: 'Test Recipe',
+          description: 'A test recipe',
+          ingredients: ['ingredient 1'],
+          instructions: ['step 1'],
+          tags: ['dinner', 'quick'],
+          imageUrl: 'https://example.com/image.jpg',
+          ownerName: 'Test Chef',
+          createdAt: mockRecipe.createdAt,
+        },
+        isPublic: false,
+        isOwner: true,
+      }],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: vi.fn().mockReturnValue([]),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+
+    expect(screen.getByLabelText('Save recipe')).toBeDefined();
+    expect(screen.queryByLabelText('Recipe saved')).toBeNull();
+    expect(mockDeleteRecipe).not.toHaveBeenCalled();
+    expect(mockSaveRecipe).not.toHaveBeenCalled();
+    expect(mockShowToast).not.toHaveBeenCalled();
+  });
+
+  it('shows an error when saving a recipe from discover fails', async () => {
+    mockSaveRecipe.mockResolvedValue(null);
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [mockRecipe],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: vi.fn(),
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+    fireEvent.click(screen.getByLabelText('Save recipe'));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith({
+        message: 'Could not save recipe. Please try again.',
+        type: 'error',
+      });
+    });
+    expect(mockRefreshRecipes).toHaveBeenCalledTimes(1);
   });
 
   it('renders duplicate recipes only once', () => {
@@ -210,6 +506,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -234,6 +531,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -258,6 +556,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -282,6 +581,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -312,6 +612,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -336,6 +637,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -361,6 +663,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -387,6 +690,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -413,6 +717,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
@@ -442,6 +747,7 @@ describe('DiscoveryPage', () => {
       loadMoreCookbooks: mockLoadMoreCookbooks,
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
       saveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
