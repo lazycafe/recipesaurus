@@ -5,6 +5,8 @@ import { SAMPLE_RECIPES } from '../data/sampleRecipes';
 import { SAMPLE_COOKBOOKS, COOKBOOK_RECIPES } from '../data/sampleCookbooks';
 import { findDuplicateRecipe } from '../utils/recipeDedupe';
 import { buildSourceSnapshot } from '../utils/recipeRemix';
+import { buildCookbookSourceSnapshot } from '../utils/cookbookRemix';
+import { findDuplicateCookbook } from '../utils/cookbookChanges';
 
 interface DiscoveryState {
   recipes: Recipe[];
@@ -328,12 +330,21 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       if (cookbookId.startsWith('cookbook-')) {
         const sampleCookbook = SAMPLE_COOKBOOKS.find(c => c.id === cookbookId);
         if (sampleCookbook) {
+          const existingCookbooks = await client.cookbooks.list();
+          const existingCookbook = findDuplicateCookbook(existingCookbooks.data?.owned || [], sampleCookbook);
+          if (existingCookbook) {
+            return existingCookbook.id;
+          }
+
+          const recipeIds = COOKBOOK_RECIPES[cookbookId] || [];
           // Create cookbook
           const cookbookResult = await client.cookbooks.create({
             name: sampleCookbook.name,
             description: sampleCookbook.description || undefined,
             coverImage: sampleCookbook.coverImage || undefined,
             isPublic: false,
+            sourceCookbookId: sampleCookbook.id,
+            sourceCookbook: buildCookbookSourceSnapshot(sampleCookbook, recipeIds),
           });
 
           if (!cookbookResult.data) {
@@ -343,7 +354,6 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
           const newCookbookId = cookbookResult.data.id;
 
           // Get recipe IDs for this cookbook and create each recipe
-          const recipeIds = COOKBOOK_RECIPES[cookbookId] || [];
           for (const recipeId of recipeIds) {
             const sampleRecipe = SAMPLE_RECIPES.find(r => r.id === recipeId);
             if (sampleRecipe) {

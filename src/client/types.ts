@@ -59,6 +59,22 @@ export interface Cookbook {
   updatedAt: number;
   isOwner: boolean;
   ownerName?: string;
+  sourceCookbookId?: string | null;
+  sourceCookbook?: CookbookSourceSnapshot | null;
+  sourceRecipeIds?: string[];
+}
+
+export interface CookbookSourceSnapshot {
+  id: string;
+  name: string;
+  description?: string | null;
+  coverImage?: string | null;
+  recipeCount: number;
+  recipeIds: string[];
+  ownerId?: string | null;
+  ownerName?: string | null;
+  createdAt?: number | null;
+  updatedAt?: number | null;
 }
 
 export interface CookbookShare {
@@ -116,6 +132,8 @@ export interface CreateCookbookData {
   description?: string;
   coverImage?: string;
   isPublic?: boolean;
+  sourceCookbookId?: string | null;
+  sourceCookbook?: CookbookSourceSnapshot | null;
 }
 
 export interface UpdateCookbookData {

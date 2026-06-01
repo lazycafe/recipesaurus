@@ -96,6 +96,29 @@ describe('Header', () => {
     expect(screen.getAllByText('Cookbooks').length).toBeGreaterThan(0);
   });
 
+  it('places Cookbooks before Meal Plan in desktop and mobile navigation', () => {
+    vi.mocked(AuthContext.useAuth).mockReturnValue({
+      user: mockUser,
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
+      devLogin: vi.fn(),
+    });
+
+    const { container } = renderWithRouter(<Header />);
+    const desktopNav = container.querySelector('.header-nav');
+    const mobileNav = container.querySelector('.mobile-nav');
+
+    const desktopText = desktopNav?.textContent ?? '';
+    const mobileText = mobileNav?.textContent ?? '';
+
+    expect(desktopText.indexOf('Cookbooks')).toBeLessThan(desktopText.indexOf('Meal Plan'));
+    expect(mobileText.indexOf('Cookbooks')).toBeLessThan(mobileText.indexOf('Meal Plan'));
+  });
+
   it('shows user name when logged in', () => {
     vi.mocked(AuthContext.useAuth).mockReturnValue({
       user: mockUser,

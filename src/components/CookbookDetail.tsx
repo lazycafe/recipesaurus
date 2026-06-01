@@ -8,6 +8,7 @@ import { DinoMascot } from './DinoMascot';
 import { ConfirmModal } from './ConfirmModal';
 import { useAuth } from '../context/AuthContext';
 import { ModalOverlay } from './ModalOverlay';
+import { isCookbookModifiedFromSource } from '../utils/cookbookChanges';
 
 interface CookbookDetailProps {
   cookbook: Cookbook;
@@ -60,6 +61,8 @@ export function CookbookDetail({
   const [selectedRecipe, setSelectedRecipe] = useState<CookbookRecipe | null>(null);
   const [recipeToRemove, setRecipeToRemove] = useState<CookbookRecipe | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const sourceCookbook = cookbook.sourceCookbook;
+  const showSourceAttribution = sourceCookbook && !isCookbookModifiedFromSource(cookbook);
 
   // Check if user can remove a recipe (owner can remove any, shared users can only remove their own)
   const canRemoveRecipe = (recipe: CookbookRecipe) => {
@@ -244,6 +247,12 @@ export function CookbookDetail({
               <p className="cookbook-detail-owner">
                 <User size={14} />
                 Shared by {cookbook.ownerName}
+              </p>
+            )}
+            {showSourceAttribution && sourceCookbook.ownerName && (
+              <p className="cookbook-detail-owner">
+                <User size={14} />
+                Original by {sourceCookbook.ownerName}
               </p>
             )}
           </div>

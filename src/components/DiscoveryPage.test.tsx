@@ -45,9 +45,12 @@ describe('DiscoveryPage', () => {
   const mockLoadMoreCookbooks = vi.fn();
   const mockSetSelectedTags = vi.fn();
   const mockSaveRecipe = vi.fn();
+  const mockSaveCookbook = vi.fn();
   const mockDeleteRecipe = vi.fn();
+  const mockDeleteCookbook = vi.fn();
   const mockShowToast = vi.fn();
   const mockRefreshRecipes = vi.fn();
+  const mockRefreshCookbooks = vi.fn();
 
   const mockRecipe = {
     id: 'recipe-1',
@@ -106,7 +109,7 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       remixRecipe: vi.fn(),
-      saveCookbook: vi.fn(),
+      saveCookbook: mockSaveCookbook,
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -127,11 +130,11 @@ describe('DiscoveryPage', () => {
       isLoading: false,
       createCookbook: vi.fn(),
       updateCookbook: vi.fn(),
-      deleteCookbook: vi.fn(),
+      deleteCookbook: mockDeleteCookbook,
       leaveCookbook: vi.fn(),
       addRecipeToCookbook: vi.fn(),
       removeRecipeFromCookbook: vi.fn(),
-      refreshCookbooks: vi.fn(),
+      refreshCookbooks: mockRefreshCookbooks,
     });
   });
 
@@ -298,7 +301,7 @@ describe('DiscoveryPage', () => {
     expect(screen.getByLabelText('Recipe saved')).toBeDefined();
   });
 
-  it('does not show a save heart on user-owned discover recipes', () => {
+  it('shows a Yours badge instead of a save heart on user-owned discover recipes', () => {
     vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
       recipes: [{ ...mockRecipe, isOwner: true }],
       cookbooks: [],
@@ -332,6 +335,8 @@ describe('DiscoveryPage', () => {
 
     expect(screen.queryByLabelText('Recipe saved')).toBeNull();
     expect(screen.queryByLabelText('Save recipe')).toBeNull();
+    expect(screen.getByLabelText('Your recipe')).toBeDefined();
+    expect(screen.getByText('Yours')).toBeDefined();
     expect(mockSaveRecipe).not.toHaveBeenCalled();
     expect(mockDeleteRecipe).not.toHaveBeenCalled();
     expect(mockShowToast).not.toHaveBeenCalled();
@@ -564,6 +569,196 @@ describe('DiscoveryPage', () => {
 
     renderWithRouter(<DiscoveryPage tab="cookbooks" />);
     expect(screen.getByText('Test Cookbook')).toBeDefined();
+  });
+
+  it('saves a cookbook from discover and removes the unmodified saved copy when toggled off', async () => {
+    mockSaveCookbook.mockResolvedValue('saved-cookbook-1');
+    mockDeleteCookbook.mockResolvedValue(true);
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [],
+      cookbooks: [mockCookbook],
+      recipesTotal: 0,
+      cookbooksTotal: 1,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: mockSaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+    fireEvent.click(screen.getByLabelText('Save cookbook'));
+
+    await waitFor(() => {
+      expect(mockSaveCookbook).toHaveBeenCalledWith('cookbook-1');
+    });
+    expect(mockShowToast).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'Saved as a private copy in My Cookbooks',
+      type: 'success',
+    }));
+    expect(screen.getByLabelText('Cookbook saved')).toBeDefined();
+
+    fireEvent.click(screen.getByLabelText('Cookbook saved'));
+
+    await waitFor(() => {
+      expect(mockDeleteCookbook).toHaveBeenCalledWith('saved-cookbook-1');
+    });
+    expect(mockShowToast).toHaveBeenCalledWith({
+      message: 'Removed saved cookbook from My Cookbooks',
+      type: 'success',
+    });
+  });
+
+  it('shows cookbooks already saved to My Cookbooks as saved', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [],
+      cookbooks: [mockCookbook],
+      recipesTotal: 0,
+      cookbooksTotal: 1,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: mockSaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+    vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
+      ownedCookbooks: [{
+        ...mockCookbook,
+        id: 'saved-cookbook-1',
+        sourceCookbookId: 'cookbook-1',
+        sourceCookbook: {
+          id: 'cookbook-1',
+          name: 'Test Cookbook',
+          description: 'A test cookbook',
+          coverImage: null,
+          recipeCount: 5,
+          recipeIds: [],
+          ownerName: 'Test Chef',
+          createdAt: mockCookbook.createdAt,
+          updatedAt: mockCookbook.updatedAt,
+        },
+        sourceRecipeIds: [],
+        isPublic: false,
+        isOwner: true,
+      }],
+      sharedCookbooks: [],
+      isLoading: false,
+      createCookbook: vi.fn(),
+      updateCookbook: vi.fn(),
+      deleteCookbook: mockDeleteCookbook,
+      leaveCookbook: vi.fn(),
+      addRecipeToCookbook: vi.fn(),
+      removeRecipeFromCookbook: vi.fn(),
+      refreshCookbooks: mockRefreshCookbooks,
+    });
+
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+
+    expect(screen.getByLabelText('Cookbook saved')).toBeDefined();
+  });
+
+  it('shows a Yours badge instead of a save heart on user-owned discover cookbooks', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [],
+      cookbooks: [{ ...mockCookbook, isOwner: true }],
+      recipesTotal: 0,
+      cookbooksTotal: 1,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: mockSaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+
+    expect(screen.queryByLabelText('Cookbook saved')).toBeNull();
+    expect(screen.queryByLabelText('Save cookbook')).toBeNull();
+    expect(screen.getByLabelText('Your cookbook')).toBeDefined();
+    expect(screen.getByText('Yours')).toBeDefined();
+    expect(mockSaveCookbook).not.toHaveBeenCalled();
+  });
+
+  it('does not treat an edited saved cookbook copy as a saved heart', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [],
+      cookbooks: [mockCookbook],
+      recipesTotal: 0,
+      cookbooksTotal: 1,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      remixRecipe: vi.fn(),
+      saveCookbook: mockSaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+    vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
+      ownedCookbooks: [{
+        ...mockCookbook,
+        id: 'saved-cookbook-1',
+        name: 'My Dinner Favorites',
+        sourceCookbookId: 'cookbook-1',
+        sourceCookbook: {
+          id: 'cookbook-1',
+          name: 'Test Cookbook',
+          description: 'A test cookbook',
+          coverImage: null,
+          recipeCount: 5,
+          recipeIds: [],
+          ownerName: 'Test Chef',
+          createdAt: mockCookbook.createdAt,
+          updatedAt: mockCookbook.updatedAt,
+        },
+        sourceRecipeIds: [],
+        isPublic: false,
+        isOwner: true,
+      }],
+      sharedCookbooks: [],
+      isLoading: false,
+      createCookbook: vi.fn(),
+      updateCookbook: vi.fn(),
+      deleteCookbook: mockDeleteCookbook,
+      leaveCookbook: vi.fn(),
+      addRecipeToCookbook: vi.fn(),
+      removeRecipeFromCookbook: vi.fn(),
+      refreshCookbooks: mockRefreshCookbooks,
+    });
+
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+
+    expect(screen.getByLabelText('Save cookbook')).toBeDefined();
+    expect(screen.queryByLabelText('Cookbook saved')).toBeNull();
   });
 
   it('renders duplicate cookbooks only once', () => {

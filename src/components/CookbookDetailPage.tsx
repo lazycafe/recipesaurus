@@ -15,6 +15,7 @@ import { AddRecipeModal } from './AddRecipeModal';
 import { AddToCookbookModal } from './AddToCookbookModal';
 import { useCookbooks } from '../context/CookbookContext';
 import { useRecipes } from '../context/RecipeContext';
+import { isCookbookModifiedFromSource } from '../utils/cookbookChanges';
 
 interface CookbookRecipe extends Recipe {
   addedByUserId?: string;
@@ -62,6 +63,9 @@ function mapCookbookResponse(c: ClientCookbook): Cookbook {
     updatedAt: c.updatedAt,
     isOwner: c.isOwner,
     ownerName: c.ownerName || undefined,
+    sourceCookbookId: c.sourceCookbookId || undefined,
+    sourceCookbook: c.sourceCookbook || undefined,
+    sourceRecipeIds: c.sourceRecipeIds || [],
   };
 }
 
@@ -157,6 +161,8 @@ export function CookbookDetailPage() {
       return matchesSearch && matchesTags;
     });
   }, [recipes, searchQuery, selectedTags]);
+  const sourceCookbook = cookbook?.sourceCookbook;
+  const showSourceAttribution = cookbook && sourceCookbook && !isCookbookModifiedFromSource(cookbook);
 
   const handleTagToggle = (tag: string) => {
     setSelectedTags(prev =>
@@ -294,6 +300,12 @@ export function CookbookDetailPage() {
             <p className="cookbook-detail-owner">
               <User size={14} />
               Shared by {cookbook.ownerName}
+            </p>
+          )}
+          {showSourceAttribution && sourceCookbook?.ownerName && (
+            <p className="cookbook-detail-owner">
+              <User size={14} />
+              Original by {sourceCookbook.ownerName}
             </p>
           )}
         </div>

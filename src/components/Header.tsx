@@ -59,6 +59,13 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
                 <UtensilsCrossed size={18} />
                 My Recipes
               </NavLink>
+              <NavLink
+                to="/cookbooks"
+                className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+              >
+                <Book size={18} />
+                Cookbooks
+              </NavLink>
               {canUseMealPlanner && (
                 <NavLink
                   to="/meal-planner"
@@ -68,13 +75,6 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
                   Meal Plan
                 </NavLink>
               )}
-              <NavLink
-                to="/cookbooks"
-                className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-              >
-                <Book size={18} />
-                Cookbooks
-              </NavLink>
             </nav>
           )}
 
@@ -137,6 +137,13 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
               <UtensilsCrossed size={20} />
               <span>My Recipes</span>
             </NavLink>
+            <NavLink
+              to="/cookbooks"
+              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Book size={20} />
+              <span>Cookbooks</span>
+            </NavLink>
             {canUseMealPlanner && (
               <NavLink
                 to="/meal-planner"
@@ -146,13 +153,6 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
                 <span>Meal Plan</span>
               </NavLink>
             )}
-            <NavLink
-              to="/cookbooks"
-              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
-            >
-              <Book size={20} />
-              <span>Cookbooks</span>
-            </NavLink>
           </div>
         </nav>
       )}

@@ -1,6 +1,7 @@
 import { User } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { DinoMascot } from './DinoMascot';
+import { isCookbookModifiedFromSource } from '../utils/cookbookChanges';
 
 interface CookbookCardProps {
   cookbook: Cookbook;
@@ -8,6 +9,9 @@ interface CookbookCardProps {
 }
 
 export function CookbookCard({ cookbook, onClick }: CookbookCardProps) {
+  const sourceCookbook = cookbook.sourceCookbook;
+  const showSourceAttribution = sourceCookbook && !isCookbookModifiedFromSource(cookbook);
+
   return (
     <article className="cookbook-card" onClick={onClick}>
 
@@ -41,6 +45,12 @@ export function CookbookCard({ cookbook, onClick }: CookbookCardProps) {
           <span className="cookbook-owner">
             <User size={12} strokeWidth={2} />
             {cookbook.ownerName}
+          </span>
+        )}
+        {showSourceAttribution && sourceCookbook.ownerName && (
+          <span className="cookbook-owner">
+            <User size={12} strokeWidth={2} />
+            Original by {sourceCookbook.ownerName}
           </span>
         )}
       </div>

@@ -8,7 +8,14 @@ interface CookbookContextType {
   ownedCookbooks: Cookbook[];
   sharedCookbooks: Cookbook[];
   isLoading: boolean;
-  createCookbook: (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => Promise<string | null>;
+  createCookbook: (data: {
+    name: string;
+    description?: string;
+    coverImage?: string;
+    isPublic?: boolean;
+    sourceCookbookId?: string | null;
+    sourceCookbook?: ClientCookbook['sourceCookbook'];
+  }) => Promise<string | null>;
   updateCookbook: (id: string, data: { name?: string; description?: string; coverImage?: string; isPublic?: boolean }) => Promise<boolean>;
   deleteCookbook: (id: string) => Promise<boolean>;
   leaveCookbook: (id: string) => Promise<boolean>;
@@ -33,6 +40,9 @@ function mapCookbookResponse(c: ClientCookbook): Cookbook {
     updatedAt: c.updatedAt,
     isOwner: c.isOwner,
     ownerName: c.ownerName,
+    sourceCookbookId: c.sourceCookbookId || undefined,
+    sourceCookbook: c.sourceCookbook || undefined,
+    sourceRecipeIds: c.sourceRecipeIds || [],
   };
 }
 
@@ -69,7 +79,14 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
     refreshCookbooks();
   }, [refreshCookbooks]);
 
-  const createCookbook = useCallback(async (cookbookData: { name: string; description?: string; coverImage?: string; isPublic?: boolean }): Promise<string | null> => {
+  const createCookbook = useCallback(async (cookbookData: {
+    name: string;
+    description?: string;
+    coverImage?: string;
+    isPublic?: boolean;
+    sourceCookbookId?: string | null;
+    sourceCookbook?: ClientCookbook['sourceCookbook'];
+  }): Promise<string | null> => {
     const { data, error } = await client.cookbooks.create(cookbookData);
     if (error || !data) {
       console.error('Failed to create cookbook:', error);

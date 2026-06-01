@@ -8,6 +8,7 @@ import { useRecipes } from '../context/RecipeContext';
 import { useCookbooks } from '../context/CookbookContext';
 import { Recipe, Cookbook } from '../client/types';
 import { Recipe as LocalRecipe, RecipeFormData } from '../types/Recipe';
+import { Cookbook as LocalCookbook } from '../types/Cookbook';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
 import { AddRecipeModal } from './AddRecipeModal';
@@ -16,6 +17,7 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { buildRemixDraft } from '../utils/recipeRemix';
 import { findDuplicateRecipe } from '../utils/recipeDedupe';
 import { isRecipeModifiedFromSource } from '../utils/recipeChanges';
+import { findDuplicateCookbook, isCookbookModifiedFromSource } from '../utils/cookbookChanges';
 
 interface RecipeCardCompactProps {
   recipe: Recipe;
@@ -44,7 +46,7 @@ function RecipeCardCompact({
             <DinoMascot size={48} />
           </div>
         )}
-        {canToggleSave && (
+        {canToggleSave ? (
           <button
             className={`discovery-save-btn ${isSaved ? 'saved' : ''}`}
             onClick={(e) => {
@@ -62,7 +64,11 @@ function RecipeCardCompact({
               <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
             )}
           </button>
-        )}
+        ) : recipe.isOwner ? (
+          <span className="discovery-owner-badge" aria-label="Your recipe" title="Your recipe">
+            Yours
+          </span>
+        ) : null}
       </div>
       <div className="discovery-card-body">
         <h3 className="discovery-card-title">{recipe.title}</h3>
@@ -87,11 +93,20 @@ function RecipeCardCompact({
 interface CookbookCardCompactProps {
   cookbook: Cookbook;
   onClick: () => void;
-  onSave: () => void;
-  isSaving?: boolean;
+  onToggleSave: () => void;
+  isTogglingSave?: boolean;
+  isSaved?: boolean;
+  canToggleSave?: boolean;
 }
 
-function CookbookCardCompact({ cookbook, onClick, onSave, isSaving }: CookbookCardCompactProps) {
+function CookbookCardCompact({
+  cookbook,
+  onClick,
+  onToggleSave,
+  isTogglingSave,
+  isSaved,
+  canToggleSave = true,
+}: CookbookCardCompactProps) {
   return (
     <article className="discovery-card cookbook-card" onClick={onClick}>
       <span className="cookbook-badge">Cookbook</span>
@@ -103,17 +118,29 @@ function CookbookCardCompact({ cookbook, onClick, onSave, isSaving }: CookbookCa
             <BookOpen size={48} />
           </div>
         )}
-        <button
-          className="discovery-save-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSave();
-          }}
-          disabled={isSaving}
-          aria-label="Save cookbook"
-        >
-          {isSaving ? <Loader2 size={16} className="spin" /> : <Heart size={16} />}
-        </button>
+        {canToggleSave ? (
+          <button
+            className={`discovery-save-btn ${isSaved ? 'saved' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSave();
+            }}
+            disabled={isTogglingSave}
+            aria-label={isSaved ? 'Cookbook saved' : 'Save cookbook'}
+            aria-pressed={isSaved}
+            title={isSaved ? 'Remove saved copy' : 'Save to My Cookbooks'}
+          >
+            {isTogglingSave ? (
+              <Loader2 size={16} className="spin" />
+            ) : (
+              <Heart size={16} fill={isSaved ? 'currentColor' : 'none'} />
+            )}
+          </button>
+        ) : cookbook.isOwner ? (
+          <span className="discovery-owner-badge" aria-label="Your cookbook" title="Your cookbook">
+            Yours
+          </span>
+        ) : null}
       </div>
       <div className="discovery-card-body">
         <h3 className="discovery-card-title">{cookbook.name}</h3>
@@ -148,7 +175,11 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const { refreshCookbooks } = useCookbooks();
+  const {
+    ownedCookbooks,
+    deleteCookbook,
+    refreshCookbooks,
+  } = useCookbooks();
   const {
     recipes,
     cookbooks,
@@ -175,18 +206,22 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
   const [togglingRecipeId, setTogglingRecipeId] = useState<string | null>(null);
   const [remixingRecipeId, setRemixingRecipeId] = useState<string | null>(null);
-  const [savingCookbookId, setSavingCookbookId] = useState<string | null>(null);
+  const [togglingCookbookId, setTogglingCookbookId] = useState<string | null>(null);
   const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(() => new Set());
   const [savedRecipeCopyIds, setSavedRecipeCopyIds] = useState<Map<string, string>>(() => new Map());
   const [hiddenSavedRecipeIds, setHiddenSavedRecipeIds] = useState<Set<string>>(() => new Set());
+  const [savedCookbookIds, setSavedCookbookIds] = useState<Set<string>>(() => new Set());
+  const [savedCookbookCopyIds, setSavedCookbookCopyIds] = useState<Map<string, string>>(() => new Map());
+  const [hiddenSavedCookbookIds, setHiddenSavedCookbookIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     loadRecipes();
     loadCookbooks();
     if (user) {
       void refreshRecipes();
+      void refreshCookbooks();
     }
-  }, [loadRecipes, loadCookbooks, refreshRecipes, user]);
+  }, [loadRecipes, loadCookbooks, refreshRecipes, refreshCookbooks, user]);
 
   const getSavedRecipeCopies = (recipe: Recipe): LocalRecipe[] => {
     if (recipe.isOwner) {
@@ -211,6 +246,32 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
       savedCopy.id !== recipe.id &&
       savedCopy.isPublic !== true &&
       !isRecipeModifiedFromSource(savedCopy)
+    );
+  };
+
+  const getSavedCookbookCopies = (cookbook: Cookbook): LocalCookbook[] => {
+    if (cookbook.isOwner) {
+      return ownedCookbooks.filter(savedCookbook => savedCookbook.id === cookbook.id);
+    }
+
+    const savedCopies = ownedCookbooks.filter(savedCookbook =>
+      savedCookbook.sourceCookbookId === cookbook.id ||
+      savedCookbook.sourceCookbook?.id === cookbook.id
+    );
+    const duplicateCookbook = findDuplicateCookbook(ownedCookbooks, cookbook);
+
+    if (duplicateCookbook && !savedCopies.some(savedCopy => savedCopy.id === duplicateCookbook.id)) {
+      return [...savedCopies, duplicateCookbook];
+    }
+
+    return savedCopies;
+  };
+
+  const findUnmodifiedSavedCookbookCopy = (cookbook: Cookbook): LocalCookbook | undefined => {
+    return getSavedCookbookCopies(cookbook).find(savedCopy =>
+      savedCopy.id !== cookbook.id &&
+      savedCopy.isPublic !== true &&
+      !isCookbookModifiedFromSource(savedCopy)
     );
   };
 
@@ -360,31 +421,126 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     }
   };
 
-  const handleSaveCookbook = async (cookbook: Cookbook) => {
+  const handleToggleSaveCookbook = async (cookbook: Cookbook) => {
     if (!user) {
       showToast({ message: 'Please sign in to save cookbooks', type: 'info' });
       return;
     }
-    setSavingCookbookId(cookbook.id);
-    const savedId = await saveCookbook(cookbook.id);
-    setSavingCookbookId(null);
 
-    if (savedId) {
-      // Refresh the cookbooks list so it shows the new cookbook
-      await refreshCookbooks();
-      showToast({
-        message: 'Cookbook saved to your collection',
-        type: 'success',
-        action: {
-          label: 'View',
-          onClick: () => navigate('/cookbooks'),
-        },
-      });
-    } else {
-      showToast({
-        message: 'Could not save cookbook. Please try again.',
-        type: 'error',
-      });
+    if (cookbook.isOwner) {
+      return;
+    }
+
+    const unmodifiedSavedCopy = findUnmodifiedSavedCookbookCopy(cookbook);
+    if (unmodifiedSavedCopy) {
+      setTogglingCookbookId(cookbook.id);
+      try {
+        const deleted = await deleteCookbook(unmodifiedSavedCopy.id);
+        if (deleted) {
+          setSavedCookbookIds(prev => {
+            const next = new Set(prev);
+            next.delete(cookbook.id);
+            return next;
+          });
+          setSavedCookbookCopyIds(prev => {
+            const next = new Map(prev);
+            next.delete(cookbook.id);
+            return next;
+          });
+          setHiddenSavedCookbookIds(prev => new Set(prev).add(cookbook.id));
+          await refreshCookbooks();
+          showToast({
+            message: 'Removed saved cookbook from My Cookbooks',
+            type: 'success',
+          });
+        }
+      } finally {
+        setTogglingCookbookId(null);
+      }
+      return;
+    }
+
+    if (savedCookbookIds.has(cookbook.id)) {
+      const savedCopyId = savedCookbookCopyIds.get(cookbook.id);
+      if (savedCopyId && savedCopyId !== cookbook.id) {
+        setTogglingCookbookId(cookbook.id);
+        try {
+          const deleted = await deleteCookbook(savedCopyId);
+          if (deleted) {
+            setSavedCookbookIds(prev => {
+              const next = new Set(prev);
+              next.delete(cookbook.id);
+              return next;
+            });
+            setSavedCookbookCopyIds(prev => {
+              const next = new Map(prev);
+              next.delete(cookbook.id);
+              return next;
+            });
+            setHiddenSavedCookbookIds(prev => new Set(prev).add(cookbook.id));
+            await refreshCookbooks();
+            showToast({
+              message: 'Removed saved cookbook from My Cookbooks',
+              type: 'success',
+            });
+          }
+        } finally {
+          setTogglingCookbookId(null);
+        }
+      } else {
+        setSavedCookbookIds(prev => {
+          const next = new Set(prev);
+          next.delete(cookbook.id);
+          return next;
+        });
+        setSavedCookbookCopyIds(prev => {
+          const next = new Map(prev);
+          next.delete(cookbook.id);
+          return next;
+        });
+        setHiddenSavedCookbookIds(prev => new Set(prev).add(cookbook.id));
+      }
+      return;
+    }
+
+    if (isCookbookSaved(cookbook)) {
+      setHiddenSavedCookbookIds(prev => new Set(prev).add(cookbook.id));
+      return;
+    }
+
+    setTogglingCookbookId(cookbook.id);
+    try {
+      const savedId = await saveCookbook(cookbook.id);
+
+      if (savedId) {
+        setSavedCookbookIds(prev => new Set(prev).add(cookbook.id));
+        setSavedCookbookCopyIds(prev => {
+          const next = new Map(prev);
+          next.set(cookbook.id, savedId);
+          return next;
+        });
+        setHiddenSavedCookbookIds(prev => {
+          const next = new Set(prev);
+          next.delete(cookbook.id);
+          return next;
+        });
+        await refreshCookbooks();
+        showToast({
+          message: 'Saved as a private copy in My Cookbooks',
+          type: 'success',
+          action: {
+            label: 'View',
+            onClick: () => navigate('/cookbooks'),
+          },
+        });
+      } else {
+        showToast({
+          message: 'Could not save cookbook. Please try again.',
+          type: 'error',
+        });
+      }
+    } finally {
+      setTogglingCookbookId(null);
     }
   };
 
@@ -455,6 +611,17 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     return (
       savedRecipeIds.has(recipe.id) ||
       Boolean(findUnmodifiedSavedRecipeCopy(recipe))
+    );
+  };
+
+  const isCookbookSaved = (cookbook: Cookbook): boolean => {
+    if (hiddenSavedCookbookIds.has(cookbook.id)) {
+      return false;
+    }
+
+    return (
+      savedCookbookIds.has(cookbook.id) ||
+      Boolean(findUnmodifiedSavedCookbookCopy(cookbook))
     );
   };
 
@@ -609,8 +776,10 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
                     key={cookbook.id}
                     cookbook={cookbook}
                     onClick={() => navigate(`/discover/cookbooks/${cookbook.id}`)}
-                    onSave={() => handleSaveCookbook(cookbook)}
-                    isSaving={savingCookbookId === cookbook.id}
+                    onToggleSave={() => handleToggleSaveCookbook(cookbook)}
+                    isTogglingSave={togglingCookbookId === cookbook.id}
+                    isSaved={isCookbookSaved(cookbook)}
+                    canToggleSave={!cookbook.isOwner}
                   />
                 ))}
               </div>

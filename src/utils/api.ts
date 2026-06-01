@@ -205,6 +205,22 @@ export interface CookbookResponse {
   updatedAt: number;
   isOwner: boolean;
   ownerName?: string;
+  sourceCookbookId?: string | null;
+  sourceCookbook?: CookbookSourceSnapshot | null;
+  sourceRecipeIds?: string[];
+}
+
+export interface CookbookSourceSnapshot {
+  id: string;
+  name: string;
+  description?: string | null;
+  coverImage?: string | null;
+  recipeCount: number;
+  recipeIds: string[];
+  ownerId?: string | null;
+  ownerName?: string | null;
+  createdAt?: number | null;
+  updatedAt?: number | null;
 }
 
 export interface CookbookShareResponse {

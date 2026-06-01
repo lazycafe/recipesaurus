@@ -123,6 +123,41 @@ describe('public discovery visibility', () => {
     expect(savedCopies[0].sourceRecipe?.ownerName).toBe('Chef');
   });
 
+  it('reuses an existing private cookbook copy and keeps source attribution', async () => {
+    const ownerClient = harness.getClient();
+    const recipeResult = await ownerClient.recipes.create({
+      title: 'Picnic Pasta Salad',
+      description: 'Travels well',
+      ingredients: ['pasta', 'tomatoes'],
+      instructions: ['boil', 'toss'],
+      tags: ['picnic'],
+      isPublic: true,
+    });
+    const cookbookResult = await ownerClient.cookbooks.create({
+      name: 'Public Picnic Cookbook',
+      description: 'Packable favorites',
+      isPublic: true,
+    });
+    await ownerClient.cookbooks.addRecipe(cookbookResult.data!.id, recipeResult.data!.id);
+
+    const saverClient = harness.createClient();
+    await saverClient.auth.register('cookbook-saver@example.com', 'Cookbook Saver', 'Password123');
+
+    const firstSave = await saverClient.discover.saveCookbook(cookbookResult.data!.id);
+    const secondSave = await saverClient.discover.saveCookbook(cookbookResult.data!.id);
+
+    expect(secondSave.data!.id).toBe(firstSave.data!.id);
+
+    const cookbooksResult = await saverClient.cookbooks.list();
+    const savedCopy = cookbooksResult.data!.owned.find(cookbook => cookbook.id === firstSave.data!.id);
+    expect(savedCopy?.isPublic).toBe(false);
+    expect(savedCopy?.isOwner).toBe(true);
+    expect(savedCopy?.sourceCookbookId).toBe(cookbookResult.data!.id);
+    expect(savedCopy?.sourceCookbook?.name).toBe('Public Picnic Cookbook');
+    expect(savedCopy?.sourceCookbook?.ownerName).toBe('Chef');
+    expect(savedCopy?.sourceRecipeIds).toEqual([recipeResult.data!.id]);
+  });
+
   it('does not duplicate a user-owned public recipe when saved from Discover', async () => {
     const client = harness.getClient();
     const recipeResult = await client.recipes.create({
@@ -140,6 +175,22 @@ describe('public discovery visibility', () => {
     const recipesResult = await client.recipes.list();
     const matchingRecipes = recipesResult.data!.recipes.filter(recipe => recipe.title === 'Own Public Salad');
     expect(matchingRecipes).toHaveLength(1);
+  });
+
+  it('does not duplicate a user-owned public cookbook when saved from Discover', async () => {
+    const client = harness.getClient();
+    const cookbookResult = await client.cookbooks.create({
+      name: 'Own Public Cookbook',
+      description: 'Already belongs to this user',
+      isPublic: true,
+    });
+
+    const saveResult = await client.discover.saveCookbook(cookbookResult.data!.id);
+    expect(saveResult.data!.id).toBe(cookbookResult.data!.id);
+
+    const cookbooksResult = await client.cookbooks.list();
+    const matchingCookbooks = cookbooksResult.data!.owned.filter(cookbook => cookbook.name === 'Own Public Cookbook');
+    expect(matchingCookbooks).toHaveLength(1);
   });
 
   it('creates editable public remixes with stable source attribution', async () => {
