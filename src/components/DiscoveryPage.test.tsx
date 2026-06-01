@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { DiscoveryPage } from './DiscoveryPage';
 import * as DiscoveryContext from '../context/DiscoveryContext';
@@ -36,6 +36,27 @@ function renderWithRouter(ui: ReactElement) {
       {ui}
     </MemoryRouter>
   );
+}
+
+function renderWithLocation(ui: ReactElement, initialPath = '/discover/recipes') {
+  let currentPath = initialPath;
+
+  function LocationProbe() {
+    currentPath = useLocation().pathname;
+    return null;
+  }
+
+  const result = render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      {ui}
+      <LocationProbe />
+    </MemoryRouter>
+  );
+
+  return {
+    ...result,
+    getPath: () => currentPath,
+  };
 }
 
 describe('DiscoveryPage', () => {
@@ -153,6 +174,26 @@ describe('DiscoveryPage', () => {
     renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('Recipes')).toBeDefined();
     expect(screen.getByText('Cookbooks')).toBeDefined();
+  });
+
+  it('navigates to cookbooks on right swipe', () => {
+    const { container, getPath } = renderWithLocation(<DiscoveryPage />, '/discover/recipes');
+    const page = container.querySelector('.discovery-page')!;
+
+    fireEvent.touchStart(page, { touches: [{ clientX: 80, clientY: 140 }] });
+    fireEvent.touchEnd(page, { changedTouches: [{ clientX: 170, clientY: 145 }] });
+
+    expect(getPath()).toBe('/discover/cookbooks');
+  });
+
+  it('navigates to recipes on left swipe', () => {
+    const { container, getPath } = renderWithLocation(<DiscoveryPage tab="cookbooks" />, '/discover/cookbooks');
+    const page = container.querySelector('.discovery-page')!;
+
+    fireEvent.touchStart(page, { touches: [{ clientX: 170, clientY: 140 }] });
+    fireEvent.touchEnd(page, { changedTouches: [{ clientX: 80, clientY: 145 }] });
+
+    expect(getPath()).toBe('/discover/recipes');
   });
 
   it('loads recipes on mount', () => {

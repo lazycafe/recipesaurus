@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type TouchEvent } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
@@ -107,6 +107,12 @@ function CookbookCardCompact({ cookbook, onClick, onSave, isSaving }: CookbookCa
 }
 
 const TRENDING_TAGS = ['dinner', 'quick', 'healthy', 'vegetarian', 'dessert', 'breakfast', 'chicken', 'pasta'];
+const SWIPE_DISTANCE_THRESHOLD = 60;
+
+function isInteractiveSwipeTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest('button, a, input, textarea, select, [role="button"], [contenteditable="true"]'));
+}
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {
   const seen = new Set<string>();
@@ -151,6 +157,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
   const [savingCookbookId, setSavingCookbookId] = useState<string | null>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     loadRecipes();
@@ -259,6 +266,45 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     }
   };
 
+  const handleTouchStart = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    if (selectedRecipe || editingRecipe || recipeToDelete || isInteractiveSwipeTarget(event.target)) {
+      swipeStartRef.current = null;
+      return;
+    }
+
+    const touch = event.touches[0];
+    if (!touch) return;
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }, [selectedRecipe, editingRecipe, recipeToDelete]);
+
+  const handleTouchEnd = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start) return;
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+
+    if (
+      Math.abs(deltaX) < SWIPE_DISTANCE_THRESHOLD ||
+      Math.abs(deltaX) <= Math.abs(deltaY)
+    ) {
+      return;
+    }
+
+    const nextTab = deltaX > 0 ? 'cookbooks' : 'recipes';
+    if (nextTab !== tab) {
+      navigate(`/discover/${nextTab}`);
+    }
+  }, [navigate, tab]);
+
+  const handleTouchCancel = useCallback(() => {
+    swipeStartRef.current = null;
+  }, []);
+
   const uniqueRecipes = uniqueById(recipes);
   const uniqueCookbooks = uniqueById(cookbooks);
 
@@ -292,7 +338,12 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   });
 
   return (
-    <div className="discovery-page">
+    <div
+      className="discovery-page"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
+    >
       <div className="discovery-header">
         <h1>
           <TrendingUp size={28} />
