@@ -66,6 +66,20 @@ interface User {
   created_at: number;
 }
 
+interface FriendRequestRecord {
+  id: string;
+  requester_id: string;
+  requested_user_id: string;
+  status: string;
+  requester_name: string;
+  requester_avatar_url: string | null;
+}
+
+interface FriendRequestNotificationData {
+  friendRequestId?: string;
+  requesterId?: string;
+}
+
 interface Session {
   id: string;
   user_id: string;
@@ -807,6 +821,77 @@ async function areFriends(db: D1Database, userId: string, friendId: string): Pro
   return !!friendship;
 }
 
+function parseFriendRequestNotificationData(data: string | null): FriendRequestNotificationData | null {
+  if (!data) return null;
+
+  try {
+    const parsed = JSON.parse(data) as FriendRequestNotificationData;
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function getFriendRequestNotificationData(
+  db: D1Database,
+  userId: string,
+  friendRequestId: string
+): Promise<FriendRequestNotificationData | null> {
+  const notification = await db.prepare(
+    "SELECT data FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ? ORDER BY created_at DESC LIMIT 1"
+  ).bind(userId, `%"friendRequestId":"${friendRequestId}"%`).first<{ data: string | null }>();
+
+  return parseFriendRequestNotificationData(notification?.data ?? null);
+}
+
+async function findFriendRequestForUser(
+  db: D1Database,
+  user: User,
+  friendRequestId: string
+): Promise<{ request: FriendRequestRecord | null; notificationData: FriendRequestNotificationData | null }> {
+  const request = await db.prepare(`
+    SELECT fr.*, u.name as requester_name, u.avatar_url as requester_avatar_url
+    FROM friend_requests fr
+    JOIN users u ON u.id = fr.requester_id
+    WHERE fr.id = ? AND fr.requested_user_id = ?
+  `).bind(friendRequestId, user.id).first<FriendRequestRecord>();
+
+  if (request) {
+    return { request, notificationData: null };
+  }
+
+  const notificationData = await getFriendRequestNotificationData(db, user.id, friendRequestId);
+  if (!notificationData?.requesterId) {
+    return { request: null, notificationData };
+  }
+
+  const fallbackRequest = await db.prepare(`
+    SELECT fr.*, u.name as requester_name, u.avatar_url as requester_avatar_url
+    FROM friend_requests fr
+    JOIN users u ON u.id = fr.requester_id
+    WHERE fr.requester_id = ? AND fr.requested_user_id = ?
+    ORDER BY CASE fr.status WHEN 'pending' THEN 0 ELSE 1 END, fr.created_at DESC
+    LIMIT 1
+  `).bind(notificationData.requesterId, user.id).first<FriendRequestRecord>();
+
+  return { request: fallbackRequest ?? null, notificationData };
+}
+
+async function deleteFriendRequestNotifications(
+  db: D1Database,
+  userId: string,
+  friendRequestIds: Array<string | undefined | null>
+): Promise<void> {
+  const uniqueIds = Array.from(new Set(friendRequestIds.filter((id): id is string => Boolean(id))));
+
+  for (const id of uniqueIds) {
+    await db.prepare(
+      "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?"
+    ).bind(userId, `%"friendRequestId":"${id}"%`).run();
+  }
+}
+
 async function postDiscordWebhook(webhookUrl: string | undefined, payload: unknown): Promise<boolean> {
   if (!webhookUrl) {
     console.warn('Discord webhook URL is not configured');
@@ -1479,36 +1564,40 @@ async function acceptFriendRequestForUser(
   user: User,
   friendRequestId: string
 ): Promise<{ friend: { id: string; name: string; avatar_url: string | null } } | null> {
-  const request = await db.prepare(`
-    SELECT fr.*, u.name as requester_name, u.avatar_url as requester_avatar_url
-    FROM friend_requests fr
-    JOIN users u ON u.id = fr.requester_id
-    WHERE fr.id = ? AND fr.requested_user_id = ? AND fr.status = ?
-  `).bind(friendRequestId, user.id, 'pending').first<{
-    id: string;
-    requester_id: string;
-    requested_user_id: string;
-    requester_name: string;
-    requester_avatar_url: string | null;
-  }>();
+  const { request, notificationData } = await findFriendRequestForUser(db, user, friendRequestId);
 
   if (!request) {
+    await deleteFriendRequestNotifications(db, user.id, [friendRequestId, notificationData?.friendRequestId]);
     return null;
   }
 
   const { userAId, userBId } = orderedFriendPair(user.id, request.requester_id);
   const now = Date.now();
+
+  if (request.status !== 'pending' && request.status !== 'accepted') {
+    await deleteFriendRequestNotifications(db, user.id, [
+      friendRequestId,
+      notificationData?.friendRequestId,
+      request.id,
+    ]);
+    return null;
+  }
+
   await db.prepare(
     'INSERT OR IGNORE INTO friendships (user_a_id, user_b_id, created_at) VALUES (?, ?, ?)'
   ).bind(userAId, userBId, now).run();
 
-  await db.prepare(
-    "UPDATE friend_requests SET status = 'accepted', responded_at = ? WHERE id = ?"
-  ).bind(now, friendRequestId).run();
+  if (request.status === 'pending') {
+    await db.prepare(
+      "UPDATE friend_requests SET status = 'accepted', responded_at = ? WHERE id = ?"
+    ).bind(now, request.id).run();
+  }
 
-  await db.prepare(
-    "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?"
-  ).bind(user.id, `%"friendRequestId":"${friendRequestId}"%`).run();
+  await deleteFriendRequestNotifications(db, user.id, [
+    friendRequestId,
+    notificationData?.friendRequestId,
+    request.id,
+  ]);
 
   return {
     friend: {
@@ -1547,21 +1636,24 @@ async function handleDeclineFriendRequest(request: Request, db: D1Database, frie
     return errorResponse('Unauthorized', 401, origin);
   }
 
-  const pending = await db.prepare(
-    "SELECT id FROM friend_requests WHERE id = ? AND requested_user_id = ? AND status = 'pending'"
-  ).bind(friendRequestId, user.id).first<{ id: string }>();
+  const { request: friendRequest, notificationData } = await findFriendRequestForUser(db, user, friendRequestId);
 
-  if (!pending) {
+  if (!friendRequest) {
+    await deleteFriendRequestNotifications(db, user.id, [friendRequestId, notificationData?.friendRequestId]);
     return errorResponse('Friend request not found or already responded', 404, origin);
   }
 
-  await db.prepare(
-    "UPDATE friend_requests SET status = 'declined', responded_at = ? WHERE id = ?"
-  ).bind(Date.now(), friendRequestId).run();
+  if (friendRequest.status === 'pending') {
+    await db.prepare(
+      "UPDATE friend_requests SET status = 'declined', responded_at = ? WHERE id = ?"
+    ).bind(Date.now(), friendRequest.id).run();
+  }
 
-  await db.prepare(
-    "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?"
-  ).bind(user.id, `%"friendRequestId":"${friendRequestId}"%`).run();
+  await deleteFriendRequestNotifications(db, user.id, [
+    friendRequestId,
+    notificationData?.friendRequestId,
+    friendRequest.id,
+  ]);
 
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
@@ -3972,12 +4064,12 @@ export default {
 
       const acceptFriendRequestMatch = path.match(/^\/api\/friend-requests\/([^/]+)\/accept$/);
       if (acceptFriendRequestMatch && method === 'POST') {
-        return handleAcceptFriendRequest(request, env.DB, acceptFriendRequestMatch[1]);
+        return handleAcceptFriendRequest(request, env.DB, decodeURIComponent(acceptFriendRequestMatch[1]));
       }
 
       const declineFriendRequestMatch = path.match(/^\/api\/friend-requests\/([^/]+)\/decline$/);
       if (declineFriendRequestMatch && method === 'POST') {
-        return handleDeclineFriendRequest(request, env.DB, declineFriendRequestMatch[1]);
+        return handleDeclineFriendRequest(request, env.DB, decodeURIComponent(declineFriendRequestMatch[1]));
       }
 
       // Proxy fetch for recipe import

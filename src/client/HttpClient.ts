@@ -385,11 +385,11 @@ export class HttpClient implements IClient {
     },
 
     acceptFriendRequest: (friendRequestId: string): Promise<ApiResponse<{ success: boolean; friend: ProfileUser }>> => {
-      return this.transport.request('POST', `/api/friend-requests/${friendRequestId}/accept`);
+      return this.transport.request('POST', `/api/friend-requests/${encodeURIComponent(friendRequestId)}/accept`);
     },
 
     declineFriendRequest: (friendRequestId: string): Promise<ApiResponse<{ success: boolean }>> => {
-      return this.transport.request('POST', `/api/friend-requests/${friendRequestId}/decline`);
+      return this.transport.request('POST', `/api/friend-requests/${encodeURIComponent(friendRequestId)}/decline`);
     },
   };
 }

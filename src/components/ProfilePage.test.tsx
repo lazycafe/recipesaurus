@@ -47,6 +47,12 @@ describe('ProfilePage', () => {
   it('keeps add friend by email inside the friends modal', async () => {
     const bob: ProfileUser = { id: 'user-2', name: 'Bob Baker', avatarUrl: null };
     const friends: ProfileUser[] = [];
+    const showToast = vi.fn();
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
 
     const getProfile = vi.fn(async () => ({
       data: {
@@ -103,5 +109,68 @@ describe('ProfilePage', () => {
     await waitFor(() => expect(addFriend).toHaveBeenCalledWith({ email: 'bob@example.com' }));
     expect(listFriends).toHaveBeenCalledTimes(2);
     expect(screen.getByText('No friends yet')).toBeDefined();
+    expect(screen.getByText('Friend Request Sent')).toBeDefined();
+    expect(screen.getByText('Friend request sent to Bob Baker')).toBeDefined();
+    expect(showToast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Friend request sent to Bob Baker', type: 'success' })
+    );
+  });
+
+  it('shows add friend success in a modal instead of a toast', async () => {
+    const bob: ProfileUser = { id: 'user-2', name: 'Bob Baker', avatarUrl: null };
+    const showToast = vi.fn();
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+
+    const getProfile = vi.fn(async () => ({
+      data: {
+        profile: {
+          user: bob,
+          isCurrentUser: false,
+          isFriend: false,
+          hasPendingFriendRequest: false,
+          incomingFriendRequestId: null,
+          friendCount: 0,
+          recipeCount: 0,
+          cookbookCount: 0,
+          recipes: [],
+          cookbooks: [],
+        } satisfies UserProfile,
+      },
+    }));
+
+    const addFriend = vi.fn(async () => ({ data: { friend: bob } }));
+
+    const client = {
+      profile: {
+        get: getProfile,
+        listFriends: vi.fn(),
+        addFriend,
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={['/profiles/user-2']}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    await screen.findByText('Bob Baker');
+    fireEvent.click(screen.getByRole('button', { name: 'Add Friend' }));
+
+    await waitFor(() => expect(addFriend).toHaveBeenCalledWith({ userId: 'user-2' }));
+    expect(screen.getByText('Friend Request Sent')).toBeDefined();
+    expect(screen.getByText('Friend request sent to Bob Baker')).toBeDefined();
+    expect(showToast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Friend request sent to Bob Baker', type: 'success' })
+    );
   });
 });

@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Camera, ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen } from 'lucide-react';
+import { Camera, ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, CheckCircle } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import type { Cookbook as ClientCookbook, ProfileUser, Recipe, UserProfile } from '../client/types';
 import type { Cookbook } from '../types/Cookbook';
@@ -45,6 +45,7 @@ export function ProfilePage() {
   const [showFriends, setShowFriends] = useState(false);
   const [friends, setFriends] = useState<ProfileUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
+  const [friendRequestSuccessName, setFriendRequestSuccessName] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     if (!targetUserId) return;
@@ -118,7 +119,7 @@ export function ProfilePage() {
       if (showFriends) {
         await loadFriends();
       }
-      showToast({ message: `Friend request sent to ${data.friend.name}`, type: 'success' });
+      setFriendRequestSuccessName(data.friend.name);
     } else {
       showToast({ message: friendError || 'Could not add friend', type: 'error' });
     }
@@ -139,10 +140,11 @@ export function ProfilePage() {
     }
 
     await loadProfile();
-    showToast({
-      message: profile.isFriend ? 'Friend removed' : `Friend request sent to ${profile.user.name}`,
-      type: 'success',
-    });
+    if (profile.isFriend) {
+      showToast({ message: 'Friend removed', type: 'success' });
+    } else {
+      setFriendRequestSuccessName(profile.user.name);
+    }
   };
 
   if (isLoading) {
@@ -371,6 +373,22 @@ export function ProfilePage() {
           readOnly={!profile.isCurrentUser}
           isPublicView={!selectedRecipe.isOwner}
         />
+      )}
+
+      {friendRequestSuccessName && (
+        <ModalOverlay onClose={() => setFriendRequestSuccessName(null)} className="friend-request-success-overlay">
+          <div className="friend-request-success-modal">
+            <div className="friend-request-success-icon">
+              <CheckCircle size={32} strokeWidth={1.8} />
+            </div>
+            <h3>Friend Request Sent</h3>
+            <p>{`Friend request sent to ${friendRequestSuccessName}`}</p>
+            <button className="btn-primary" onClick={() => setFriendRequestSuccessName(null)}>
+              <Check size={16} />
+              Done
+            </button>
+          </div>
+        </ModalOverlay>
       )}
     </div>
   );

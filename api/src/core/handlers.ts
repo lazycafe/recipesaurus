@@ -52,6 +52,20 @@ export interface CryptoProvider {
   verifyPassword(password: string, storedHash: string, storedSalt: string): Promise<boolean>;
 }
 
+interface FriendRequestRecord {
+  id: string;
+  requester_id: string;
+  requested_user_id: string;
+  status: string;
+  requester_name: string;
+  requester_avatar_url: string | null;
+}
+
+interface FriendRequestNotificationData {
+  friendRequestId?: string;
+  requesterId?: string;
+}
+
 // Default crypto provider using Web Crypto API
 export const webCryptoProvider: CryptoProvider = {
   generateId(): string {
@@ -529,6 +543,82 @@ export class CoreHandlers {
     return !!friendship;
   }
 
+  private parseFriendRequestNotificationData(data: string | null): FriendRequestNotificationData | null {
+    if (!data) return null;
+
+    try {
+      const parsed = JSON.parse(data) as FriendRequestNotificationData;
+      if (typeof parsed !== 'object' || parsed === null) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private async getFriendRequestNotificationData(
+    userId: string,
+    friendRequestId: string
+  ): Promise<FriendRequestNotificationData | null> {
+    const notification = await this.db.get<{ data: string | null }>(
+      "SELECT data FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ? ORDER BY created_at DESC LIMIT 1",
+      userId,
+      `%"friendRequestId":"${friendRequestId}"%`
+    );
+
+    return this.parseFriendRequestNotificationData(notification?.data ?? null);
+  }
+
+  private async findFriendRequestForUser(
+    user: DbUser,
+    friendRequestId: string
+  ): Promise<{ request: FriendRequestRecord | null; notificationData: FriendRequestNotificationData | null }> {
+    const request = await this.db.get<FriendRequestRecord>(
+      `SELECT fr.*, u.name as requester_name, u.avatar_url as requester_avatar_url
+       FROM friend_requests fr
+       JOIN users u ON u.id = fr.requester_id
+       WHERE fr.id = ? AND fr.requested_user_id = ?`,
+      friendRequestId,
+      user.id
+    );
+
+    if (request) {
+      return { request, notificationData: null };
+    }
+
+    const notificationData = await this.getFriendRequestNotificationData(user.id, friendRequestId);
+    if (!notificationData?.requesterId) {
+      return { request: null, notificationData };
+    }
+
+    const fallbackRequest = await this.db.get<FriendRequestRecord>(
+      `SELECT fr.*, u.name as requester_name, u.avatar_url as requester_avatar_url
+       FROM friend_requests fr
+       JOIN users u ON u.id = fr.requester_id
+       WHERE fr.requester_id = ? AND fr.requested_user_id = ?
+       ORDER BY CASE fr.status WHEN 'pending' THEN 0 ELSE 1 END, fr.created_at DESC
+       LIMIT 1`,
+      notificationData.requesterId,
+      user.id
+    );
+
+    return { request: fallbackRequest ?? null, notificationData };
+  }
+
+  private async deleteFriendRequestNotifications(
+    userId: string,
+    friendRequestIds: Array<string | undefined | null>
+  ): Promise<void> {
+    const uniqueIds = Array.from(new Set(friendRequestIds.filter((id): id is string => Boolean(id))));
+
+    for (const id of uniqueIds) {
+      await this.db.run(
+        "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?",
+        userId,
+        `%"friendRequestId":"${id}"%`
+      );
+    }
+  }
+
   async updateProfile(
     ctx: RequestContext,
     data: { name?: string; avatarUrl?: string | null }
@@ -806,27 +896,19 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401 };
     }
 
-    const request = await this.db.get<{
-      id: string;
-      requester_id: string;
-      requested_user_id: string;
-      status: string;
-      requester_name: string;
-      requester_avatar_url: string | null;
-    }>(
-      `SELECT fr.*, u.name as requester_name, u.avatar_url as requester_avatar_url
-       FROM friend_requests fr
-       JOIN users u ON u.id = fr.requester_id
-       WHERE fr.id = ? AND fr.requested_user_id = ?`,
-      friendRequestId,
-      user.id
-    );
+    const { request, notificationData } = await this.findFriendRequestForUser(user, friendRequestId);
 
     if (!request) {
+      await this.deleteFriendRequestNotifications(user.id, [friendRequestId, notificationData?.friendRequestId]);
       return { error: 'Friend request not found', status: 404 };
     }
 
-    if (request.status !== 'pending') {
+    if (request.status !== 'pending' && request.status !== 'accepted') {
+      await this.deleteFriendRequestNotifications(user.id, [
+        friendRequestId,
+        notificationData?.friendRequestId,
+        request.id,
+      ]);
       return { error: 'Friend request has already been processed', status: 400 };
     }
 
@@ -839,16 +921,17 @@ export class CoreHandlers {
       now
     );
 
-    await this.db.run(
-      "UPDATE friend_requests SET status = 'accepted', responded_at = ? WHERE id = ?",
-      now,
-      friendRequestId
-    );
+    if (request.status === 'pending') {
+      await this.db.run(
+        "UPDATE friend_requests SET status = 'accepted', responded_at = ? WHERE id = ?",
+        now,
+        request.id
+      );
+    }
 
-    await this.db.run(
-      "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?",
+    await this.deleteFriendRequestNotifications(
       user.id,
-      `%"friendRequestId":"${friendRequestId}"%`
+      [friendRequestId, notificationData?.friendRequestId, request.id]
     );
 
     return {
@@ -873,30 +956,24 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401 };
     }
 
-    const request = await this.db.get<{ id: string; status: string }>(
-      'SELECT id, status FROM friend_requests WHERE id = ? AND requested_user_id = ?',
-      friendRequestId,
-      user.id
-    );
+    const { request, notificationData } = await this.findFriendRequestForUser(user, friendRequestId);
 
     if (!request) {
+      await this.deleteFriendRequestNotifications(user.id, [friendRequestId, notificationData?.friendRequestId]);
       return { error: 'Friend request not found', status: 404 };
     }
 
-    if (request.status !== 'pending') {
-      return { error: 'Friend request has already been processed', status: 400 };
+    if (request.status === 'pending') {
+      await this.db.run(
+        "UPDATE friend_requests SET status = 'declined', responded_at = ? WHERE id = ?",
+        Date.now(),
+        request.id
+      );
     }
 
-    await this.db.run(
-      "UPDATE friend_requests SET status = 'declined', responded_at = ? WHERE id = ?",
-      Date.now(),
-      friendRequestId
-    );
-
-    await this.db.run(
-      "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?",
+    await this.deleteFriendRequestNotifications(
       user.id,
-      `%"friendRequestId":"${friendRequestId}"%`
+      [friendRequestId, notificationData?.friendRequestId, request.id]
     );
 
     return { data: { success: true }, status: 200 };
