@@ -559,13 +559,19 @@ export class CoreHandlers {
     userId: string,
     friendRequestId: string
   ): Promise<FriendRequestNotificationData | null> {
-    const notification = await this.db.get<{ data: string | null }>(
-      "SELECT data FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ? ORDER BY created_at DESC LIMIT 1",
-      userId,
-      `%"friendRequestId":"${friendRequestId}"%`
+    const notifications = await this.db.all<{ data: string | null }>(
+      "SELECT data FROM notifications WHERE user_id = ? AND type = 'friend_request' ORDER BY created_at DESC",
+      userId
     );
 
-    return this.parseFriendRequestNotificationData(notification?.data ?? null);
+    for (const notification of notifications.results) {
+      const notificationData = this.parseFriendRequestNotificationData(notification.data);
+      if (notificationData?.friendRequestId === friendRequestId) {
+        return notificationData;
+      }
+    }
+
+    return null;
   }
 
   private async findFriendRequestForUser(
@@ -609,12 +615,28 @@ export class CoreHandlers {
     friendRequestIds: Array<string | undefined | null>
   ): Promise<void> {
     const uniqueIds = Array.from(new Set(friendRequestIds.filter((id): id is string => Boolean(id))));
+    if (uniqueIds.length === 0) {
+      return;
+    }
 
-    for (const id of uniqueIds) {
+    const requestIdSet = new Set(uniqueIds);
+    const notifications = await this.db.all<{ id: string; data: string | null }>(
+      "SELECT id, data FROM notifications WHERE user_id = ? AND type = 'friend_request'",
+      userId
+    );
+
+    const notificationIds = notifications.results
+      .filter(notification => {
+        const notificationData = this.parseFriendRequestNotificationData(notification.data);
+        return notificationData?.friendRequestId ? requestIdSet.has(notificationData.friendRequestId) : false;
+      })
+      .map(notification => notification.id);
+
+    for (const id of notificationIds) {
       await this.db.run(
-        "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?",
-        userId,
-        `%"friendRequestId":"${id}"%`
+        "DELETE FROM notifications WHERE id = ? AND user_id = ? AND type = 'friend_request'",
+        id,
+        userId
       );
     }
   }
@@ -885,11 +907,7 @@ export class CoreHandlers {
       );
     }
 
-    await this.db.run(
-      "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?",
-      friend.id,
-      `%"friendRequestId":"${friendRequestId}"%`
-    );
+    await this.deleteFriendRequestNotifications(friend.id, [friendRequestId]);
 
     await this.db.run(
       'INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',

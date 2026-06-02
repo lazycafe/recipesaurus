@@ -850,11 +850,18 @@ async function getFriendRequestNotificationData(
   userId: string,
   friendRequestId: string
 ): Promise<FriendRequestNotificationData | null> {
-  const notification = await db.prepare(
-    "SELECT data FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ? ORDER BY created_at DESC LIMIT 1"
-  ).bind(userId, `%"friendRequestId":"${friendRequestId}"%`).first<{ data: string | null }>();
+  const notifications = await db.prepare(
+    "SELECT data FROM notifications WHERE user_id = ? AND type = 'friend_request' ORDER BY created_at DESC"
+  ).bind(userId).all<{ data: string | null }>();
 
-  return parseFriendRequestNotificationData(notification?.data ?? null);
+  for (const notification of notifications.results) {
+    const notificationData = parseFriendRequestNotificationData(notification.data);
+    if (notificationData?.friendRequestId === friendRequestId) {
+      return notificationData;
+    }
+  }
+
+  return null;
 }
 
 async function findFriendRequestForUser(
@@ -896,11 +903,26 @@ async function deleteFriendRequestNotifications(
   friendRequestIds: Array<string | undefined | null>
 ): Promise<void> {
   const uniqueIds = Array.from(new Set(friendRequestIds.filter((id): id is string => Boolean(id))));
+  if (uniqueIds.length === 0) {
+    return;
+  }
 
-  for (const id of uniqueIds) {
+  const requestIdSet = new Set(uniqueIds);
+  const notifications = await db.prepare(
+    "SELECT id, data FROM notifications WHERE user_id = ? AND type = 'friend_request'"
+  ).bind(userId).all<{ id: string; data: string | null }>();
+
+  const notificationIds = notifications.results
+    .filter(notification => {
+      const notificationData = parseFriendRequestNotificationData(notification.data);
+      return notificationData?.friendRequestId ? requestIdSet.has(notificationData.friendRequestId) : false;
+    })
+    .map(notification => notification.id);
+
+  for (const id of notificationIds) {
     await db.prepare(
-      "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?"
-    ).bind(userId, `%"friendRequestId":"${id}"%`).run();
+      "DELETE FROM notifications WHERE id = ? AND user_id = ? AND type = 'friend_request'"
+    ).bind(id, userId).run();
   }
 }
 
@@ -1568,9 +1590,7 @@ async function handleAddFriend(request: Request, db: D1Database): Promise<Respon
     ).bind(friendRequestId, user.id, friend.id, 'pending', now).run();
   }
 
-  await db.prepare(
-    "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?"
-  ).bind(friend.id, `%"friendRequestId":"${friendRequestId}"%`).run();
+  await deleteFriendRequestNotifications(db, friend.id, [friendRequestId]);
 
   await db.prepare(`
     INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)

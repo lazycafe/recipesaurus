@@ -219,6 +219,62 @@ describe('Profiles and friends', () => {
     expect(notificationsAfterAccept.data?.notifications).toHaveLength(0);
   });
 
+  it('matches friend request notification cleanup by exact JSON id instead of LIKE patterns', async () => {
+    const aliceClient = harness.createClient();
+    const bobClient = harness.createClient();
+
+    const alice = await aliceClient.auth.register('alice@example.com', 'Alice Chef', 'Password123');
+    const bob = await bobClient.auth.register('bob@example.com', 'Bob Baker', 'Password123');
+
+    const friendRequest = await aliceClient.profile.addFriend({ email: 'bob@example.com' });
+    expect(friendRequest.error).toBeUndefined();
+
+    const wildcardRequestId = 'stale-request-%';
+    const similarRequestId = 'stale-request-anything';
+    const db = (harness as unknown as {
+      db: { run: (sql: string, params?: unknown[]) => void };
+    }).db;
+
+    db.run(
+      'UPDATE notifications SET data = ? WHERE user_id = ? AND type = ?',
+      [
+        JSON.stringify({
+          friendRequestId: wildcardRequestId,
+          requesterId: alice.data!.user!.id,
+          requesterName: 'Alice Chef',
+        }),
+        bob.data!.user!.id,
+        'friend_request',
+      ]
+    );
+    db.run(
+      `INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        'similar-wildcard-notification',
+        bob.data!.user!.id,
+        'friend_request',
+        'Friend request',
+        'Alice Chef sent you another friend request',
+        JSON.stringify({
+          friendRequestId: similarRequestId,
+          requesterId: alice.data!.user!.id,
+          requesterName: 'Alice Chef',
+        }),
+        0,
+        Date.now() + 1,
+      ]
+    );
+
+    const accepted = await bobClient.profile.acceptFriendRequest(wildcardRequestId);
+    expect(accepted.error).toBeUndefined();
+    expect(accepted.data?.friend.id).toBe(alice.data?.user?.id);
+
+    const notificationsAfterAccept = await bobClient.notifications.list();
+    expect(notificationsAfterAccept.data?.notifications).toHaveLength(1);
+    expect(notificationsAfterAccept.data?.notifications[0].data?.friendRequestId).toBe(similarRequestId);
+  });
+
   it('accepts a declined friend request when the notification still exists', async () => {
     const aliceClient = harness.createClient();
     const bobClient = harness.createClient();
