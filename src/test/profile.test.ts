@@ -38,8 +38,8 @@ describe('Profiles and friends', () => {
     const aliceProfile = await aliceClient.profile.get(alice.data!.user!.id);
     expect(aliceProfile.data?.profile.friendCount).toBe(0);
     expect(aliceProfile.data?.profile.isCurrentUser).toBe(true);
-    expect(aliceProfile.data?.profile.recipeCount).toBe(0);
-    expect(aliceProfile.data?.profile.cookbookCount).toBe(0);
+    expect(aliceProfile.data?.profile.recipeCount).toBe(3);
+    expect(aliceProfile.data?.profile.cookbookCount).toBe(1);
 
     const bobNotifications = await bobClient.notifications.list();
     expect(bobNotifications.data?.notifications).toHaveLength(1);
@@ -88,7 +88,7 @@ describe('Profiles and friends', () => {
     ]);
   });
 
-  it('shows only public recipes and cookbooks on profiles', async () => {
+  it('shows only public recipes and cookbooks on profiles while counting all saved content', async () => {
     const aliceClient = harness.createClient();
 
     const alice = await aliceClient.auth.register('alice@example.com', 'Alice Chef', 'Password123');
@@ -129,8 +129,8 @@ describe('Profiles and friends', () => {
     const profile = await aliceClient.profile.get(alice.data!.user!.id);
     expect(profile.error).toBeUndefined();
     expect(profile.data?.profile.isCurrentUser).toBe(true);
-    expect(profile.data?.profile.recipeCount).toBe(1);
-    expect(profile.data?.profile.cookbookCount).toBe(1);
+    expect(profile.data?.profile.recipeCount).toBe(5);
+    expect(profile.data?.profile.cookbookCount).toBe(3);
     expect(profile.data?.profile.recipes.map(recipe => recipe.title)).toEqual(['Public Recipe']);
     expect(profile.data?.profile.cookbooks.map(cookbook => cookbook.name)).toEqual(['Public Cookbook']);
   });

@@ -714,16 +714,16 @@ export class CoreHandlers {
           currentUser.id
         )
       : null;
-    const contentVisibility = 'AND r.is_public = 1';
-    const cookbookVisibility = 'AND c.is_public = 1';
+    const publicRecipeVisibility = 'AND r.is_public = 1';
+    const publicCookbookVisibility = 'AND c.is_public = 1';
 
     const recipeCount = await this.db.get<{ count: number }>(
-      `SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ? ${contentVisibility}`,
+      'SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ?',
       profileUser.id
     );
 
     const cookbookCount = await this.db.get<{ count: number }>(
-      `SELECT COUNT(*) as count FROM cookbooks c WHERE c.user_id = ? AND c.is_system = 0 ${cookbookVisibility}`,
+      'SELECT COUNT(*) as count FROM cookbooks c WHERE c.user_id = ? AND c.is_system = 0',
       profileUser.id
     );
 
@@ -731,7 +731,7 @@ export class CoreHandlers {
       `SELECT r.*, owner.name as owner_name
        FROM recipes r
        LEFT JOIN users owner ON r.owner_id = owner.id
-       WHERE r.user_id = ? ${contentVisibility}
+       WHERE r.user_id = ? ${publicRecipeVisibility}
        ORDER BY r.created_at DESC
        LIMIT 24`,
       profileUser.id
@@ -742,7 +742,7 @@ export class CoreHandlers {
        FROM cookbooks c
        LEFT JOIN cookbook_recipes cr ON c.id = cr.cookbook_id
        JOIN users owner ON c.user_id = owner.id
-       WHERE c.user_id = ? AND c.is_system = 0 ${cookbookVisibility}
+       WHERE c.user_id = ? AND c.is_system = 0 ${publicCookbookVisibility}
        GROUP BY c.id
        ORDER BY c.updated_at DESC
        LIMIT 24`,

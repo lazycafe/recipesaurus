@@ -1401,22 +1401,22 @@ async function handleGetProfile(request: Request, db: D1Database, userId: string
         "SELECT id FROM friend_requests WHERE requester_id = ? AND requested_user_id = ? AND status = 'pending'"
       ).bind(profileUser.id, currentUser.id).first<{ id: string }>()
     : null;
-  const recipeVisibility = 'AND r.is_public = 1';
-  const cookbookVisibility = 'AND c.is_public = 1';
+  const publicRecipeVisibility = 'AND r.is_public = 1';
+  const publicCookbookVisibility = 'AND c.is_public = 1';
 
   const recipeCount = await db.prepare(
-    `SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ? ${recipeVisibility}`
+    'SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ?'
   ).bind(profileUser.id).first<{ count: number }>();
 
   const cookbookCount = await db.prepare(
-    `SELECT COUNT(*) as count FROM cookbooks c WHERE c.user_id = ? AND c.is_system = 0 ${cookbookVisibility}`
+    'SELECT COUNT(*) as count FROM cookbooks c WHERE c.user_id = ? AND c.is_system = 0'
   ).bind(profileUser.id).first<{ count: number }>();
 
   const recipes = await db.prepare(
     `SELECT r.*, owner.name as owner_name
      FROM recipes r
      LEFT JOIN users owner ON r.owner_id = owner.id
-     WHERE r.user_id = ? ${recipeVisibility}
+     WHERE r.user_id = ? ${publicRecipeVisibility}
      ORDER BY r.created_at DESC
      LIMIT 24`
   ).bind(profileUser.id).all<Recipe & { owner_name: string | null }>();
@@ -1426,7 +1426,7 @@ async function handleGetProfile(request: Request, db: D1Database, userId: string
      FROM cookbooks c
      LEFT JOIN cookbook_recipes cr ON c.id = cr.cookbook_id
      JOIN users owner ON c.user_id = owner.id
-     WHERE c.user_id = ? AND c.is_system = 0 ${cookbookVisibility}
+     WHERE c.user_id = ? AND c.is_system = 0 ${publicCookbookVisibility}
      GROUP BY c.id
      ORDER BY c.updated_at DESC
      LIMIT 24`
