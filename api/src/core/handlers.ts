@@ -202,11 +202,24 @@ function normalizeDisplayName(name: unknown): string | null {
   return trimmed;
 }
 
+const PROFILE_AVATAR_MAX_BYTES = 1024 * 1024;
+const PROFILE_AVATAR_MAX_BASE64_LENGTH = Math.ceil(PROFILE_AVATAR_MAX_BYTES / 3) * 4;
+const PROFILE_AVATAR_DATA_URL_PATTERN = /^data:image\/(?:png|jpe?g|webp|gif);base64,([A-Za-z0-9+/]+={0,2})$/i;
+
 function normalizeAvatarUrl(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
+  const dataUrlMatch = trimmed.match(PROFILE_AVATAR_DATA_URL_PATTERN);
+  if (dataUrlMatch) {
+    const base64Data = dataUrlMatch[1];
+    if (base64Data.length > PROFILE_AVATAR_MAX_BASE64_LENGTH || base64Data.length % 4 !== 0) {
+      return null;
+    }
+    return trimmed;
+  }
+
   if (trimmed.length > 1000) return null;
   try {
     const parsed = new URL(trimmed);
@@ -685,7 +698,7 @@ export class CoreHandlers {
     if (hasAvatar) {
       nextAvatarUrl = normalizeAvatarUrl(data.avatarUrl);
       if (typeof data.avatarUrl === 'string' && data.avatarUrl.trim() && !nextAvatarUrl) {
-        return { error: 'Profile picture must be a valid http or https URL', status: 400 };
+        return { error: 'Profile picture must be a PNG, JPG, WebP, or GIF under 1MB, or a valid http(s) URL', status: 400 };
       }
     }
 

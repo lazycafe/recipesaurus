@@ -1,9 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, X, Book, ChefHat, CheckCheck, UserPlus } from 'lucide-react';
+import { Bell, Check, X, Book, ChefHat, CheckCheck, Loader2, UserPlus } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useCookbooks } from '../context/CookbookContext';
+import { useToast } from '../context/ToastContext';
 import type { Notification } from '../client/types';
+
+type PendingFriendRequestAction = {
+  friendRequestId: string;
+  action: 'accept' | 'decline';
+} | null;
 
 export function NotificationDropdown() {
   const navigate = useNavigate();
@@ -18,7 +24,9 @@ export function NotificationDropdown() {
     declineFriendRequest,
   } = useNotifications();
   const { refreshCookbooks } = useCookbooks();
+  const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
+  const [pendingFriendRequestAction, setPendingFriendRequestAction] = useState<PendingFriendRequestAction>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,15 +53,24 @@ export function NotificationDropdown() {
   };
 
   const handleAcceptFriendRequest = async (friendRequestId: string) => {
+    setPendingFriendRequestAction({ friendRequestId, action: 'accept' });
     const result = await acceptFriendRequest(friendRequestId);
+    setPendingFriendRequestAction(null);
     if (result) {
-      setIsOpen(false);
-      navigate(`/profiles/${result.friendId}`);
+      showToast({ message: `Friend request accepted from ${result.friendName}`, type: 'success' });
+    } else {
+      showToast({ message: 'Could not accept friend request', type: 'error' });
     }
   };
 
   const handleDeclineFriendRequest = async (friendRequestId: string) => {
-    await declineFriendRequest(friendRequestId);
+    setPendingFriendRequestAction({ friendRequestId, action: 'decline' });
+    const success = await declineFriendRequest(friendRequestId);
+    setPendingFriendRequestAction(null);
+    showToast({
+      message: success ? 'Friend request declined' : 'Could not decline friend request',
+      type: success ? 'success' : 'error',
+    });
   };
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -157,22 +174,34 @@ export function NotificationDropdown() {
                       <div className="notification-actions">
                         <button
                           className="btn-accept"
+                          disabled={pendingFriendRequestAction?.friendRequestId === notification.data.friendRequestId}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleAcceptFriendRequest(notification.data!.friendRequestId!);
                           }}
                         >
-                          <Check size={14} />
+                          {pendingFriendRequestAction?.friendRequestId === notification.data.friendRequestId &&
+                          pendingFriendRequestAction.action === 'accept' ? (
+                            <Loader2 size={14} className="spin" />
+                          ) : (
+                            <Check size={14} />
+                          )}
                           Accept
                         </button>
                         <button
                           className="btn-decline"
+                          disabled={pendingFriendRequestAction?.friendRequestId === notification.data.friendRequestId}
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeclineFriendRequest(notification.data!.friendRequestId!);
                           }}
                         >
-                          <X size={14} />
+                          {pendingFriendRequestAction?.friendRequestId === notification.data.friendRequestId &&
+                          pendingFriendRequestAction.action === 'decline' ? (
+                            <Loader2 size={14} className="spin" />
+                          ) : (
+                            <X size={14} />
+                          )}
                           Decline
                         </button>
                       </div>

@@ -1,11 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, Check, X, Book, ChefHat, CheckCheck, Bell, Settings, Trash2, UserCircle, UserPlus } from 'lucide-react';
+import { LogOut, Check, X, Book, ChefHat, CheckCheck, Bell, Settings, Trash2, UserCircle, UserPlus, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useCookbooks } from '../context/CookbookContext';
+import { useToast } from '../context/ToastContext';
 import type { Notification } from '../client/types';
 import { UserAvatar } from './UserAvatar';
+
+type PendingFriendRequestAction = {
+  friendRequestId: string;
+  action: 'accept' | 'decline';
+} | null;
 
 export function UserMenu() {
   const navigate = useNavigate();
@@ -22,7 +28,9 @@ export function UserMenu() {
     declineFriendRequest,
   } = useNotifications();
   const { refreshCookbooks } = useCookbooks();
+  const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
+  const [pendingFriendRequestAction, setPendingFriendRequestAction] = useState<PendingFriendRequestAction>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,15 +57,24 @@ export function UserMenu() {
   };
 
   const handleAcceptFriendRequest = async (friendRequestId: string) => {
+    setPendingFriendRequestAction({ friendRequestId, action: 'accept' });
     const result = await acceptFriendRequest(friendRequestId);
+    setPendingFriendRequestAction(null);
     if (result) {
-      setIsOpen(false);
-      navigate(`/profiles/${result.friendId}`);
+      showToast({ message: `Friend request accepted from ${result.friendName}`, type: 'success' });
+    } else {
+      showToast({ message: 'Could not accept friend request', type: 'error' });
     }
   };
 
   const handleDeclineFriendRequest = async (friendRequestId: string) => {
-    await declineFriendRequest(friendRequestId);
+    setPendingFriendRequestAction({ friendRequestId, action: 'decline' });
+    const success = await declineFriendRequest(friendRequestId);
+    setPendingFriendRequestAction(null);
+    showToast({
+      message: success ? 'Friend request declined' : 'Could not decline friend request',
+      type: success ? 'success' : 'error',
+    });
   };
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -198,22 +215,34 @@ export function UserMenu() {
                         <div className="notification-actions">
                           <button
                             className="btn-accept"
+                            disabled={pendingFriendRequestAction?.friendRequestId === notification.data.friendRequestId}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleAcceptFriendRequest(notification.data!.friendRequestId!);
                             }}
                           >
-                            <Check size={12} />
+                            {pendingFriendRequestAction?.friendRequestId === notification.data.friendRequestId &&
+                            pendingFriendRequestAction.action === 'accept' ? (
+                              <Loader2 size={12} className="spin" />
+                            ) : (
+                              <Check size={12} />
+                            )}
                             Accept
                           </button>
                           <button
                             className="btn-decline"
+                            disabled={pendingFriendRequestAction?.friendRequestId === notification.data.friendRequestId}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDeclineFriendRequest(notification.data!.friendRequestId!);
                             }}
                           >
-                            <X size={12} />
+                            {pendingFriendRequestAction?.friendRequestId === notification.data.friendRequestId &&
+                            pendingFriendRequestAction.action === 'decline' ? (
+                              <Loader2 size={12} className="spin" />
+                            ) : (
+                              <X size={12} />
+                            )}
                             Decline
                           </button>
                         </div>

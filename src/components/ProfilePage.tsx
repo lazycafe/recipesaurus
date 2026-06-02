@@ -1,6 +1,6 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Camera, ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen } from 'lucide-react';
+import { ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, Upload, Trash2 } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import type { Cookbook as ClientCookbook, ProfileUser, Recipe, UserProfile } from '../client/types';
 import type { Cookbook } from '../types/Cookbook';
@@ -28,6 +28,9 @@ type FriendsModalFeedback = {
   type: 'success' | 'error';
   message: string;
 };
+
+const PROFILE_AVATAR_MAX_BYTES = 1024 * 1024;
+const PROFILE_AVATAR_ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
@@ -94,6 +97,52 @@ export function ProfilePage() {
     await loadFriends();
   };
 
+  const resetProfileDraft = () => {
+    if (!profile) return;
+    setDraftName(profile.user.name);
+    setDraftAvatarUrl(profile.user.avatarUrl || '');
+  };
+
+  const openEditProfile = () => {
+    resetProfileDraft();
+    setIsEditing(true);
+  };
+
+  const closeEditProfile = () => {
+    resetProfileDraft();
+    setIsEditing(false);
+  };
+
+  const handleAvatarUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+
+    if (!file) return;
+
+    if (!PROFILE_AVATAR_ALLOWED_TYPES.has(file.type)) {
+      showToast({ message: 'Profile picture must be a PNG, JPG, WebP, or GIF image', type: 'error' });
+      return;
+    }
+
+    if (file.size > PROFILE_AVATAR_MAX_BYTES) {
+      showToast({ message: 'Profile picture must be less than 1MB', type: 'error' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setDraftAvatarUrl(reader.result);
+      } else {
+        showToast({ message: 'Could not read profile picture. Please try again.', type: 'error' });
+      }
+    };
+    reader.onerror = () => {
+      showToast({ message: 'Could not read profile picture. Please try again.', type: 'error' });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveProfile = async (event: FormEvent) => {
     event.preventDefault();
     setIsSavingProfile(true);
@@ -135,10 +184,20 @@ export function ProfilePage() {
     }
   };
 
+  const getFriendRemovalTarget = (friend: ProfileUser): ProfileUser | null => {
+    if (!profile || !user) return null;
+    if (profile.isCurrentUser) return friend;
+    if (profile.isFriend && friend.id === user.id) return profile.user;
+    return null;
+  };
+
   const handleRemoveFriendFromModal = async (friend: ProfileUser) => {
+    const removalTarget = getFriendRemovalTarget(friend);
+    if (!removalTarget) return;
+
     setRemovingFriendId(friend.id);
     setFriendsModalFeedback(null);
-    const { error: removeError } = await client.profile.removeFriend(friend.id);
+    const { error: removeError } = await client.profile.removeFriend(removalTarget.id);
     setRemovingFriendId(null);
 
     if (removeError) {
@@ -150,13 +209,17 @@ export function ProfilePage() {
     }
 
     setFriends(current => current.filter(item => item.id !== friend.id));
-    setProfile(current => current?.isCurrentUser
-      ? { ...current, friendCount: Math.max(0, current.friendCount - 1) }
+    setProfile(current => current
+      ? {
+          ...current,
+          friendCount: Math.max(0, current.friendCount - 1),
+          isFriend: current.isCurrentUser ? current.isFriend : false,
+        }
       : current
     );
     setFriendsModalFeedback({
       type: 'success',
-      message: `${friend.name} removed from friends`,
+      message: `${removalTarget.name} removed from friends`,
     });
   };
 
@@ -219,7 +282,7 @@ export function ProfilePage() {
           <div className="profile-title-row">
             <h1>{profile.user.name}</h1>
             {profile.isCurrentUser ? (
-              <button className="btn-secondary profile-action-btn" onClick={() => setIsEditing(true)}>
+              <button className="btn-secondary profile-action-btn" onClick={openEditProfile}>
                 <Edit3 size={16} />
                 Edit
               </button>
@@ -296,14 +359,13 @@ export function ProfilePage() {
       )}
 
       {isEditing && (
-        <ModalOverlay onClose={() => setIsEditing(false)}>
+        <ModalOverlay onClose={closeEditProfile}>
           <div className="modal-content profile-edit-modal">
-            <button className="modal-close" onClick={() => setIsEditing(false)} aria-label="Close">
+            <button className="modal-close" onClick={closeEditProfile} aria-label="Close">
               <X size={20} />
             </button>
             <form onSubmit={handleSaveProfile}>
               <div className="profile-edit-header">
-                <UserAvatar name={draftName || profile.user.name} avatarUrl={draftAvatarUrl} size="lg" />
                 <h2>Edit Profile</h2>
               </div>
 
@@ -318,21 +380,41 @@ export function ProfilePage() {
                 />
               </label>
 
-              <label className="profile-form-field">
-                <span>Profile picture URL</span>
-                <div className="profile-input-row">
-                  <Camera size={18} />
-                  <input
-                    type="url"
-                    value={draftAvatarUrl}
-                    onChange={(event) => setDraftAvatarUrl(event.target.value)}
-                    placeholder="https://..."
-                  />
+              <div className="profile-form-field">
+                <span>Profile picture</span>
+                <div className="profile-avatar-upload">
+                  <div className="profile-avatar-upload-preview">
+                    <UserAvatar name={draftName || profile.user.name} avatarUrl={draftAvatarUrl} size="lg" />
+                    <div>
+                      <p>Upload a square image for the best crop.</p>
+                      <span className="upload-hint">PNG, JPG, WebP, or GIF up to 1MB</span>
+                    </div>
+                  </div>
+                  <div className="profile-avatar-upload-actions">
+                    <input
+                      id="profile-avatar-upload"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      onChange={handleAvatarUpload}
+                      className="file-input-hidden"
+                      aria-label="Upload profile picture"
+                    />
+                    <label htmlFor="profile-avatar-upload" className="btn-secondary profile-avatar-upload-button">
+                      <Upload size={16} />
+                      Upload Photo
+                    </label>
+                    {draftAvatarUrl && (
+                      <button type="button" className="btn-secondary" onClick={() => setDraftAvatarUrl('')}>
+                        <Trash2 size={16} />
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </label>
+              </div>
 
               <div className="profile-edit-actions">
-                <button type="button" className="btn-secondary" onClick={() => setIsEditing(false)}>
+                <button type="button" className="btn-secondary" onClick={closeEditProfile}>
                   <X size={16} />
                   Cancel
                 </button>
@@ -357,25 +439,27 @@ export function ProfilePage() {
               <h2>{profile.user.name}'s Friends</h2>
             </div>
 
-            <form className="friends-modal-add" onSubmit={handleAddFriendByEmail}>
-              <div className="profile-input-row">
-                <Users size={18} />
-                <input
-                  type="email"
-                  value={friendEmail}
-                  onChange={(event) => {
-                    setFriendEmail(event.target.value);
-                    setFriendsModalFeedback(null);
-                  }}
-                  placeholder="friend@example.com"
-                  aria-label="Friend email"
-                />
-              </div>
-              <button className="btn-primary" disabled={isFriendActionLoading || !friendEmail.trim()}>
-                {isFriendActionLoading ? <Loader2 size={16} className="spin" /> : <UserPlus size={16} />}
-                Add Friend
-              </button>
-            </form>
+            {profile.isCurrentUser && (
+              <form className="friends-modal-add" onSubmit={handleAddFriendByEmail}>
+                <div className="profile-input-row">
+                  <Users size={18} />
+                  <input
+                    type="email"
+                    value={friendEmail}
+                    onChange={(event) => {
+                      setFriendEmail(event.target.value);
+                      setFriendsModalFeedback(null);
+                    }}
+                    placeholder="friend@example.com"
+                    aria-label="Friend email"
+                  />
+                </div>
+                <button className="btn-primary" disabled={isFriendActionLoading || !friendEmail.trim()}>
+                  {isFriendActionLoading ? <Loader2 size={16} className="spin" /> : <UserPlus size={16} />}
+                  Add Friend
+                </button>
+              </form>
+            )}
 
             {friendsModalFeedback && (
               <div
@@ -395,33 +479,38 @@ export function ProfilePage() {
               <div className="friends-modal-empty">No friends yet</div>
             ) : (
               <div className="friends-list">
-                {friends.map(friend => (
-                  <div key={friend.id} className="friend-list-item">
-                    <Link
-                      to={`/profiles/${friend.id}`}
-                      className="friend-list-link"
-                      onClick={() => setShowFriends(false)}
-                    >
-                      <UserAvatar name={friend.name} avatarUrl={friend.avatarUrl} size="sm" />
-                      <span>{friend.name}</span>
-                    </Link>
-                    {profile.isCurrentUser && (
-                      <button
-                        type="button"
-                        className="friend-remove-button"
-                        onClick={() => handleRemoveFriendFromModal(friend)}
-                        disabled={removingFriendId === friend.id}
-                        aria-label={`Remove ${friend.name}`}
+                {friends.map(friend => {
+                  const removalTarget = getFriendRemovalTarget(friend);
+
+                  return (
+                    <div key={friend.id} className="friend-list-item">
+                      <Link
+                        to={`/profiles/${friend.id}`}
+                        className="friend-list-link"
+                        onClick={() => setShowFriends(false)}
                       >
-                        {removingFriendId === friend.id ? (
-                          <Loader2 size={16} className="spin" />
-                        ) : (
-                          <UserMinus size={16} />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                ))}
+                        <UserAvatar name={friend.name} avatarUrl={friend.avatarUrl} size="sm" />
+                        <span>{friend.name}</span>
+                      </Link>
+                      {removalTarget && (
+                        <button
+                          type="button"
+                          className="friend-remove-button"
+                          onClick={() => handleRemoveFriendFromModal(friend)}
+                          disabled={removingFriendId === friend.id}
+                          aria-label={`Remove ${removalTarget.name}`}
+                          title={`Remove ${removalTarget.name}`}
+                        >
+                          {removingFriendId === friend.id ? (
+                            <Loader2 size={16} className="spin" />
+                          ) : (
+                            <UserMinus size={16} />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

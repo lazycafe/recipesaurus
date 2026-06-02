@@ -3967,6 +3967,12 @@ img {
   background: var(--color-olive-dark);
 }
 
+.notification-actions .btn-accept:disabled,
+.notification-actions .btn-decline:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .notification-actions .btn-decline {
   background: var(--color-cream-dark);
   color: var(--color-text-muted);
@@ -4577,6 +4583,44 @@ img {
 .profile-form-field > input:focus {
   border-color: var(--color-terracotta);
   box-shadow: 0 0 0 3px var(--color-terracotta-light);
+}
+
+.profile-avatar-upload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-cream);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.profile-avatar-upload-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.profile-avatar-upload-preview .profile-avatar {
+  flex-shrink: 0;
+}
+
+.profile-avatar-upload-preview p {
+  margin: 0 0 var(--space-1);
+  color: var(--color-charcoal);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.profile-avatar-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.profile-avatar-upload-button {
+  cursor: pointer;
 }
 
 .profile-edit-actions {

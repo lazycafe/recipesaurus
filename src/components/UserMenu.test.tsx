@@ -5,6 +5,7 @@ import { UserMenu } from './UserMenu';
 import * as AuthContext from '../context/AuthContext';
 import * as NotificationContext from '../context/NotificationContext';
 import * as CookbookContext from '../context/CookbookContext';
+import * as ToastContext from '../context/ToastContext';
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: vi.fn(),
@@ -16,6 +17,10 @@ vi.mock('../context/NotificationContext', () => ({
 
 vi.mock('../context/CookbookContext', () => ({
   useCookbooks: vi.fn(),
+}));
+
+vi.mock('../context/ToastContext', () => ({
+  useToast: vi.fn(),
 }));
 
 describe('UserMenu', () => {
@@ -67,6 +72,11 @@ describe('UserMenu', () => {
       addRecipeToCookbook: vi.fn(),
       removeRecipeFromCookbook: vi.fn(),
       refreshCookbooks: vi.fn(),
+    });
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast: vi.fn(),
+      hideToast: vi.fn(),
     });
   });
 
@@ -159,6 +169,11 @@ describe('UserMenu', () => {
 
   it('accepts friend request notifications', async () => {
     const acceptFriendRequest = vi.fn().mockResolvedValue({ friendId: 'friend-1', friendName: 'Friend' });
+    const showToast = vi.fn();
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
     vi.mocked(NotificationContext.useNotifications).mockReturnValue({
       notifications: [{
         id: '1',
@@ -186,6 +201,93 @@ describe('UserMenu', () => {
     fireEvent.click(screen.getByText('Accept'));
 
     await waitFor(() => expect(acceptFriendRequest).toHaveBeenCalledWith('request-1'));
+    expect(showToast).toHaveBeenCalledWith({
+      message: 'Friend request accepted from Friend',
+      type: 'success',
+    });
+    expect(screen.getByText('Notifications')).toBeDefined();
+  });
+
+  it('shows error feedback without navigating when accepting friend request notifications fails', async () => {
+    const acceptFriendRequest = vi.fn().mockResolvedValue(null);
+    const showToast = vi.fn();
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+    vi.mocked(NotificationContext.useNotifications).mockReturnValue({
+      notifications: [{
+        id: '1',
+        type: 'friend_request',
+        title: 'Friend request',
+        message: 'Friend sent you a friend request',
+        data: { friendRequestId: 'request-1', requesterId: 'friend-1', requesterName: 'Friend' },
+        isRead: false,
+        createdAt: Date.now()
+      }],
+      unreadCount: 1,
+      isLoading: false,
+      refresh: vi.fn(),
+      markAsRead: vi.fn(),
+      markAllAsRead: vi.fn(),
+      clearAll: vi.fn(),
+      acceptInvite: vi.fn(),
+      declineInvite: vi.fn(),
+      acceptFriendRequest,
+      declineFriendRequest: vi.fn(),
+    });
+
+    renderWithRouter(<UserMenu />);
+    fireEvent.click(screen.getByLabelText('User menu'));
+    fireEvent.click(screen.getByText('Accept'));
+
+    await waitFor(() => expect(acceptFriendRequest).toHaveBeenCalledWith('request-1'));
+    expect(showToast).toHaveBeenCalledWith({
+      message: 'Could not accept friend request',
+      type: 'error',
+    });
+    expect(screen.getByText('Notifications')).toBeDefined();
+  });
+
+  it('shows feedback when declining friend request notifications', async () => {
+    const declineFriendRequest = vi.fn().mockResolvedValue(true);
+    const showToast = vi.fn();
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+    vi.mocked(NotificationContext.useNotifications).mockReturnValue({
+      notifications: [{
+        id: '1',
+        type: 'friend_request',
+        title: 'Friend request',
+        message: 'Friend sent you a friend request',
+        data: { friendRequestId: 'request-1', requesterId: 'friend-1', requesterName: 'Friend' },
+        isRead: false,
+        createdAt: Date.now()
+      }],
+      unreadCount: 1,
+      isLoading: false,
+      refresh: vi.fn(),
+      markAsRead: vi.fn(),
+      markAllAsRead: vi.fn(),
+      clearAll: vi.fn(),
+      acceptInvite: vi.fn(),
+      declineInvite: vi.fn(),
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest,
+    });
+
+    renderWithRouter(<UserMenu />);
+    fireEvent.click(screen.getByLabelText('User menu'));
+    fireEvent.click(screen.getByText('Decline'));
+
+    await waitFor(() => expect(declineFriendRequest).toHaveBeenCalledWith('request-1'));
+    expect(showToast).toHaveBeenCalledWith({
+      message: 'Friend request declined',
+      type: 'success',
+    });
+    expect(screen.getByText('Notifications')).toBeDefined();
   });
 
   it('shows user email in menu header', () => {

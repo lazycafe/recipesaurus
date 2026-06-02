@@ -3,6 +3,7 @@ import { ReactTestHarness } from './ReactTestHarness';
 
 describe('Profiles and friends', () => {
   let harness: ReactTestHarness;
+  const avatarDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
 
   beforeEach(async () => {
     harness = await ReactTestHarness.create();
@@ -24,12 +25,12 @@ describe('Profiles and friends', () => {
 
     const updated = await aliceClient.auth.updateProfile({
       name: 'Alice Sauces',
-      avatarUrl: 'https://example.com/alice.png',
+      avatarUrl: avatarDataUrl,
     });
 
     expect(updated.error).toBeUndefined();
     expect(updated.data?.user.name).toBe('Alice Sauces');
-    expect(updated.data?.user.avatarUrl).toBe('https://example.com/alice.png');
+    expect(updated.data?.user.avatarUrl).toBe(avatarDataUrl);
 
     const friendRequest = await aliceClient.profile.addFriend({ email: 'bob@example.com' });
     expect(friendRequest.error).toBeUndefined();
@@ -273,6 +274,46 @@ describe('Profiles and friends', () => {
     const notificationsAfterAccept = await bobClient.notifications.list();
     expect(notificationsAfterAccept.data?.notifications).toHaveLength(1);
     expect(notificationsAfterAccept.data?.notifications[0].data?.friendRequestId).toBe(similarRequestId);
+  });
+
+  it('lets either side remove an accepted friendship', async () => {
+    const aliceClient = harness.createClient();
+    const bobClient = harness.createClient();
+
+    const alice = await aliceClient.auth.register('alice@example.com', 'Alice Chef', 'Password123');
+    const bob = await bobClient.auth.register('bob@example.com', 'Bob Baker', 'Password123');
+
+    const firstRequest = await aliceClient.profile.addFriend({ email: 'bob@example.com' });
+    expect(firstRequest.error).toBeUndefined();
+
+    const firstBobNotifications = await bobClient.notifications.list();
+    const firstFriendRequestId = firstBobNotifications.data!.notifications[0].data?.friendRequestId!;
+    const firstAccepted = await bobClient.profile.acceptFriendRequest(firstFriendRequestId);
+    expect(firstAccepted.error).toBeUndefined();
+
+    const aliceRemoves = await aliceClient.profile.removeFriend(bob.data!.user!.id);
+    expect(aliceRemoves.error).toBeUndefined();
+
+    const bobProfileAsAliceAfterAliceRemove = await aliceClient.profile.get(bob.data!.user!.id);
+    expect(bobProfileAsAliceAfterAliceRemove.data?.profile.isFriend).toBe(false);
+
+    const secondRequest = await aliceClient.profile.addFriend({ email: 'bob@example.com' });
+    expect(secondRequest.error).toBeUndefined();
+
+    const secondBobNotifications = await bobClient.notifications.list();
+    const secondFriendRequest = secondBobNotifications.data!.notifications.find(
+      notification => notification.type === 'friend_request'
+    );
+    expect(secondFriendRequest?.data?.friendRequestId).toBeDefined();
+
+    const secondAccepted = await bobClient.profile.acceptFriendRequest(secondFriendRequest!.data!.friendRequestId!);
+    expect(secondAccepted.error).toBeUndefined();
+
+    const bobRemoves = await bobClient.profile.removeFriend(alice.data!.user!.id);
+    expect(bobRemoves.error).toBeUndefined();
+
+    const aliceProfileAsBobAfterBobRemove = await bobClient.profile.get(alice.data!.user!.id);
+    expect(aliceProfileAsBobAfterBobRemove.data?.profile.isFriend).toBe(false);
   });
 
   it('accepts a declined friend request when the notification still exists', async () => {

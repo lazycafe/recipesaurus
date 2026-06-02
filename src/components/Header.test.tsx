@@ -5,6 +5,7 @@ import { Header } from './Header';
 import * as AuthContext from '../context/AuthContext';
 import * as NotificationContext from '../context/NotificationContext';
 import * as CookbookContext from '../context/CookbookContext';
+import * as ToastContext from '../context/ToastContext';
 
 // Mock the contexts
 vi.mock('../context/AuthContext', () => ({
@@ -17,6 +18,10 @@ vi.mock('../context/NotificationContext', () => ({
 
 vi.mock('../context/CookbookContext', () => ({
   useCookbooks: vi.fn(),
+}));
+
+vi.mock('../context/ToastContext', () => ({
+  useToast: vi.fn(),
 }));
 
 describe('Header', () => {
@@ -68,6 +73,11 @@ describe('Header', () => {
       addRecipeToCookbook: vi.fn(),
       removeRecipeFromCookbook: vi.fn(),
       refreshCookbooks: vi.fn(),
+    });
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast: vi.fn(),
+      hideToast: vi.fn(),
     });
   });
 
