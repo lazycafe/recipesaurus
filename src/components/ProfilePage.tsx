@@ -261,7 +261,7 @@ export function ProfilePage() {
       </section>
 
       {profile.recipes.length > 0 ? (
-        <Carousel title="Recipes">
+        <Carousel title="Public Recipes">
           {profile.recipes.map(recipe => (
             <RecipeCardCompact
               key={recipe.id}
@@ -274,12 +274,12 @@ export function ProfilePage() {
       ) : (
         <section className="profile-section-empty">
           <ChefHat size={24} />
-          <h2>No recipes yet</h2>
+          <h2>No public recipes yet</h2>
         </section>
       )}
 
       {cookbooks.length > 0 ? (
-        <Carousel title="Cookbooks">
+        <Carousel title="Public Cookbooks">
           {cookbooks.map(cookbook => (
             <CookbookCard
               key={cookbook.id}
@@ -291,7 +291,7 @@ export function ProfilePage() {
       ) : (
         <section className="profile-section-empty">
           <BookOpen size={24} />
-          <h2>No cookbooks yet</h2>
+          <h2>No public cookbooks yet</h2>
         </section>
       )}
 

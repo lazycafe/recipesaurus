@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ClientProvider } from '../client/ClientContext';
-import type { IClient, ProfileUser, UserProfile } from '../client/types';
+import type { Cookbook, IClient, ProfileUser, Recipe, UserProfile } from '../client/types';
 import { ProfilePage } from './ProfilePage';
 import * as AuthContext from '../context/AuthContext';
 import * as ToastContext from '../context/ToastContext';
@@ -115,6 +115,78 @@ describe('ProfilePage', () => {
     expect(showToast).not.toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Friend request sent to Bob Baker', type: 'success' })
     );
+  });
+
+  it('labels profile content sections as public', async () => {
+    const recipe: Recipe = {
+      id: 'recipe-1',
+      title: 'Public Pasta',
+      description: 'A public recipe',
+      ingredients: ['noodles'],
+      instructions: ['boil'],
+      tags: ['dinner'],
+      isPublic: true,
+      ownerId: currentUser.id,
+      ownerName: currentUser.name,
+      isOwner: true,
+      createdAt: Date.now(),
+    };
+    const cookbook: Cookbook = {
+      id: 'cookbook-1',
+      name: 'Public Favorites',
+      description: null,
+      coverImage: null,
+      recipeCount: 1,
+      isSystem: false,
+      systemType: null,
+      isPublic: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      isOwner: true,
+      ownerId: currentUser.id,
+      ownerName: currentUser.name,
+    };
+
+    const client = {
+      profile: {
+        get: vi.fn(async () => ({
+          data: {
+            profile: {
+              user: {
+                id: currentUser.id,
+                name: currentUser.name,
+                avatarUrl: currentUser.avatarUrl,
+              },
+              isCurrentUser: true,
+              isFriend: false,
+              hasPendingFriendRequest: false,
+              incomingFriendRequestId: null,
+              friendCount: 0,
+              recipeCount: 1,
+              cookbookCount: 1,
+              recipes: [recipe],
+              cookbooks: [cookbook],
+            } satisfies UserProfile,
+          },
+        })),
+        listFriends: vi.fn(),
+        addFriend: vi.fn(),
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/profiles/${currentUser.id}`]}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    expect(await screen.findByText('Public Recipes')).toBeDefined();
+    expect(screen.getByText('Public Cookbooks')).toBeDefined();
   });
 
   it('shows add friend by email errors inline inside the friends modal', async () => {

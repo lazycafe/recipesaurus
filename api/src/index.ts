@@ -1389,8 +1389,8 @@ async function handleGetProfile(request: Request, db: D1Database, userId: string
         "SELECT id FROM friend_requests WHERE requester_id = ? AND requested_user_id = ? AND status = 'pending'"
       ).bind(profileUser.id, currentUser.id).first<{ id: string }>()
     : null;
-  const recipeVisibility = isCurrentUser ? '' : 'AND r.is_public = 1';
-  const cookbookVisibility = isCurrentUser ? '' : 'AND c.is_public = 1';
+  const recipeVisibility = 'AND r.is_public = 1';
+  const cookbookVisibility = 'AND c.is_public = 1';
 
   const recipeCount = await db.prepare(
     `SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ? ${recipeVisibility}`

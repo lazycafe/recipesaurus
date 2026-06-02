@@ -38,8 +38,8 @@ describe('Profiles and friends', () => {
     const aliceProfile = await aliceClient.profile.get(alice.data!.user!.id);
     expect(aliceProfile.data?.profile.friendCount).toBe(0);
     expect(aliceProfile.data?.profile.isCurrentUser).toBe(true);
-    expect(aliceProfile.data?.profile.recipeCount).toBeGreaterThan(0);
-    expect(aliceProfile.data?.profile.cookbookCount).toBeGreaterThan(0);
+    expect(aliceProfile.data?.profile.recipeCount).toBe(0);
+    expect(aliceProfile.data?.profile.cookbookCount).toBe(0);
 
     const bobNotifications = await bobClient.notifications.list();
     expect(bobNotifications.data?.notifications).toHaveLength(1);
@@ -86,6 +86,53 @@ describe('Profiles and friends', () => {
         avatarUrl: null,
       },
     ]);
+  });
+
+  it('shows only public recipes and cookbooks on profiles', async () => {
+    const aliceClient = harness.createClient();
+
+    const alice = await aliceClient.auth.register('alice@example.com', 'Alice Chef', 'Password123');
+    expect(alice.error).toBeUndefined();
+
+    const privateRecipe = await aliceClient.recipes.create({
+      title: 'Private Recipe',
+      description: 'For my eyes only',
+      ingredients: ['secret ingredient'],
+      instructions: ['keep private'],
+      tags: ['private'],
+      isPublic: false,
+    });
+    expect(privateRecipe.error).toBeUndefined();
+
+    const publicRecipe = await aliceClient.recipes.create({
+      title: 'Public Recipe',
+      description: 'Shared with everyone',
+      ingredients: ['public ingredient'],
+      instructions: ['share freely'],
+      tags: ['public'],
+      isPublic: true,
+    });
+    expect(publicRecipe.error).toBeUndefined();
+
+    const privateCookbook = await aliceClient.cookbooks.create({
+      name: 'Private Cookbook',
+      isPublic: false,
+    });
+    expect(privateCookbook.error).toBeUndefined();
+
+    const publicCookbook = await aliceClient.cookbooks.create({
+      name: 'Public Cookbook',
+      isPublic: true,
+    });
+    expect(publicCookbook.error).toBeUndefined();
+
+    const profile = await aliceClient.profile.get(alice.data!.user!.id);
+    expect(profile.error).toBeUndefined();
+    expect(profile.data?.profile.isCurrentUser).toBe(true);
+    expect(profile.data?.profile.recipeCount).toBe(1);
+    expect(profile.data?.profile.cookbookCount).toBe(1);
+    expect(profile.data?.profile.recipes.map(recipe => recipe.title)).toEqual(['Public Recipe']);
+    expect(profile.data?.profile.cookbooks.map(cookbook => cookbook.name)).toEqual(['Public Cookbook']);
   });
 
   it('accepts a pending friend request even when the notification request id is stale', async () => {

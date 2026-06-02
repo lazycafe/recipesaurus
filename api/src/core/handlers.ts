@@ -714,8 +714,8 @@ export class CoreHandlers {
           currentUser.id
         )
       : null;
-    const contentVisibility = isCurrentUser ? '' : 'AND r.is_public = 1';
-    const cookbookVisibility = isCurrentUser ? '' : 'AND c.is_public = 1';
+    const contentVisibility = 'AND r.is_public = 1';
+    const cookbookVisibility = 'AND c.is_public = 1';
 
     const recipeCount = await this.db.get<{ count: number }>(
       `SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ? ${contentVisibility}`,
