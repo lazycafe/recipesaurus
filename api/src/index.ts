@@ -1565,27 +1565,47 @@ async function acceptFriendRequestForUser(
   friendRequestId: string
 ): Promise<{ friend: { id: string; name: string; avatar_url: string | null } } | null> {
   const { request, notificationData } = await findFriendRequestForUser(db, user, friendRequestId);
+  const notificationIds = [friendRequestId, notificationData?.friendRequestId, request?.id];
 
   if (!request) {
-    await deleteFriendRequestNotifications(db, user.id, [friendRequestId, notificationData?.friendRequestId]);
+    if (notificationData?.requesterId) {
+      const friend = await db.prepare(
+        'SELECT id, name, avatar_url FROM users WHERE id = ?'
+      ).bind(notificationData.requesterId).first<{ id: string; name: string; avatar_url: string | null }>();
+
+      if (friend && await areFriends(db, user.id, friend.id)) {
+        await deleteFriendRequestNotifications(db, user.id, notificationIds);
+        return { friend };
+      }
+    }
+
+    await deleteFriendRequestNotifications(db, user.id, notificationIds);
     return null;
   }
 
   const { userAId, userBId } = orderedFriendPair(user.id, request.requester_id);
   const now = Date.now();
+  const friend = {
+    id: request.requester_id,
+    name: request.requester_name,
+    avatar_url: request.requester_avatar_url,
+  };
 
   if (request.status !== 'pending' && request.status !== 'accepted') {
-    await deleteFriendRequestNotifications(db, user.id, [
-      friendRequestId,
-      notificationData?.friendRequestId,
-      request.id,
-    ]);
+    if (await areFriends(db, user.id, request.requester_id)) {
+      await deleteFriendRequestNotifications(db, user.id, notificationIds);
+      return { friend };
+    }
+
+    await deleteFriendRequestNotifications(db, user.id, notificationIds);
     return null;
   }
 
-  await db.prepare(
-    'INSERT OR IGNORE INTO friendships (user_a_id, user_b_id, created_at) VALUES (?, ?, ?)'
-  ).bind(userAId, userBId, now).run();
+  if (!(await areFriends(db, user.id, request.requester_id))) {
+    await db.prepare(
+      'INSERT OR IGNORE INTO friendships (user_a_id, user_b_id, created_at) VALUES (?, ?, ?)'
+    ).bind(userAId, userBId, now).run();
+  }
 
   if (request.status === 'pending') {
     await db.prepare(
@@ -1593,19 +1613,9 @@ async function acceptFriendRequestForUser(
     ).bind(now, request.id).run();
   }
 
-  await deleteFriendRequestNotifications(db, user.id, [
-    friendRequestId,
-    notificationData?.friendRequestId,
-    request.id,
-  ]);
+  await deleteFriendRequestNotifications(db, user.id, notificationIds);
 
-  return {
-    friend: {
-      id: request.requester_id,
-      name: request.requester_name,
-      avatar_url: request.requester_avatar_url,
-    },
-  };
+  return { friend };
 }
 
 async function handleAcceptFriendRequest(request: Request, db: D1Database, friendRequestId: string): Promise<Response> {

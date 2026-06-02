@@ -897,29 +897,63 @@ export class CoreHandlers {
     }
 
     const { request, notificationData } = await this.findFriendRequestForUser(user, friendRequestId);
+    const notificationIds = [friendRequestId, notificationData?.friendRequestId, request?.id];
 
     if (!request) {
-      await this.deleteFriendRequestNotifications(user.id, [friendRequestId, notificationData?.friendRequestId]);
+      if (notificationData?.requesterId) {
+        const friend = await this.db.get<{ id: string; name: string; avatar_url: string | null }>(
+          'SELECT id, name, avatar_url FROM users WHERE id = ?',
+          notificationData.requesterId
+        );
+
+        if (friend && await this.areFriends(user.id, friend.id)) {
+          await this.deleteFriendRequestNotifications(user.id, notificationIds);
+          return {
+            data: {
+              success: true,
+              friend: formatProfileUser(friend),
+            },
+            status: 200,
+          };
+        }
+      }
+
+      await this.deleteFriendRequestNotifications(user.id, notificationIds);
       return { error: 'Friend request not found', status: 404 };
     }
 
+    const friend = {
+      id: request.requester_id,
+      name: request.requester_name,
+      avatar_url: request.requester_avatar_url,
+    };
+
     if (request.status !== 'pending' && request.status !== 'accepted') {
-      await this.deleteFriendRequestNotifications(user.id, [
-        friendRequestId,
-        notificationData?.friendRequestId,
-        request.id,
-      ]);
+      if (await this.areFriends(user.id, request.requester_id)) {
+        await this.deleteFriendRequestNotifications(user.id, notificationIds);
+        return {
+          data: {
+            success: true,
+            friend: formatProfileUser(friend),
+          },
+          status: 200,
+        };
+      }
+
+      await this.deleteFriendRequestNotifications(user.id, notificationIds);
       return { error: 'Friend request has already been processed', status: 400 };
     }
 
     const now = Date.now();
     const { userAId, userBId } = orderedFriendPair(user.id, request.requester_id);
-    await this.db.run(
-      'INSERT OR IGNORE INTO friendships (user_a_id, user_b_id, created_at) VALUES (?, ?, ?)',
-      userAId,
-      userBId,
-      now
-    );
+    if (!(await this.areFriends(user.id, request.requester_id))) {
+      await this.db.run(
+        'INSERT OR IGNORE INTO friendships (user_a_id, user_b_id, created_at) VALUES (?, ?, ?)',
+        userAId,
+        userBId,
+        now
+      );
+    }
 
     if (request.status === 'pending') {
       await this.db.run(
@@ -931,17 +965,13 @@ export class CoreHandlers {
 
     await this.deleteFriendRequestNotifications(
       user.id,
-      [friendRequestId, notificationData?.friendRequestId, request.id]
+      notificationIds
     );
 
     return {
       data: {
         success: true,
-        friend: {
-          id: request.requester_id,
-          name: request.requester_name,
-          avatarUrl: request.requester_avatar_url,
-        },
+        friend: formatProfileUser(friend),
       },
       status: 200,
     };

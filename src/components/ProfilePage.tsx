@@ -24,6 +24,11 @@ function mapCookbook(cookbook: ClientCookbook): Cookbook {
   };
 }
 
+type FriendRequestFeedback = {
+  type: 'success' | 'error';
+  message: string;
+};
+
 export function ProfilePage() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
@@ -45,7 +50,7 @@ export function ProfilePage() {
   const [showFriends, setShowFriends] = useState(false);
   const [friends, setFriends] = useState<ProfileUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
-  const [friendRequestSuccessName, setFriendRequestSuccessName] = useState<string | null>(null);
+  const [friendRequestFeedback, setFriendRequestFeedback] = useState<FriendRequestFeedback | null>(null);
 
   const loadProfile = useCallback(async () => {
     if (!targetUserId) return;
@@ -83,7 +88,7 @@ export function ProfilePage() {
   };
 
   const openFriends = async () => {
-    setFriendRequestSuccessName(null);
+    setFriendRequestFeedback(null);
     setShowFriends(true);
     await loadFriends();
   };
@@ -111,14 +116,21 @@ export function ProfilePage() {
     if (!friendEmail.trim()) return;
 
     setIsFriendActionLoading(true);
+    setFriendRequestFeedback(null);
     const { data, error: friendError } = await client.profile.addFriend({ email: friendEmail.trim() });
     setIsFriendActionLoading(false);
 
     if (data?.friend) {
       setFriendEmail('');
-      setFriendRequestSuccessName(data.friend.name);
+      setFriendRequestFeedback({
+        type: 'success',
+        message: `Friend request sent to ${data.friend.name}`,
+      });
     } else {
-      showToast({ message: friendError || 'Could not add friend', type: 'error' });
+      setFriendRequestFeedback({
+        type: 'error',
+        message: friendError || 'Could not add friend',
+      });
     }
   };
 
@@ -328,7 +340,7 @@ export function ProfilePage() {
                     value={friendEmail}
                     onChange={(event) => {
                       setFriendEmail(event.target.value);
-                      setFriendRequestSuccessName(null);
+                      setFriendRequestFeedback(null);
                     }}
                     placeholder="friend@example.com"
                     aria-label="Friend email"
@@ -341,10 +353,13 @@ export function ProfilePage() {
               </form>
             )}
 
-            {friendRequestSuccessName && (
-              <div className="friends-modal-success" role="status">
-                <Check size={16} />
-                <span>{`Friend request sent to ${friendRequestSuccessName}`}</span>
+            {friendRequestFeedback && (
+              <div
+                className={`friends-modal-feedback ${friendRequestFeedback.type}`}
+                role={friendRequestFeedback.type === 'error' ? 'alert' : 'status'}
+              >
+                {friendRequestFeedback.type === 'success' ? <Check size={16} /> : <X size={16} />}
+                <span>{friendRequestFeedback.message}</span>
               </div>
             )}
 

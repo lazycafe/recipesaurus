@@ -107,6 +107,53 @@ describe('Profiles and friends', () => {
     expect(bobNotifications.data?.notifications).toHaveLength(0);
   });
 
+  it('cleans stale friend request notifications when users are already friends', async () => {
+    const aliceClient = harness.createClient();
+    const bobClient = harness.createClient();
+
+    const alice = await aliceClient.auth.register('alice@example.com', 'Alice Chef', 'Password123');
+    const bob = await bobClient.auth.register('bob@example.com', 'Bob Baker', 'Password123');
+
+    const friendRequest = await aliceClient.profile.addFriend({ email: 'bob@example.com' });
+    expect(friendRequest.error).toBeUndefined();
+
+    const bobNotifications = await bobClient.notifications.list();
+    const friendRequestId = bobNotifications.data!.notifications[0].data?.friendRequestId!;
+
+    const accepted = await bobClient.profile.acceptFriendRequest(friendRequestId);
+    expect(accepted.error).toBeUndefined();
+
+    const db = (harness as unknown as {
+      db: { run: (sql: string, params?: unknown[]) => void };
+    }).db;
+    db.run('DELETE FROM friend_requests WHERE id = ?', [friendRequestId]);
+    db.run(
+      `INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        'stale-already-friends-notification',
+        bob.data!.user!.id,
+        'friend_request',
+        'Friend request',
+        'Alice Chef sent you a friend request',
+        JSON.stringify({
+          friendRequestId: 'deleted-request-id',
+          requesterId: alice.data!.user!.id,
+          requesterName: 'Alice Chef',
+        }),
+        0,
+        Date.now(),
+      ]
+    );
+
+    const acceptedAgain = await bobClient.profile.acceptFriendRequest('deleted-request-id');
+    expect(acceptedAgain.error).toBeUndefined();
+    expect(acceptedAgain.data?.friend.id).toBe(alice.data?.user?.id);
+
+    const notificationsAfterAccept = await bobClient.notifications.list();
+    expect(notificationsAfterAccept.data?.notifications).toHaveLength(0);
+  });
+
   it('treats repeated friend request declines as successful cleanup', async () => {
     const aliceClient = harness.createClient();
     const bobClient = harness.createClient();

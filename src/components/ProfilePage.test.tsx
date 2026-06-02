@@ -117,6 +117,73 @@ describe('ProfilePage', () => {
     );
   });
 
+  it('shows add friend by email errors inline inside the friends modal', async () => {
+    const friends: ProfileUser[] = [];
+    const showToast = vi.fn();
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+
+    const getProfile = vi.fn(async () => ({
+      data: {
+        profile: {
+          user: {
+            id: currentUser.id,
+            name: currentUser.name,
+            avatarUrl: currentUser.avatarUrl,
+          },
+          isCurrentUser: true,
+          isFriend: false,
+          hasPendingFriendRequest: false,
+          incomingFriendRequestId: null,
+          friendCount: friends.length,
+          recipeCount: 0,
+          cookbookCount: 0,
+          recipes: [],
+          cookbooks: [],
+        } satisfies UserProfile,
+      },
+    }));
+
+    const listFriends = vi.fn(async () => ({ data: { friends: [...friends] } }));
+    const addFriend = vi.fn(async () => ({ error: 'User not found' }));
+
+    const client = {
+      profile: {
+        get: getProfile,
+        listFriends,
+        addFriend,
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/profiles/${currentUser.id}`]}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    await screen.findByText('Alice Chef');
+    fireEvent.click(screen.getByRole('button', { name: '0 Friends' }));
+
+    const friendEmail = await screen.findByLabelText('Friend email');
+    fireEvent.change(friendEmail, { target: { value: 'missing@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Friend' }));
+
+    await waitFor(() => expect(addFriend).toHaveBeenCalledWith({ email: 'missing@example.com' }));
+    expect(screen.getByRole('alert').textContent).toContain('User not found');
+    expect(screen.getByText('No friends yet')).toBeDefined();
+    expect(showToast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'User not found', type: 'error' })
+    );
+  });
+
   it('marks profile add friend as pending without showing a success modal', async () => {
     const bob: ProfileUser = { id: 'user-2', name: 'Bob Baker', avatarUrl: null };
     const showToast = vi.fn();
