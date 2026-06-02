@@ -97,6 +97,7 @@ describe('AddToCookbookModal', () => {
         delete: vi.fn(),
         addRecipe: vi.fn(),
         removeRecipe: vi.fn(),
+        shareWithUser: vi.fn(),
         shareByEmail: vi.fn(),
         removeShare: vi.fn(),
         getShares: vi.fn(),

@@ -235,6 +235,7 @@ export interface IClient {
     delete(id: string): Promise<ApiResponse<{ success: boolean }>>;
     addRecipe(cookbookId: string, recipeId: string): Promise<ApiResponse<{ success: boolean }>>;
     removeRecipe(cookbookId: string, recipeId: string): Promise<ApiResponse<{ success: boolean }>>;
+    shareWithUser(cookbookId: string, userId: string): Promise<ApiResponse<{ success: boolean; sharedWith?: { id: string; name: string } }>>;
     shareByEmail(cookbookId: string, email: string): Promise<ApiResponse<{ success: boolean; sharedWith?: { id: string; name: string } }>>;
     removeShare(cookbookId: string, userId: string): Promise<ApiResponse<{ success: boolean }>>;
     getShares(cookbookId: string): Promise<ApiResponse<{ shares: CookbookShare[]; links: CookbookShareLink[] }>>;

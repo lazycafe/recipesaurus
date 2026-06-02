@@ -3234,22 +3234,33 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
     return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
-  const body = await request.json() as { email: string };
+  const body = await request.json() as { userId?: string; email?: string };
+  const targetUserId = typeof body.userId === 'string' ? body.userId.trim() : '';
+  const targetEmail = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
+  const isFriendShare = Boolean(targetUserId);
 
-  if (!body.email?.trim()) {
-    return errorResponse('Email is required', 400, origin);
+  if (!targetUserId && !targetEmail) {
+    return errorResponse('User is required', 400, origin);
   }
 
-  const targetUser = await db.prepare(
-    'SELECT id, name FROM users WHERE email = ?'
-  ).bind(body.email.toLowerCase().trim()).first<{ id: string; name: string }>();
+  const targetUser = targetUserId
+    ? await db.prepare(
+        'SELECT id, name FROM users WHERE id = ?'
+      ).bind(targetUserId).first<{ id: string; name: string }>()
+    : await db.prepare(
+        'SELECT id, name FROM users WHERE email = ?'
+      ).bind(targetEmail).first<{ id: string; name: string }>();
 
   if (!targetUser) {
-    return errorResponse('No user found with that email', 404, origin);
+    return errorResponse('User not found', 404, origin);
   }
 
   if (targetUser.id === user.id) {
     return errorResponse('Cannot share with yourself', 400, origin);
+  }
+
+  if (isFriendShare && !(await areFriends(db, user.id, targetUser.id))) {
+    return errorResponse('You can only share cookbooks with friends', 400, origin);
   }
 
   // Check if already shared
@@ -4332,7 +4343,7 @@ export default {
         return handleRemoveRecipeFromCookbook(request, env.DB, cookbookRecipeMatch[1], cookbookRecipeMatch[2]);
       }
 
-      // Cookbook sharing - by email
+      // Cookbook sharing - by platform user
       const shareMatch = path.match(/^\/api\/cookbooks\/([^/]+)\/share$/);
       if (shareMatch && method === 'POST') {
         return handleShareCookbook(request, env.DB, shareMatch[1]);

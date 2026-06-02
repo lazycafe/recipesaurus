@@ -1785,10 +1785,11 @@ export class CoreHandlers {
   }
 
   // Sharing handlers
-  async shareByEmail(
+  private async inviteUserToCookbook(
     ctx: RequestContext,
     cookbookId: string,
-    email: string
+    targetUser: { id: string; name: string },
+    options: { requireFriend: boolean }
   ): Promise<ApiResult<{ success: boolean; sharedWith?: { id: string; name: string } }>> {
     const user = await this.getSessionUser(ctx);
     if (!user) {
@@ -1804,17 +1805,12 @@ export class CoreHandlers {
       return { error: 'Cookbook not found', status: 404 };
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
-    if (normalizedEmail === user.email.toLowerCase()) {
+    if (targetUser.id === user.id) {
       return { error: 'You cannot share a cookbook with yourself', status: 400 };
     }
 
-    const targetUser = await this.db.get<{ id: string; name: string }>(
-      'SELECT id, name FROM users WHERE email = ?',
-      normalizedEmail
-    );
-    if (!targetUser) {
-      return { error: 'User not found. They need to create an account first.', status: 404 };
+    if (options.requireFriend && !(await this.areFriends(user.id, targetUser.id))) {
+      return { error: 'You can only share cookbooks with friends', status: 400 };
     }
 
     // Check if already shared
@@ -1873,6 +1869,48 @@ export class CoreHandlers {
     );
 
     return { data: { success: true, sharedWith: { id: targetUser.id, name: targetUser.name } }, status: 200 };
+  }
+
+  async shareWithUser(
+    ctx: RequestContext,
+    cookbookId: string,
+    userId: string
+  ): Promise<ApiResult<{ success: boolean; sharedWith?: { id: string; name: string } }>> {
+    const normalizedUserId = userId.trim();
+    if (!normalizedUserId) {
+      return { error: 'User is required', status: 400 };
+    }
+
+    const targetUser = await this.db.get<{ id: string; name: string }>(
+      'SELECT id, name FROM users WHERE id = ?',
+      normalizedUserId
+    );
+    if (!targetUser) {
+      return { error: 'User not found', status: 404 };
+    }
+
+    return this.inviteUserToCookbook(ctx, cookbookId, targetUser, { requireFriend: true });
+  }
+
+  async shareByEmail(
+    ctx: RequestContext,
+    cookbookId: string,
+    email: string
+  ): Promise<ApiResult<{ success: boolean; sharedWith?: { id: string; name: string } }>> {
+    const normalizedEmail = email.toLowerCase().trim();
+    if (!normalizedEmail) {
+      return { error: 'Email is required', status: 400 };
+    }
+
+    const targetUser = await this.db.get<{ id: string; name: string }>(
+      'SELECT id, name FROM users WHERE email = ?',
+      normalizedEmail
+    );
+    if (!targetUser) {
+      return { error: 'User not found. They need to create an account first.', status: 404 };
+    }
+
+    return this.inviteUserToCookbook(ctx, cookbookId, targetUser, { requireFriend: false });
   }
 
   async removeShare(

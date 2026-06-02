@@ -229,6 +229,49 @@ describe('Cookbooks with React components', () => {
       expect(notifications.data!.notifications[0].data?.inviteId).toBeDefined();
     });
 
+    it('should share cookbook with an accepted friend by user id', async () => {
+      const ownerClient = harness.createClient();
+      await ownerClient.auth.register('owner@example.com', 'Owner', 'Password123');
+      const cookbookResult = await ownerClient.cookbooks.create({ name: 'Friend Cookbook' });
+      const cookbookId = cookbookResult.data!.id;
+
+      const recipientClient = harness.createClient();
+      const recipient = await recipientClient.auth.register('recipient@example.com', 'Recipient', 'Password123');
+      const recipientUserId = recipient.data!.user!.id;
+
+      const friendRequest = await ownerClient.profile.addFriend({ userId: recipientUserId });
+      expect(friendRequest.error).toBeUndefined();
+
+      const friendNotifications = await recipientClient.notifications.list();
+      const friendRequestId = friendNotifications.data!.notifications.find(
+        notification => notification.type === 'friend_request'
+      )?.data?.friendRequestId;
+      expect(friendRequestId).toBeDefined();
+      await recipientClient.profile.acceptFriendRequest(friendRequestId!);
+
+      const shareResult = await ownerClient.cookbooks.shareWithUser(cookbookId, recipientUserId);
+      expect(shareResult.error).toBeUndefined();
+      expect(shareResult.data?.sharedWith?.id).toBe(recipientUserId);
+
+      const notifications = await recipientClient.notifications.list();
+      const invite = notifications.data!.notifications.find(notification => notification.type === 'cookbook_invite');
+      expect(invite?.message).toContain('Friend Cookbook');
+      expect(invite?.data?.inviteId).toBeDefined();
+    });
+
+    it('should reject sharing cookbook by user id with someone who is not a friend', async () => {
+      const ownerClient = harness.createClient();
+      await ownerClient.auth.register('owner@example.com', 'Owner', 'Password123');
+      const cookbookResult = await ownerClient.cookbooks.create({ name: 'Friend Cookbook' });
+      const cookbookId = cookbookResult.data!.id;
+
+      const recipientClient = harness.createClient();
+      const recipient = await recipientClient.auth.register('recipient@example.com', 'Recipient', 'Password123');
+
+      const shareResult = await ownerClient.cookbooks.shareWithUser(cookbookId, recipient.data!.user!.id);
+      expect(shareResult.error).toContain('friends');
+    });
+
     it('should allow recipient to accept invite and see shared cookbook', async () => {
       // Create owner
       const ownerClient = harness.createClient();

@@ -129,6 +129,136 @@ describe('ProfilePage', () => {
     });
   });
 
+  it('shows edit profile errors inline instead of behind the modal as a toast', async () => {
+    const showToast = vi.fn();
+    const updateProfile = vi.fn(async () => ({
+      success: false,
+      error: 'Display name must be between 1 and 80 characters',
+    }));
+
+    vi.mocked(AuthContext.useAuth).mockReturnValue({
+      user: currentUser,
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateProfile,
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
+      devLogin: vi.fn(),
+    });
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+
+    const client = {
+      profile: {
+        get: vi.fn(async () => ({
+          data: {
+            profile: {
+              user: {
+                id: currentUser.id,
+                name: currentUser.name,
+                avatarUrl: currentUser.avatarUrl,
+              },
+              isCurrentUser: true,
+              isFriend: false,
+              hasPendingFriendRequest: false,
+              incomingFriendRequestId: null,
+              friendCount: 0,
+              recipeCount: 0,
+              cookbookCount: 0,
+              recipes: [],
+              cookbooks: [],
+            } satisfies UserProfile,
+          },
+        })),
+        listFriends: vi.fn(),
+        addFriend: vi.fn(),
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/profiles/${currentUser.id}`]}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    await screen.findByText('Alice Chef');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(updateProfile).toHaveBeenCalled());
+    expect(screen.getByRole('alert').textContent).toContain('Display name must be between 1 and 80 characters');
+    expect(screen.getByText('Edit Profile')).toBeDefined();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('shows profile picture upload errors inline instead of using a toast', async () => {
+    const showToast = vi.fn();
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+
+    const client = {
+      profile: {
+        get: vi.fn(async () => ({
+          data: {
+            profile: {
+              user: {
+                id: currentUser.id,
+                name: currentUser.name,
+                avatarUrl: currentUser.avatarUrl,
+              },
+              isCurrentUser: true,
+              isFriend: false,
+              hasPendingFriendRequest: false,
+              incomingFriendRequestId: null,
+              friendCount: 0,
+              recipeCount: 0,
+              cookbookCount: 0,
+              recipes: [],
+              cookbooks: [],
+            } satisfies UserProfile,
+          },
+        })),
+        listFriends: vi.fn(),
+        addFriend: vi.fn(),
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/profiles/${currentUser.id}`]}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    await screen.findByText('Alice Chef');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    const file = new File(['avatar-bytes'], 'avatar.txt', { type: 'text/plain' });
+    fireEvent.change(screen.getByLabelText('Upload profile picture'), {
+      target: { files: [file] },
+    });
+
+    expect(screen.getByRole('alert').textContent).toContain('Profile picture must be a PNG, JPG, WebP, or GIF image');
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
   it('shows add friend by email success inline inside the friends modal', async () => {
     const bob: ProfileUser = { id: 'user-2', name: 'Bob Baker', avatarUrl: null };
     const friends: ProfileUser[] = [];
@@ -339,6 +469,59 @@ describe('ProfilePage', () => {
     expect(showToast).not.toHaveBeenCalledWith(
       expect.objectContaining({ message: 'User not found', type: 'error' })
     );
+  });
+
+  it('shows friend list load errors inline inside the friends modal', async () => {
+    const showToast = vi.fn();
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+
+    const client = {
+      profile: {
+        get: vi.fn(async () => ({
+          data: {
+            profile: {
+              user: {
+                id: currentUser.id,
+                name: currentUser.name,
+                avatarUrl: currentUser.avatarUrl,
+              },
+              isCurrentUser: true,
+              isFriend: false,
+              hasPendingFriendRequest: false,
+              incomingFriendRequestId: null,
+              friendCount: 0,
+              recipeCount: 0,
+              cookbookCount: 0,
+              recipes: [],
+              cookbooks: [],
+            } satisfies UserProfile,
+          },
+        })),
+        listFriends: vi.fn(async () => ({ error: 'Could not load friends' })),
+        addFriend: vi.fn(),
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/profiles/${currentUser.id}`]}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    await screen.findByText('Alice Chef');
+    fireEvent.click(screen.getByRole('button', { name: '0 Friends' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Could not load friends');
+    expect(showToast).not.toHaveBeenCalled();
   });
 
   it('hides add friend by email form inside another profile friends modal', async () => {

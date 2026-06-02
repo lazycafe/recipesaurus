@@ -24,7 +24,7 @@ function mapCookbook(cookbook: ClientCookbook): Cookbook {
   };
 }
 
-type FriendsModalFeedback = {
+type ModalFeedback = {
   type: 'success' | 'error';
   message: string;
 };
@@ -48,13 +48,14 @@ export function ProfilePage() {
   const [draftName, setDraftName] = useState('');
   const [draftAvatarUrl, setDraftAvatarUrl] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileEditFeedback, setProfileEditFeedback] = useState<ModalFeedback | null>(null);
   const [friendEmail, setFriendEmail] = useState('');
   const [isFriendActionLoading, setIsFriendActionLoading] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
   const [friends, setFriends] = useState<ProfileUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [removingFriendId, setRemovingFriendId] = useState<string | null>(null);
-  const [friendsModalFeedback, setFriendsModalFeedback] = useState<FriendsModalFeedback | null>(null);
+  const [friendsModalFeedback, setFriendsModalFeedback] = useState<ModalFeedback | null>(null);
 
   const loadProfile = useCallback(async () => {
     if (!targetUserId) return;
@@ -86,7 +87,10 @@ export function ProfilePage() {
     if (data?.friends) {
       setFriends(data.friends);
     } else if (friendsError) {
-      showToast({ message: friendsError, type: 'error' });
+      setFriendsModalFeedback({
+        type: 'error',
+        message: friendsError,
+      });
     }
     setIsLoadingFriends(false);
   };
@@ -105,12 +109,21 @@ export function ProfilePage() {
 
   const openEditProfile = () => {
     resetProfileDraft();
+    setProfileEditFeedback(null);
     setIsEditing(true);
   };
 
   const closeEditProfile = () => {
     resetProfileDraft();
+    setProfileEditFeedback(null);
     setIsEditing(false);
+  };
+
+  const setProfileEditError = (message: string) => {
+    setProfileEditFeedback({
+      type: 'error',
+      message,
+    });
   };
 
   const handleAvatarUpload = (event: ChangeEvent<HTMLInputElement>) => {
@@ -120,25 +133,26 @@ export function ProfilePage() {
     if (!file) return;
 
     if (!PROFILE_AVATAR_ALLOWED_TYPES.has(file.type)) {
-      showToast({ message: 'Profile picture must be a PNG, JPG, WebP, or GIF image', type: 'error' });
+      setProfileEditError('Profile picture must be a PNG, JPG, WebP, or GIF image');
       return;
     }
 
     if (file.size > PROFILE_AVATAR_MAX_BYTES) {
-      showToast({ message: 'Profile picture must be less than 1MB', type: 'error' });
+      setProfileEditError('Profile picture must be less than 1MB');
       return;
     }
 
+    setProfileEditFeedback(null);
     const reader = new FileReader();
     reader.onloadend = () => {
       if (typeof reader.result === 'string') {
         setDraftAvatarUrl(reader.result);
       } else {
-        showToast({ message: 'Could not read profile picture. Please try again.', type: 'error' });
+        setProfileEditError('Could not read profile picture. Please try again.');
       }
     };
     reader.onerror = () => {
-      showToast({ message: 'Could not read profile picture. Please try again.', type: 'error' });
+      setProfileEditError('Could not read profile picture. Please try again.');
     };
     reader.readAsDataURL(file);
   };
@@ -146,6 +160,7 @@ export function ProfilePage() {
   const handleSaveProfile = async (event: FormEvent) => {
     event.preventDefault();
     setIsSavingProfile(true);
+    setProfileEditFeedback(null);
     const result = await updateProfile({
       name: draftName,
       avatarUrl: draftAvatarUrl.trim() || null,
@@ -154,10 +169,11 @@ export function ProfilePage() {
 
     if (result.success) {
       setIsEditing(false);
+      setProfileEditFeedback(null);
       await loadProfile();
       showToast({ message: 'Profile updated', type: 'success' });
     } else {
-      showToast({ message: result.error || 'Profile update failed', type: 'error' });
+      setProfileEditError(result.error || 'Profile update failed');
     }
   };
 
@@ -374,7 +390,10 @@ export function ProfilePage() {
                 <input
                   type="text"
                   value={draftName}
-                  onChange={(event) => setDraftName(event.target.value)}
+                  onChange={(event) => {
+                    setDraftName(event.target.value);
+                    setProfileEditFeedback(null);
+                  }}
                   maxLength={80}
                   required
                 />
@@ -404,7 +423,14 @@ export function ProfilePage() {
                       Upload Photo
                     </label>
                     {draftAvatarUrl && (
-                      <button type="button" className="btn-secondary" onClick={() => setDraftAvatarUrl('')}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => {
+                          setDraftAvatarUrl('');
+                          setProfileEditFeedback(null);
+                        }}
+                      >
                         <Trash2 size={16} />
                         Remove Photo
                       </button>
@@ -412,6 +438,16 @@ export function ProfilePage() {
                   </div>
                 </div>
               </div>
+
+              {profileEditFeedback && (
+                <div
+                  className={`profile-modal-feedback ${profileEditFeedback.type}`}
+                  role={profileEditFeedback.type === 'error' ? 'alert' : 'status'}
+                >
+                  {profileEditFeedback.type === 'success' ? <Check size={16} /> : <X size={16} />}
+                  <span>{profileEditFeedback.message}</span>
+                </div>
+              )}
 
               <div className="profile-edit-actions">
                 <button type="button" className="btn-secondary" onClick={closeEditProfile}>

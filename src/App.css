@@ -4637,6 +4637,7 @@ img {
   color: var(--color-text-muted);
 }
 
+.profile-modal-feedback,
 .friends-modal-feedback {
   display: flex;
   align-items: center;
@@ -4648,16 +4649,19 @@ img {
   font-weight: 700;
 }
 
+.profile-modal-feedback.success,
 .friends-modal-feedback.success {
   background: var(--color-olive-light);
   color: var(--color-olive-dark);
 }
 
+.profile-modal-feedback.error,
 .friends-modal-feedback.error {
   background: var(--color-danger-light);
   color: var(--color-danger);
 }
 
+.profile-modal-feedback svg,
 .friends-modal-feedback svg {
   flex-shrink: 0;
 }
@@ -4883,6 +4887,52 @@ img {
 
 .share-input-group .btn-primary {
   flex-shrink: 0;
+}
+
+.share-friend-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.share-friend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-cream);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.share-friend-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.share-friend-info > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.share-friend-action {
+  height: 36px;
+  padding: 0 var(--space-4);
+}
+
+.share-empty-state {
+  padding: var(--space-5);
+  background: var(--color-cream);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-taupe);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: center;
 }
 
 .share-list {

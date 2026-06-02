@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { X, Loader2, Link, Copy, Check, Trash2, Users } from 'lucide-react';
 import { Cookbook, CookbookShare, CookbookShareLink } from '../types/Cookbook';
+import type { ProfileUser } from '../client/types';
 import { useClient } from '../client/ClientContext';
+import { useAuth } from '../context/AuthContext';
 import { ConfirmModal } from './ConfirmModal';
 import { ModalOverlay } from './ModalOverlay';
+import { UserAvatar } from './UserAvatar';
 
 interface ShareCookbookModalProps {
   cookbook: Cookbook;
@@ -12,12 +15,15 @@ interface ShareCookbookModalProps {
 
 export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProps) {
   const client = useClient();
-  const [activeTab, setActiveTab] = useState<'email' | 'link'>('email');
-  const [email, setEmail] = useState('');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'user' | 'link'>('user');
+  const [friends, setFriends] = useState<ProfileUser[]>([]);
+  const [pendingInviteUserIds, setPendingInviteUserIds] = useState<Set<string>>(new Set());
   const [shares, setShares] = useState<CookbookShare[]>([]);
   const [links, setLinks] = useState<CookbookShareLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sharingUserId, setSharingUserId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
@@ -26,48 +32,60 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
 
   const getShareUrl = (token: string) => `${window.location.origin}/shared/${token}`;
 
-  const fetchShares = useCallback(async () => {
+  const fetchShareData = useCallback(async () => {
     setIsLoading(true);
-    const { data, error: apiError } = await client.cookbooks.getShares(cookbook.id);
-    if (data) {
-      setShares(data.shares);
-      setLinks(data.links.filter(l => l.isActive));
-      setError('');
-    } else if (apiError) {
-      setError(apiError);
+    setError('');
+
+    const sharesResult = await client.cookbooks.getShares(cookbook.id);
+    if (sharesResult.data) {
+      setShares(sharesResult.data.shares);
+      setLinks(sharesResult.data.links.filter(l => l.isActive));
+    } else if (sharesResult.error) {
+      setError(sharesResult.error);
     }
+
+    if (user) {
+      const friendsResult = await client.profile.listFriends(user.id);
+      if (friendsResult.data) {
+        setFriends(friendsResult.data.friends);
+      } else if (friendsResult.error) {
+        setError(friendsResult.error);
+      }
+    } else {
+      setFriends([]);
+      setError('Sign in to share with users');
+    }
+
     setIsLoading(false);
-  }, [client, cookbook.id]);
+  }, [client, cookbook.id, user]);
 
   useEffect(() => {
-    fetchShares();
-  }, [fetchShares]);
+    fetchShareData();
+  }, [fetchShareData]);
 
-  const handleTabChange = (tab: 'email' | 'link') => {
+  const handleTabChange = (tab: 'user' | 'link') => {
     setActiveTab(tab);
     setError('');
     setSuccess('');
   };
 
-  const handleShareByEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
+  const handleShareWithUser = async (friend: ProfileUser) => {
+    if (sharingUserId) return;
 
-    setIsSubmitting(true);
+    setSharingUserId(friend.id);
     setError('');
     setSuccess('');
 
-    const { data, error: apiError } = await client.cookbooks.shareByEmail(cookbook.id, email.trim());
+    const { data, error: apiError } = await client.cookbooks.shareWithUser(cookbook.id, friend.id);
 
     if (apiError) {
       setError(apiError);
     } else if (data?.sharedWith) {
-      setSuccess(`Shared with ${data.sharedWith.name}`);
-      setEmail('');
-      fetchShares();
+      setSuccess(`Invite sent to ${data.sharedWith.name}`);
+      setPendingInviteUserIds(current => new Set(current).add(friend.id));
     }
 
-    setIsSubmitting(false);
+    setSharingUserId(null);
   };
 
   const handleRemoveShare = async (userId: string) => {
@@ -117,6 +135,8 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
     setTimeout(() => setCopiedLinkId(null), 2000);
   };
 
+  const sharedUserIds = new Set(shares.map(share => share.userId));
+
   return (
     <ModalOverlay onClose={onClose}>
       <div className="modal-content share-modal">
@@ -128,11 +148,11 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
 
         <div className="share-tabs">
           <button
-            className={`share-tab ${activeTab === 'email' ? 'active' : ''}`}
-            onClick={() => handleTabChange('email')}
+            className={`share-tab ${activeTab === 'user' ? 'active' : ''}`}
+            onClick={() => handleTabChange('user')}
           >
             <Users size={16} />
-            Share With User
+            Share with User
           </button>
           <button
             className={`share-tab ${activeTab === 'link' ? 'active' : ''}`}
@@ -147,33 +167,49 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
           <div className="loading-state">
             <Loader2 size={24} className="spin" />
           </div>
-        ) : activeTab === 'email' ? (
+        ) : activeTab === 'user' ? (
           <div className="share-content">
-            <form onSubmit={handleShareByEmail}>
-              {error && <div className="form-error">{error}</div>}
-              {success && <div className="form-success">{success}</div>}
+            {error && <div className="form-error">{error}</div>}
+            {success && <div className="form-success">{success}</div>}
 
-              <div className="share-input-group">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => {
-                    setEmail(e.target.value);
-                    setError('');
-                    setSuccess('');
-                  }}
-                  placeholder="Enter email address"
-                  disabled={isSubmitting}
-                />
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={isSubmitting || !email.trim()}
-                >
-                  {isSubmitting ? <Loader2 size={16} className="spin" /> : 'Share'}
-                </button>
+            <p className="share-link-info">
+              Choose one of your Recipesaurus friends to send a cookbook invitation.
+            </p>
+
+            {friends.length === 0 ? (
+              <div className="share-empty-state">Add friends before sharing cookbooks with users.</div>
+            ) : (
+              <div className="share-friend-list">
+                {friends.map(friend => {
+                  const isShared = sharedUserIds.has(friend.id);
+                  const isPending = pendingInviteUserIds.has(friend.id);
+                  const isSharing = sharingUserId === friend.id;
+
+                  return (
+                    <div key={friend.id} className="share-friend-item">
+                      <div className="share-friend-info">
+                        <UserAvatar name={friend.name} avatarUrl={friend.avatarUrl} size="sm" />
+                        <div>
+                          <span className="share-item-name">{friend.name}</span>
+                          <span className="share-item-email">
+                            {isShared ? 'Already has access' : isPending ? 'Invite pending' : 'Friend'}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-secondary share-friend-action"
+                        onClick={() => handleShareWithUser(friend)}
+                        disabled={Boolean(sharingUserId) || isShared || isPending}
+                      >
+                        {isSharing ? <Loader2 size={16} className="spin" /> : isShared || isPending ? <Check size={16} /> : null}
+                        {isShared ? 'Shared' : isPending ? 'Sent' : 'Share'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            </form>
+            )}
 
             {shares.length > 0 && (
               <div className="share-list">
@@ -182,7 +218,7 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
                   <div key={share.id} className="share-item">
                     <div className="share-item-info">
                       <span className="share-item-name">{share.userName}</span>
-                      <span className="share-item-email">{share.userEmail}</span>
+                      <span className="share-item-email">Has access</span>
                     </div>
                     <button
                       className="share-item-remove"

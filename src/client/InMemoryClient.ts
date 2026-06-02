@@ -53,6 +53,7 @@ export interface ICoreHandlers {
   deleteCookbook(ctx: RequestContext, id: string): Promise<ApiResult<{ success: boolean }>>;
   addRecipeToCookbook(ctx: RequestContext, cookbookId: string, recipeId: string): Promise<ApiResult<{ success: boolean }>>;
   removeRecipeFromCookbook(ctx: RequestContext, cookbookId: string, recipeId: string): Promise<ApiResult<{ success: boolean }>>;
+  shareWithUser(ctx: RequestContext, cookbookId: string, userId: string): Promise<ApiResult<{ success: boolean; sharedWith?: { id: string; name: string } }>>;
   shareByEmail(ctx: RequestContext, cookbookId: string, email: string): Promise<ApiResult<{ success: boolean; sharedWith?: { id: string; name: string } }>>;
   removeShare(ctx: RequestContext, cookbookId: string, userId: string): Promise<ApiResult<{ success: boolean }>>;
   getShares(ctx: RequestContext, cookbookId: string): Promise<ApiResult<{ shares: CookbookShare[]; links: CookbookShareLink[] }>>;
@@ -286,6 +287,14 @@ export class InMemoryClient implements IClient {
 
     removeRecipe: async (cookbookId: string, recipeId: string): Promise<ApiResponse<{ success: boolean }>> => {
       const result = await this.handlers.removeRecipeFromCookbook(this.getContext(), cookbookId, recipeId);
+      return toApiResponse(result);
+    },
+
+    shareWithUser: async (
+      cookbookId: string,
+      userId: string
+    ): Promise<ApiResponse<{ success: boolean; sharedWith?: { id: string; name: string } }>> => {
+      const result = await this.handlers.shareWithUser(this.getContext(), cookbookId, userId);
       return toApiResponse(result);
     },
 

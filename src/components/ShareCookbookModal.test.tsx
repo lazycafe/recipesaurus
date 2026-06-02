@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ShareCookbookModal } from './ShareCookbookModal';
 import * as ClientContext from '../client/ClientContext';
+import * as AuthContext from '../context/AuthContext';
 import type { IClient } from '../client/types';
 import type { Cookbook } from '../types/Cookbook';
 
@@ -9,13 +10,26 @@ vi.mock('../client/ClientContext', () => ({
   useClient: vi.fn(),
 }));
 
+vi.mock('../context/AuthContext', () => ({
+  useAuth: vi.fn(),
+}));
+
 describe('ShareCookbookModal', () => {
   const mockGetShares = vi.fn();
   const mockCreateShareLink = vi.fn();
+  const mockShareWithUser = vi.fn();
   const mockShareByEmail = vi.fn();
   const mockRemoveShare = vi.fn();
   const mockRevokeShareLink = vi.fn();
+  const mockListFriends = vi.fn();
   const mockWriteText = vi.fn();
+
+  const currentUser = {
+    id: 'user-1',
+    email: 'owner@example.com',
+    name: 'Owner',
+    avatarUrl: null,
+  };
 
   const cookbook: Cookbook = {
     id: 'cookbook-1',
@@ -31,6 +45,14 @@ describe('ShareCookbookModal', () => {
     vi.clearAllMocks();
 
     mockGetShares.mockResolvedValue({ data: { shares: [], links: [] } });
+    mockListFriends.mockResolvedValue({
+      data: {
+        friends: [
+          { id: 'friend-1', name: 'Bob Baker', avatarUrl: null },
+          { id: 'friend-2', name: 'Carol Cook', avatarUrl: null },
+        ],
+      },
+    });
     mockCreateShareLink.mockResolvedValue({
       data: {
         id: 'link-1',
@@ -39,6 +61,7 @@ describe('ShareCookbookModal', () => {
         createdAt: 2,
       },
     });
+    mockShareWithUser.mockResolvedValue({ data: { success: true, sharedWith: { id: 'friend-1', name: 'Bob Baker' } } });
     mockShareByEmail.mockResolvedValue({ data: { success: true } });
     mockRemoveShare.mockResolvedValue({ data: { success: true } });
     mockRevokeShareLink.mockResolvedValue({ data: { success: true } });
@@ -60,6 +83,7 @@ describe('ShareCookbookModal', () => {
         delete: vi.fn(),
         addRecipe: vi.fn(),
         removeRecipe: vi.fn(),
+        shareWithUser: mockShareWithUser,
         shareByEmail: mockShareByEmail,
         removeShare: mockRemoveShare,
         getShares: mockGetShares,
@@ -72,8 +96,42 @@ describe('ShareCookbookModal', () => {
       ai: {} as IClient['ai'],
       billing: {} as IClient['billing'],
       discover: {} as IClient['discover'],
-      profile: {} as IClient['profile'],
+      profile: {
+        get: vi.fn(),
+        listFriends: mockListFriends,
+        addFriend: vi.fn(),
+        removeFriend: vi.fn(),
+        acceptFriendRequest: vi.fn(),
+        declineFriendRequest: vi.fn(),
+      },
     });
+
+    vi.mocked(AuthContext.useAuth).mockReturnValue({
+      user: currentUser,
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateProfile: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
+      devLogin: vi.fn(),
+    });
+  });
+
+  it('shares a cookbook with a selected platform friend', async () => {
+    render(<ShareCookbookModal cookbook={cookbook} onClose={vi.fn()} />);
+
+    expect(await screen.findByText('Bob Baker')).toBeDefined();
+    expect(screen.queryByPlaceholderText('Enter email address')).toBeNull();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Share' })[0]);
+
+    await waitFor(() => {
+      expect(mockShareWithUser).toHaveBeenCalledWith('cookbook-1', 'friend-1');
+    });
+    expect(mockShareByEmail).not.toHaveBeenCalled();
+    expect(screen.getByText('Invite sent to Bob Baker')).toBeDefined();
   });
 
   it('generates a link with the configured client and shows the full share URL', async () => {

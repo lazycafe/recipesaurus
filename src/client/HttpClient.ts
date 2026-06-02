@@ -248,6 +248,13 @@ export class HttpClient implements IClient {
       return this.transport.request('DELETE', `/api/cookbooks/${cookbookId}/recipes/${recipeId}`);
     },
 
+    shareWithUser: (
+      cookbookId: string,
+      userId: string
+    ): Promise<ApiResponse<{ success: boolean; sharedWith?: { id: string; name: string } }>> => {
+      return this.transport.request('POST', `/api/cookbooks/${cookbookId}/share`, { userId });
+    },
+
     shareByEmail: (
       cookbookId: string,
       email: string
