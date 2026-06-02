@@ -225,7 +225,7 @@ export function ProfilePage() {
       </section>
 
       {publicRecipes.length > 0 ? (
-        <Carousel title="Recipes">
+        <Carousel title="Public Recipes">
           {publicRecipes.map(recipe => (
             <RecipeCardCompact
               key={recipe.id}
@@ -243,7 +243,7 @@ export function ProfilePage() {
       )}
 
       {publicCookbooks.length > 0 ? (
-        <Carousel title="Cookbooks">
+        <Carousel title="Public Cookbooks">
           {publicCookbooks.map(cookbook => (
             <CookbookCard
               key={cookbook.id}
