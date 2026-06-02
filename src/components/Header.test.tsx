@@ -111,6 +111,7 @@ describe('Header', () => {
   it('hides navigation when no user', () => {
     renderWithRouter(<Header />);
     expect(screen.queryByText('Discover')).toBeNull();
+    expect(screen.queryByText('Meal Plan')).toBeNull();
     expect(screen.queryByText('Cookbooks')).toBeNull();
   });
 
@@ -129,6 +130,7 @@ describe('Header', () => {
 
     renderWithRouter(<Header />);
     expect(screen.getAllByText('Discover').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Meal Plan').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cookbooks').length).toBeGreaterThan(0);
   });
 
@@ -186,6 +188,7 @@ describe('Header', () => {
 
     const { container } = renderWithRouter(<Header />);
     expect(container.querySelector('.mobile-nav')).toBeDefined();
+    expect(screen.getAllByText('Meal Plan').length).toBeGreaterThan(0);
   });
 
   it('hides mobile navigation when no user', () => {
