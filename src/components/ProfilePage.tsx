@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Camera, ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, CheckCircle } from 'lucide-react';
+import { Camera, ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import type { Cookbook as ClientCookbook, ProfileUser, Recipe, UserProfile } from '../client/types';
 import type { Cookbook } from '../types/Cookbook';
@@ -83,6 +83,7 @@ export function ProfilePage() {
   };
 
   const openFriends = async () => {
+    setFriendRequestSuccessName(null);
     setShowFriends(true);
     await loadFriends();
   };
@@ -115,10 +116,6 @@ export function ProfilePage() {
 
     if (data?.friend) {
       setFriendEmail('');
-      await loadProfile();
-      if (showFriends) {
-        await loadFriends();
-      }
       setFriendRequestSuccessName(data.friend.name);
     } else {
       showToast({ message: friendError || 'Could not add friend', type: 'error' });
@@ -139,11 +136,11 @@ export function ProfilePage() {
       return;
     }
 
-    await loadProfile();
     if (profile.isFriend) {
+      await loadProfile();
       showToast({ message: 'Friend removed', type: 'success' });
     } else {
-      setFriendRequestSuccessName(profile.user.name);
+      setProfile(current => current ? { ...current, hasPendingFriendRequest: true } : current);
     }
   };
 
@@ -329,7 +326,10 @@ export function ProfilePage() {
                   <input
                     type="email"
                     value={friendEmail}
-                    onChange={(event) => setFriendEmail(event.target.value)}
+                    onChange={(event) => {
+                      setFriendEmail(event.target.value);
+                      setFriendRequestSuccessName(null);
+                    }}
                     placeholder="friend@example.com"
                     aria-label="Friend email"
                   />
@@ -339,6 +339,13 @@ export function ProfilePage() {
                   Add Friend
                 </button>
               </form>
+            )}
+
+            {friendRequestSuccessName && (
+              <div className="friends-modal-success" role="status">
+                <Check size={16} />
+                <span>{`Friend request sent to ${friendRequestSuccessName}`}</span>
+              </div>
             )}
 
             {isLoadingFriends ? (
@@ -373,22 +380,6 @@ export function ProfilePage() {
           readOnly={!profile.isCurrentUser}
           isPublicView={!selectedRecipe.isOwner}
         />
-      )}
-
-      {friendRequestSuccessName && (
-        <ModalOverlay onClose={() => setFriendRequestSuccessName(null)} className="friend-request-success-overlay">
-          <div className="friend-request-success-modal">
-            <div className="friend-request-success-icon">
-              <CheckCircle size={32} strokeWidth={1.8} />
-            </div>
-            <h3>Friend Request Sent</h3>
-            <p>{`Friend request sent to ${friendRequestSuccessName}`}</p>
-            <button className="btn-primary" onClick={() => setFriendRequestSuccessName(null)}>
-              <Check size={16} />
-              Done
-            </button>
-          </div>
-        </ModalOverlay>
       )}
     </div>
   );

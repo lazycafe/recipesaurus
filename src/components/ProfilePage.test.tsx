@@ -44,7 +44,7 @@ describe('ProfilePage', () => {
     });
   });
 
-  it('keeps add friend by email inside the friends modal', async () => {
+  it('shows add friend by email success inline inside the friends modal', async () => {
     const bob: ProfileUser = { id: 'user-2', name: 'Bob Baker', avatarUrl: null };
     const friends: ProfileUser[] = [];
     const showToast = vi.fn();
@@ -107,16 +107,17 @@ describe('ProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Friend' }));
 
     await waitFor(() => expect(addFriend).toHaveBeenCalledWith({ email: 'bob@example.com' }));
-    expect(listFriends).toHaveBeenCalledTimes(2);
+    expect(listFriends).toHaveBeenCalledTimes(1);
+    expect(getProfile).toHaveBeenCalledTimes(1);
     expect(screen.getByText('No friends yet')).toBeDefined();
-    expect(screen.getByText('Friend Request Sent')).toBeDefined();
-    expect(screen.getByText('Friend request sent to Bob Baker')).toBeDefined();
+    expect(screen.getByRole('status').textContent).toContain('Friend request sent to Bob Baker');
+    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
     expect(showToast).not.toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Friend request sent to Bob Baker', type: 'success' })
     );
   });
 
-  it('shows add friend success in a modal instead of a toast', async () => {
+  it('marks profile add friend as pending without showing a success modal', async () => {
     const bob: ProfileUser = { id: 'user-2', name: 'Bob Baker', avatarUrl: null };
     const showToast = vi.fn();
 
@@ -167,8 +168,10 @@ describe('ProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Friend' }));
 
     await waitFor(() => expect(addFriend).toHaveBeenCalledWith({ userId: 'user-2' }));
-    expect(screen.getByText('Friend Request Sent')).toBeDefined();
-    expect(screen.getByText('Friend request sent to Bob Baker')).toBeDefined();
+    expect((screen.getByRole('button', { name: 'Request Sent' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText('Friend Request Sent')).toBeNull();
+    expect(screen.queryByText('Friend request sent to Bob Baker')).toBeNull();
+    expect(getProfile).toHaveBeenCalledTimes(1);
     expect(showToast).not.toHaveBeenCalledWith(
       expect.objectContaining({ message: 'Friend request sent to Bob Baker', type: 'success' })
     );

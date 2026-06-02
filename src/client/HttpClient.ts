@@ -74,17 +74,27 @@ export class HttpTransport implements ITransport {
         body: body ? JSON.stringify(body) : undefined,
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: unknown = null;
+
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          data = { error: responseText };
+        }
+      }
 
       if (!response.ok) {
+        const errorData = data && typeof data === 'object' ? data as { error?: string; code?: string } : {};
         return {
-          error: data.error || 'Request failed',
+          error: errorData.error || response.statusText || 'Request failed',
           status: response.status,
-          code: data.code,
+          code: errorData.code,
         };
       }
 
-      return { data, status: response.status };
+      return { data: data as T, status: response.status };
     } catch (error) {
       console.error('API Error:', error);
       return { error: 'Network error. Please try again.' };
@@ -385,11 +395,11 @@ export class HttpClient implements IClient {
     },
 
     acceptFriendRequest: (friendRequestId: string): Promise<ApiResponse<{ success: boolean; friend: ProfileUser }>> => {
-      return this.transport.request('POST', `/api/friend-requests/${encodeURIComponent(friendRequestId)}/accept`);
+      return this.transport.request('POST', '/api/friend-requests/accept', { friendRequestId });
     },
 
     declineFriendRequest: (friendRequestId: string): Promise<ApiResponse<{ success: boolean }>> => {
-      return this.transport.request('POST', `/api/friend-requests/${encodeURIComponent(friendRequestId)}/decline`);
+      return this.transport.request('POST', '/api/friend-requests/decline', { friendRequestId });
     },
   };
 }

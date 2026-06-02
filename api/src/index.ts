@@ -1658,6 +1658,17 @@ async function handleDeclineFriendRequest(request: Request, db: D1Database, frie
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
+async function getFriendRequestIdFromBody(request: Request): Promise<string | null> {
+  try {
+    const body = await request.json() as { friendRequestId?: unknown };
+    return typeof body.friendRequestId === 'string' && body.friendRequestId.trim()
+      ? body.friendRequestId
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 async function handleRemoveFriend(request: Request, db: D1Database, friendId: string): Promise<Response> {
   const origin = request.headers.get('Origin');
   const user = await getSessionUser(request, db);
@@ -4060,6 +4071,22 @@ export default {
       const removeFriendMatch = path.match(/^\/api\/friends\/([^/]+)$/);
       if (removeFriendMatch && method === 'DELETE') {
         return handleRemoveFriend(request, env.DB, removeFriendMatch[1]);
+      }
+
+      if (path === '/api/friend-requests/accept' && method === 'POST') {
+        const friendRequestId = await getFriendRequestIdFromBody(request);
+        if (!friendRequestId) {
+          return errorResponse('Friend request id is required', 400, origin);
+        }
+        return handleAcceptFriendRequest(request, env.DB, friendRequestId);
+      }
+
+      if (path === '/api/friend-requests/decline' && method === 'POST') {
+        const friendRequestId = await getFriendRequestIdFromBody(request);
+        if (!friendRequestId) {
+          return errorResponse('Friend request id is required', 400, origin);
+        }
+        return handleDeclineFriendRequest(request, env.DB, friendRequestId);
       }
 
       const acceptFriendRequestMatch = path.match(/^\/api\/friend-requests\/([^/]+)\/accept$/);

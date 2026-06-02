@@ -4593,55 +4593,21 @@ img {
   color: var(--color-text-muted);
 }
 
-.friend-request-success-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(45, 41, 38, 0.5);
+.friends-modal-success {
   display: flex;
   align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: var(--space-6);
-}
-
-.friend-request-success-modal {
-  width: min(100%, 400px);
-  padding: var(--space-6);
-  background: var(--color-background);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl);
-  text-align: center;
-  animation: modalContentIn var(--transition-base) ease-out;
-}
-
-.friend-request-success-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  margin: 0 auto var(--space-4);
-  color: var(--color-olive-dark);
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   background: var(--color-olive-light);
-  border-radius: var(--radius-full);
+  color: var(--color-olive-dark);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 700;
 }
 
-.friend-request-success-modal h3 {
-  margin-bottom: var(--space-2);
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  color: var(--color-text);
-}
-
-.friend-request-success-modal p {
-  margin-bottom: var(--space-6);
-  color: var(--color-text-muted);
-  line-height: 1.5;
-}
-
-.friend-request-success-modal .btn-primary {
-  justify-content: center;
-  min-width: 112px;
+.friends-modal-success svg {
+  flex-shrink: 0;
 }
 
 .friends-list {
