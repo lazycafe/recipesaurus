@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users, Book } from 'lucide-react';
 import { DinoMascot } from './DinoMascot';
+import { RecipeDetail } from './RecipeDetail';
 import { fetchAndExtractRecipe } from '../utils/recipeExtractor';
 import { jsPDF } from 'jspdf';
 import { useOptionalClient } from '../client/ClientContext';
 import { defaultClient } from '../client/defaultClient';
+import type { Recipe } from '../client/types';
+import { SAMPLE_RECIPES } from '../data/sampleRecipes';
 
 interface ExtractedRecipe {
   title: string;
@@ -23,6 +26,14 @@ interface PublicHomePageProps {
   onSignIn: () => void;
 }
 
+const DISCOVER_PREVIEW_LIMIT = 6;
+
+function buildDiscoverPreview(apiRecipes: Recipe[]): Recipe[] {
+  const seen = new Set(apiRecipes.map(recipe => recipe.id));
+  const fallbackRecipes = SAMPLE_RECIPES.filter(recipe => !seen.has(recipe.id));
+  return [...apiRecipes, ...fallbackRecipes].slice(0, DISCOVER_PREVIEW_LIMIT);
+}
+
 export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
   const [url, setUrl] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
@@ -30,7 +41,30 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
   const [error, setError] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
-  const client = useOptionalClient() ?? defaultClient;
+  const [discoverRecipes, setDiscoverRecipes] = useState<Recipe[]>(() => buildDiscoverPreview([]));
+  const [selectedDiscoverRecipe, setSelectedDiscoverRecipe] = useState<Recipe | null>(null);
+  const providedClient = useOptionalClient();
+  const client = providedClient ?? defaultClient;
+
+  useEffect(() => {
+    if (!providedClient) return;
+
+    let isMounted = true;
+
+    providedClient.discover.recipes({ limit: DISCOVER_PREVIEW_LIMIT, offset: 0 })
+      .then(result => {
+        const apiRecipes = result.data?.recipes;
+        if (!isMounted || !Array.isArray(apiRecipes) || apiRecipes.length === 0) return;
+        setDiscoverRecipes(buildDiscoverPreview(apiRecipes));
+      })
+      .catch(() => {
+        // Keep the curated sample recipes when the public API is unavailable.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [providedClient]);
 
   const handleExtract = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,6 +223,18 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
     }
   };
 
+  const handleDiscoverRecipeKeyDown = (event: KeyboardEvent<HTMLElement>, recipe: Recipe) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setSelectedDiscoverRecipe(recipe);
+    }
+  };
+
+  const handleSaveDiscoverRecipe = () => {
+    setSelectedDiscoverRecipe(null);
+    onSignUp();
+  };
+
   return (
     <div className="public-home">
       {/* Header */}
@@ -340,6 +386,53 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
         </section>
       )}
 
+      {/* Discover Section */}
+      <section className="public-discover-section" aria-labelledby="public-discover-title">
+        <div className="public-section-header">
+          <span className="public-section-kicker">
+            <Sparkles size={16} />
+            Community favorites
+          </span>
+          <h2 id="public-discover-title">Discover Recipes</h2>
+          <p>Browse a few public recipes, peek at the details, then create an account to save the ones you love.</p>
+        </div>
+
+        <div className="public-discover-grid">
+          {discoverRecipes.map(recipe => (
+            <article
+              key={recipe.id}
+              className="public-discover-card"
+              onClick={() => setSelectedDiscoverRecipe(recipe)}
+              onKeyDown={(event) => handleDiscoverRecipeKeyDown(event, recipe)}
+              tabIndex={0}
+              role="button"
+              aria-label={`View ${recipe.title}`}
+            >
+              <div className="public-discover-card-image">
+                {recipe.imageUrl ? (
+                  <img src={recipe.imageUrl} alt={recipe.title} loading="lazy" />
+                ) : (
+                  <div className="public-discover-card-placeholder">
+                    <DinoMascot size={48} />
+                  </div>
+                )}
+              </div>
+              <div className="public-discover-card-body">
+                <h3>{recipe.title}</h3>
+                {recipe.ownerName && <p>by {recipe.ownerName}</p>}
+                {recipe.tags.length > 0 && (
+                  <div className="public-discover-card-tags">
+                    {recipe.tags.slice(0, 3).map(tag => (
+                      <span key={tag} className="tag-sm">{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
       {/* Features Section */}
       <section className="features-section">
         <h2>Why Recipesaurus?</h2>
@@ -392,6 +485,16 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
           </button>
         </div>
       </section>
+
+      {selectedDiscoverRecipe && (
+        <RecipeDetail
+          recipe={selectedDiscoverRecipe}
+          onClose={() => setSelectedDiscoverRecipe(null)}
+          onSave={handleSaveDiscoverRecipe}
+          saveLabel="Save Recipe"
+          isPublicView={true}
+        />
+      )}
     </div>
   );
 }

@@ -12,11 +12,21 @@ interface RecipeDetailProps {
   onDelete?: () => void;
   onEdit?: () => void;
   onSave?: () => void;
+  saveLabel?: string;
   readOnly?: boolean;
   isPublicView?: boolean;
 }
 
-export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOnly = false, isPublicView = false }: RecipeDetailProps) {
+export function RecipeDetail({
+  recipe,
+  onClose,
+  onDelete,
+  onEdit,
+  onSave,
+  saveLabel = 'Save to My Recipes',
+  readOnly = false,
+  isPublicView = false,
+}: RecipeDetailProps) {
   const [showShareModal, setShowShareModal] = useState(false);
 
   const handleDelete = () => {
@@ -136,7 +146,7 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
           <div className="detail-footer">
             <button className="btn-primary" onClick={onSave}>
               <Heart size={16} strokeWidth={2} />
-              <span>Save to My Recipes</span>
+              <span>{saveLabel}</span>
             </button>
           </div>
         )}
