@@ -128,10 +128,16 @@ describe('Header', () => {
       devLogin: vi.fn(),
     });
 
-    renderWithRouter(<Header />);
+    const { container } = renderWithRouter(<Header />);
     expect(screen.getAllByText('Discover').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Meal Plan').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cookbooks').length).toBeGreaterThan(0);
+    expect(Array.from(container.querySelectorAll('.header-nav .nav-tab')).map(item => item.textContent?.trim())).toEqual([
+      'Discover',
+      'My Recipes',
+      'Cookbooks',
+      'Meal Plan',
+    ]);
   });
 
   it('shows user name when logged in', () => {
@@ -189,6 +195,12 @@ describe('Header', () => {
     const { container } = renderWithRouter(<Header />);
     expect(container.querySelector('.mobile-nav')).toBeDefined();
     expect(screen.getAllByText('Meal Plan').length).toBeGreaterThan(0);
+    expect(Array.from(container.querySelectorAll('.mobile-nav-item')).map(item => item.textContent?.trim())).toEqual([
+      'Discover',
+      'My Recipes',
+      'Cookbooks',
+      'Meal Plan',
+    ]);
   });
 
   it('hides mobile navigation when no user', () => {
