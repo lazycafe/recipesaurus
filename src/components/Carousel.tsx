@@ -11,6 +11,7 @@ export function Carousel({ title, children, showArrows = true }: CarouselProps) 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const shouldShowArrows = showArrows && (canScrollLeft || canScrollRight);
 
   const updateScrollState = () => {
     if (!scrollRef.current) return;
@@ -43,10 +44,10 @@ export function Carousel({ title, children, showArrows = true }: CarouselProps) 
 
   return (
     <div className="carousel">
-      {title && (
-        <div className="carousel-header">
-          <h2 className="carousel-title">{title}</h2>
-          {showArrows && (canScrollLeft || canScrollRight) && (
+      {(title || shouldShowArrows) && (
+        <div className={`carousel-header ${title ? '' : 'controls-only'}`.trim()}>
+          {title && <h2 className="carousel-title">{title}</h2>}
+          {shouldShowArrows && (
             <div className="carousel-arrows">
               <button
                 className="carousel-arrow"

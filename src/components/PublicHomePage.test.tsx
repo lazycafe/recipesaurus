@@ -72,9 +72,11 @@ describe('PublicHomePage', () => {
   });
 
   it('renders discover recipe previews', () => {
-    render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
+    const { container } = render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
     expect(screen.getByText('Discover Recipes')).toBeDefined();
     expect(screen.getByText('Creamy Tuscan Chicken')).toBeDefined();
+    expect(container.querySelector('.public-discover-section .carousel-track')).toBeDefined();
+    expect(container.querySelector('.public-discover-section .carousel-content')).toBeDefined();
   });
 
   it('opens account creation when saving a recipe from discover', () => {
