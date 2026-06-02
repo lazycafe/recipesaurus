@@ -267,6 +267,7 @@ img {
   display: flex;
   align-items: center;
   gap: var(--space-6);
+  padding: 0 var(--space-4);
   justify-self: center;
 }
 
