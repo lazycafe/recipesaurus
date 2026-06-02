@@ -58,18 +58,18 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
                 My Recipes
               </NavLink>
               <NavLink
-                to="/meal-planner"
-                className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-              >
-                <Sparkles size={18} />
-                Meal Plan
-              </NavLink>
-              <NavLink
                 to="/cookbooks"
                 className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
               >
                 <Book size={18} />
                 Cookbooks
+              </NavLink>
+              <NavLink
+                to="/meal-planner"
+                className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+              >
+                <Sparkles size={18} />
+                Meal Plan
               </NavLink>
             </nav>
           )}
@@ -134,18 +134,18 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
               <span>My Recipes</span>
             </NavLink>
             <NavLink
-              to="/meal-planner"
-              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
-            >
-              <Sparkles size={20} />
-              <span>Meal Plan</span>
-            </NavLink>
-            <NavLink
               to="/cookbooks"
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
             >
               <Book size={20} />
               <span>Cookbooks</span>
+            </NavLink>
+            <NavLink
+              to="/meal-planner"
+              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Sparkles size={20} />
+              <span>Meal Plan</span>
             </NavLink>
           </div>
         </nav>
