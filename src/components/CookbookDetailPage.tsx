@@ -48,6 +48,7 @@ function mapRecipeResponse(r: ClientRecipe): CookbookRecipe {
 function mapCookbookResponse(c: ClientCookbook): Cookbook {
   return {
     id: c.id,
+    ownerId: c.ownerId,
     name: c.name,
     description: c.description || undefined,
     coverImage: c.coverImage || undefined,

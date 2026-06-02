@@ -18,10 +18,11 @@ interface RecipeCardCompactProps {
   recipe: Recipe;
   onSave: () => void;
   onClick: () => void;
+  onAuthorClick?: () => void;
   isSaving?: boolean;
 }
 
-function RecipeCardCompact({ recipe, onSave, onClick, isSaving }: RecipeCardCompactProps) {
+function RecipeCardCompact({ recipe, onSave, onClick, onAuthorClick, isSaving }: RecipeCardCompactProps) {
   return (
     <article className="discovery-card" onClick={onClick}>
       <div className="discovery-card-image">
@@ -47,7 +48,15 @@ function RecipeCardCompact({ recipe, onSave, onClick, isSaving }: RecipeCardComp
       <div className="discovery-card-body">
         <h3 className="discovery-card-title">{recipe.title}</h3>
         {recipe.ownerName && (
-          <p className="discovery-card-author">by {recipe.ownerName}</p>
+          <button
+            className="discovery-card-author"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAuthorClick?.();
+            }}
+          >
+            by {recipe.ownerName}
+          </button>
         )}
         {recipe.tags.length > 0 && (
           <div className="discovery-card-tags">
@@ -65,10 +74,11 @@ interface CookbookCardCompactProps {
   cookbook: Cookbook;
   onClick: () => void;
   onSave: () => void;
+  onAuthorClick?: () => void;
   isSaving?: boolean;
 }
 
-function CookbookCardCompact({ cookbook, onClick, onSave, isSaving }: CookbookCardCompactProps) {
+function CookbookCardCompact({ cookbook, onClick, onSave, onAuthorClick, isSaving }: CookbookCardCompactProps) {
   return (
     <article className="discovery-card cookbook-card" onClick={onClick}>
       <span className="cookbook-badge">Cookbook</span>
@@ -95,7 +105,15 @@ function CookbookCardCompact({ cookbook, onClick, onSave, isSaving }: CookbookCa
       <div className="discovery-card-body">
         <h3 className="discovery-card-title">{cookbook.name}</h3>
         {cookbook.ownerName && (
-          <p className="discovery-card-author">by {cookbook.ownerName}</p>
+          <button
+            className="discovery-card-author"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAuthorClick?.();
+            }}
+          >
+            by {cookbook.ownerName}
+          </button>
         )}
         <p className="discovery-card-count">
           <BookOpen size={12} />
@@ -372,6 +390,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
                     recipe={recipe}
                     onClick={() => setSelectedRecipe(recipe)}
                     onSave={() => handleSaveRecipe(recipe)}
+                    onAuthorClick={recipe.ownerId ? () => navigate(`/profiles/${recipe.ownerId}`) : undefined}
                     isSaving={savingRecipeId === recipe.id}
                   />
                 ))}
@@ -412,6 +431,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
                     cookbook={cookbook}
                     onClick={() => navigate(`/discover/cookbooks/${cookbook.id}`)}
                     onSave={() => handleSaveCookbook(cookbook)}
+                    onAuthorClick={cookbook.ownerId ? () => navigate(`/profiles/${cookbook.ownerId}`) : undefined}
                     isSaving={savingCookbookId === cookbook.id}
                   />
                 ))}

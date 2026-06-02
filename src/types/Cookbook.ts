@@ -1,5 +1,6 @@
 export interface Cookbook {
   id: string;
+  ownerId?: string;
   name: string;
   description?: string;
   coverImage?: string | null;

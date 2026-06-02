@@ -11,6 +11,7 @@ interface User {
   id: string;
   email: string;
   name: string;
+  avatar_url: string | null;
   password_hash: string;
   password_salt: string;
   email_verified: number;
@@ -391,6 +392,69 @@ async function getSessionUser(request: Request, db: D1Database): Promise<User | 
   return db.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first<User>();
 }
 
+function formatUser(user: User) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    avatarUrl: user.avatar_url || null,
+  };
+}
+
+function formatProfileUser(user: { id: string; name: string; avatar_url?: string | null }) {
+  return {
+    id: user.id,
+    name: user.name,
+    avatarUrl: user.avatar_url || null,
+  };
+}
+
+function orderedFriendPair(userId: string, friendId: string): { userAId: string; userBId: string } {
+  return userId < friendId
+    ? { userAId: userId, userBId: friendId }
+    : { userAId: friendId, userBId: userId };
+}
+
+function normalizeDisplayName(name: unknown): string | null {
+  if (typeof name !== 'string') return null;
+  const trimmed = name.trim().replace(/\s+/g, ' ');
+  if (!trimmed || trimmed.length > 80) return null;
+  return trimmed;
+}
+
+function normalizeAvatarUrl(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 1000) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function getFriendCount(db: D1Database, userId: string): Promise<number> {
+  const result = await db.prepare(
+    'SELECT COUNT(*) as count FROM friendships WHERE user_a_id = ? OR user_b_id = ?'
+  ).bind(userId, userId).first<{ count: number }>();
+  return result?.count || 0;
+}
+
+async function areFriends(db: D1Database, userId: string, friendId: string): Promise<boolean> {
+  if (userId === friendId) return false;
+  const { userAId, userBId } = orderedFriendPair(userId, friendId);
+  const friendship = await db.prepare(
+    'SELECT created_at FROM friendships WHERE user_a_id = ? AND user_b_id = ?'
+  ).bind(userAId, userBId).first<{ created_at: number }>();
+  return !!friendship;
+}
+
 async function postDiscordWebhook(webhookUrl: string | undefined, payload: unknown): Promise<boolean> {
   if (!webhookUrl) {
     console.warn('Discord webhook URL is not configured');
@@ -582,7 +646,7 @@ async function handleRegister(request: Request, db: D1Database, env: Env, ctx: E
 
     return jsonResponse(
       {
-        user: { id: userId, email: normalizedEmail, name: name.trim() },
+        user: { id: userId, email: normalizedEmail, name: name.trim(), avatarUrl: null },
         token: sessionId,
       },
       200,
@@ -669,7 +733,7 @@ async function handleLogin(request: Request, db: D1Database, env: Env): Promise<
 
   const isSecure = !origin?.includes('localhost');
   return jsonResponse(
-    { user: { id: user.id, email: user.email, name: user.name }, token: sessionId },
+    { user: formatUser(user), token: sessionId },
     200,
     {
       ...corsHeaders(origin),
@@ -748,7 +812,7 @@ async function handleVerifyEmail(request: Request, db: D1Database): Promise<Resp
 
   const isSecure = !origin?.includes('localhost');
   return jsonResponse(
-    { user: { id: user.id, email: user.email, name: user.name }, token: sessionId, verified: true },
+    { user: formatUser(user), token: sessionId, verified: true },
     200,
     {
       ...corsHeaders(origin),
@@ -790,10 +854,380 @@ async function handleGetSession(request: Request, db: D1Database): Promise<Respo
   }
 
   return jsonResponse(
-    { user: { id: user.id, email: user.email, name: user.name } },
+    { user: formatUser(user) },
     200,
     corsHeaders(origin)
   );
+}
+
+async function handleUpdateProfile(request: Request, db: D1Database): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const body = await request.json() as { name?: string; avatarUrl?: string | null };
+  const hasName = Object.prototype.hasOwnProperty.call(body, 'name');
+  const hasAvatar = Object.prototype.hasOwnProperty.call(body, 'avatarUrl');
+
+  const nextName = hasName ? normalizeDisplayName(body.name) : user.name;
+  if (hasName && !nextName) {
+    return errorResponse('Display name must be between 1 and 80 characters', 400, origin);
+  }
+
+  let nextAvatarUrl = user.avatar_url;
+  if (hasAvatar) {
+    nextAvatarUrl = normalizeAvatarUrl(body.avatarUrl);
+    if (typeof body.avatarUrl === 'string' && body.avatarUrl.trim() && !nextAvatarUrl) {
+      return errorResponse('Profile picture must be a valid http or https URL', 400, origin);
+    }
+  }
+
+  await db.prepare('UPDATE users SET name = ?, avatar_url = ? WHERE id = ?')
+    .bind(nextName, nextAvatarUrl, user.id)
+    .run();
+
+  return jsonResponse(
+    {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: nextName,
+        avatarUrl: nextAvatarUrl,
+      },
+    },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+async function handleGetProfile(request: Request, db: D1Database, userId: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const currentUser = await getSessionUser(request, db);
+  const profileUser = await db.prepare('SELECT id, name, avatar_url FROM users WHERE id = ?')
+    .bind(userId)
+    .first<{ id: string; name: string; avatar_url: string | null }>();
+
+  if (!profileUser) {
+    return errorResponse('Profile not found', 404, origin);
+  }
+
+  const isCurrentUser = currentUser?.id === profileUser.id;
+  const isFriend = currentUser ? await areFriends(db, currentUser.id, profileUser.id) : false;
+  const outgoingFriendRequest = currentUser && !isCurrentUser && !isFriend
+    ? await db.prepare(
+        "SELECT id FROM friend_requests WHERE requester_id = ? AND requested_user_id = ? AND status = 'pending'"
+      ).bind(currentUser.id, profileUser.id).first<{ id: string }>()
+    : null;
+  const incomingFriendRequest = currentUser && !isCurrentUser && !isFriend
+    ? await db.prepare(
+        "SELECT id FROM friend_requests WHERE requester_id = ? AND requested_user_id = ? AND status = 'pending'"
+      ).bind(profileUser.id, currentUser.id).first<{ id: string }>()
+    : null;
+  const recipeVisibility = isCurrentUser ? '' : 'AND r.is_public = 1';
+  const cookbookVisibility = isCurrentUser ? '' : 'AND c.is_public = 1';
+
+  const recipeCount = await db.prepare(
+    `SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ? ${recipeVisibility}`
+  ).bind(profileUser.id).first<{ count: number }>();
+
+  const cookbookCount = await db.prepare(
+    `SELECT COUNT(*) as count FROM cookbooks c WHERE c.user_id = ? AND c.is_system = 0 ${cookbookVisibility}`
+  ).bind(profileUser.id).first<{ count: number }>();
+
+  const recipes = await db.prepare(
+    `SELECT r.*, owner.name as owner_name
+     FROM recipes r
+     LEFT JOIN users owner ON r.owner_id = owner.id
+     WHERE r.user_id = ? ${recipeVisibility}
+     ORDER BY r.created_at DESC
+     LIMIT 24`
+  ).bind(profileUser.id).all<Recipe & { owner_name: string | null }>();
+
+  const cookbooks = await db.prepare(
+    `SELECT c.*, COUNT(cr.recipe_id) as recipe_count, owner.name as owner_name
+     FROM cookbooks c
+     LEFT JOIN cookbook_recipes cr ON c.id = cr.cookbook_id
+     JOIN users owner ON c.user_id = owner.id
+     WHERE c.user_id = ? AND c.is_system = 0 ${cookbookVisibility}
+     GROUP BY c.id
+     ORDER BY c.updated_at DESC
+     LIMIT 24`
+  ).bind(profileUser.id).all<Cookbook & { recipe_count: number; owner_name: string }>();
+
+  return jsonResponse(
+    {
+      profile: {
+        user: formatProfileUser(profileUser),
+        isCurrentUser,
+        isFriend,
+        hasPendingFriendRequest: !!outgoingFriendRequest,
+        incomingFriendRequestId: incomingFriendRequest?.id ?? null,
+        friendCount: await getFriendCount(db, profileUser.id),
+        recipeCount: recipeCount?.count || 0,
+        cookbookCount: cookbookCount?.count || 0,
+        recipes: recipes.results.map(recipe => formatPublicRecipe(recipe, currentUser?.id)),
+        cookbooks: cookbooks.results.map(cookbook => ({
+          id: cookbook.id,
+          ownerId: cookbook.user_id,
+          name: cookbook.name,
+          description: cookbook.description,
+          coverImage: cookbook.cover_image || null,
+          recipeCount: cookbook.recipe_count || 0,
+          isSystem: cookbook.is_system === 1,
+          systemType: cookbook.system_type,
+          isPublic: cookbook.is_public === 1,
+          createdAt: cookbook.created_at,
+          updatedAt: cookbook.updated_at,
+          isOwner: currentUser ? cookbook.user_id === currentUser.id : false,
+          ownerName: cookbook.owner_name,
+        })),
+      },
+    },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+async function handleGetProfileFriends(request: Request, db: D1Database, userId: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const profileUser = await db.prepare('SELECT id FROM users WHERE id = ?').bind(userId).first<{ id: string }>();
+
+  if (!profileUser) {
+    return errorResponse('Profile not found', 404, origin);
+  }
+
+  const friends = await db.prepare(
+    `SELECT u.id, u.name, u.avatar_url
+     FROM friendships f
+     JOIN users u ON u.id = CASE
+       WHEN f.user_a_id = ? THEN f.user_b_id
+       ELSE f.user_a_id
+     END
+     WHERE f.user_a_id = ? OR f.user_b_id = ?
+     ORDER BY u.name COLLATE NOCASE ASC`
+  ).bind(userId, userId, userId).all<{ id: string; name: string; avatar_url: string | null }>();
+
+  return jsonResponse(
+    { friends: friends.results.map(formatProfileUser) },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+async function handleAddFriend(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const body = await request.json() as { userId?: string; email?: string };
+  const normalizedEmail = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
+  const friend = body.userId
+    ? await db.prepare('SELECT id, name, avatar_url FROM users WHERE id = ?')
+        .bind(body.userId)
+        .first<{ id: string; name: string; avatar_url: string | null }>()
+    : normalizedEmail
+      ? await db.prepare('SELECT id, name, avatar_url FROM users WHERE email = ?')
+          .bind(normalizedEmail)
+          .first<{ id: string; name: string; avatar_url: string | null }>()
+      : null;
+
+  if (!friend) {
+    return errorResponse('User not found', 404, origin);
+  }
+
+  if (friend.id === user.id) {
+    return errorResponse('You cannot add yourself as a friend', 400, origin);
+  }
+
+  if (await areFriends(db, user.id, friend.id)) {
+    return jsonResponse(
+      { friend: formatProfileUser(friend) },
+      200,
+      corsHeaders(origin)
+    );
+  }
+
+  const incomingRequest = await db.prepare(
+    "SELECT id FROM friend_requests WHERE requester_id = ? AND requested_user_id = ? AND status = 'pending'"
+  ).bind(friend.id, user.id).first<{ id: string }>();
+
+  if (incomingRequest) {
+    const accepted = await acceptFriendRequestForUser(db, user, incomingRequest.id);
+    if (!accepted) {
+      return errorResponse('Friend request not found or already responded', 404, origin);
+    }
+    return jsonResponse(
+      { friend: formatProfileUser(friend) },
+      200,
+      corsHeaders(origin)
+    );
+  }
+
+  const now = Date.now();
+  const existingRequest = await db.prepare(
+    'SELECT id, status FROM friend_requests WHERE requester_id = ? AND requested_user_id = ?'
+  ).bind(user.id, friend.id).first<{ id: string; status: string }>();
+
+  const friendRequestId = existingRequest?.id ?? generateId();
+  if (existingRequest?.status === 'pending') {
+    return jsonResponse(
+      { friend: formatProfileUser(friend) },
+      200,
+      corsHeaders(origin)
+    );
+  }
+
+  if (existingRequest) {
+    await db.prepare(
+      "UPDATE friend_requests SET status = 'pending', created_at = ?, responded_at = NULL WHERE id = ?"
+    ).bind(now, friendRequestId).run();
+  } else {
+    await db.prepare(
+      'INSERT INTO friend_requests (id, requester_id, requested_user_id, status, created_at) VALUES (?, ?, ?, ?, ?)'
+    ).bind(friendRequestId, user.id, friend.id, 'pending', now).run();
+  }
+
+  await db.prepare(
+    "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?"
+  ).bind(friend.id, `%"friendRequestId":"${friendRequestId}"%`).run();
+
+  await db.prepare(`
+    INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    generateId(),
+    friend.id,
+    'friend_request',
+    'Friend request',
+    `${user.name} sent you a friend request`,
+    JSON.stringify({
+      friendRequestId,
+      requesterId: user.id,
+      requesterName: user.name,
+    }),
+    0,
+    now
+  ).run();
+
+  return jsonResponse(
+    { friend: formatProfileUser(friend) },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+async function acceptFriendRequestForUser(
+  db: D1Database,
+  user: User,
+  friendRequestId: string
+): Promise<{ friend: { id: string; name: string; avatar_url: string | null } } | null> {
+  const request = await db.prepare(`
+    SELECT fr.*, u.name as requester_name, u.avatar_url as requester_avatar_url
+    FROM friend_requests fr
+    JOIN users u ON u.id = fr.requester_id
+    WHERE fr.id = ? AND fr.requested_user_id = ? AND fr.status = ?
+  `).bind(friendRequestId, user.id, 'pending').first<{
+    id: string;
+    requester_id: string;
+    requested_user_id: string;
+    requester_name: string;
+    requester_avatar_url: string | null;
+  }>();
+
+  if (!request) {
+    return null;
+  }
+
+  const { userAId, userBId } = orderedFriendPair(user.id, request.requester_id);
+  const now = Date.now();
+  await db.prepare(
+    'INSERT OR IGNORE INTO friendships (user_a_id, user_b_id, created_at) VALUES (?, ?, ?)'
+  ).bind(userAId, userBId, now).run();
+
+  await db.prepare(
+    "UPDATE friend_requests SET status = 'accepted', responded_at = ? WHERE id = ?"
+  ).bind(now, friendRequestId).run();
+
+  await db.prepare(
+    "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?"
+  ).bind(user.id, `%"friendRequestId":"${friendRequestId}"%`).run();
+
+  return {
+    friend: {
+      id: request.requester_id,
+      name: request.requester_name,
+      avatar_url: request.requester_avatar_url,
+    },
+  };
+}
+
+async function handleAcceptFriendRequest(request: Request, db: D1Database, friendRequestId: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const accepted = await acceptFriendRequestForUser(db, user, friendRequestId);
+  if (!accepted) {
+    return errorResponse('Friend request not found or already responded', 404, origin);
+  }
+
+  return jsonResponse(
+    { success: true, friend: formatProfileUser(accepted.friend) },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+async function handleDeclineFriendRequest(request: Request, db: D1Database, friendRequestId: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const pending = await db.prepare(
+    "SELECT id FROM friend_requests WHERE id = ? AND requested_user_id = ? AND status = 'pending'"
+  ).bind(friendRequestId, user.id).first<{ id: string }>();
+
+  if (!pending) {
+    return errorResponse('Friend request not found or already responded', 404, origin);
+  }
+
+  await db.prepare(
+    "UPDATE friend_requests SET status = 'declined', responded_at = ? WHERE id = ?"
+  ).bind(Date.now(), friendRequestId).run();
+
+  await db.prepare(
+    "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?"
+  ).bind(user.id, `%"friendRequestId":"${friendRequestId}"%`).run();
+
+  return jsonResponse({ success: true }, 200, corsHeaders(origin));
+}
+
+async function handleRemoveFriend(request: Request, db: D1Database, friendId: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const { userAId, userBId } = orderedFriendPair(user.id, friendId);
+  await db.prepare('DELETE FROM friendships WHERE user_a_id = ? AND user_b_id = ?')
+    .bind(userAId, userBId)
+    .run();
+
+  return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
 async function handleForgotPassword(request: Request, db: D1Database, env: Env): Promise<Response> {
@@ -1292,6 +1726,7 @@ async function handleGetCookbooks(request: Request, db: D1Database): Promise<Res
 
   const formatCookbook = (c: Record<string, unknown>, isOwner: boolean) => ({
     id: c.id,
+    ownerId: c.user_id,
     name: c.name,
     description: c.description,
     coverImage: c.cover_image || null,
@@ -1415,6 +1850,7 @@ async function handleGetCookbook(request: Request, db: D1Database, cookbookId: s
   return jsonResponse({
     cookbook: {
       id: cookbook.id,
+      ownerId: cookbook.user_id,
       name: cookbook.name,
       description: cookbook.description,
       coverImage: cookbook.cover_image,
@@ -1875,12 +2311,12 @@ async function handleGetSharedCookbook(request: Request, db: D1Database, token: 
   const origin = request.headers.get('Origin');
 
   const link = await db.prepare(`
-    SELECT csl.cookbook_id, c.name, c.description, u.name as owner_name
+    SELECT csl.cookbook_id, c.user_id, c.name, c.description, u.name as owner_name
     FROM cookbook_share_links csl
     JOIN cookbooks c ON csl.cookbook_id = c.id
     JOIN users u ON c.user_id = u.id
     WHERE csl.token = ? AND csl.is_active = 1
-  `).bind(token).first<{ cookbook_id: string; name: string; description: string | null; owner_name: string }>();
+  `).bind(token).first<{ cookbook_id: string; user_id: string; name: string; description: string | null; owner_name: string }>();
 
   if (!link) {
     return errorResponse('Share link not found or has been revoked', 404, origin);
@@ -1911,6 +2347,7 @@ async function handleGetSharedCookbook(request: Request, db: D1Database, token: 
   return jsonResponse({
     cookbook: {
       id: link.cookbook_id,
+      ownerId: link.user_id,
       name: link.name,
       description: link.description,
       ownerName: link.owner_name,
@@ -2181,6 +2618,7 @@ async function handleDiscoverCookbooks(request: Request, db: D1Database): Promis
     {
       cookbooks: cookbooks.results.map(cookbook => ({
         id: cookbook.id,
+        ownerId: cookbook.user_id,
         name: cookbook.name,
         description: cookbook.description,
         coverImage: cookbook.cover_image || null,
@@ -2244,6 +2682,7 @@ async function handleDiscoverCookbook(request: Request, db: D1Database, cookbook
     {
       cookbook: {
         id: cookbook.id,
+        ownerId: cookbook.user_id,
         name: cookbook.name,
         description: cookbook.description,
         coverImage: cookbook.cover_image || null,
@@ -2567,6 +3006,9 @@ export default {
       if (path === '/api/auth/session' && method === 'GET') {
         return handleGetSession(request, env.DB);
       }
+      if (path === '/api/auth/profile' && method === 'PUT') {
+        return handleUpdateProfile(request, env.DB);
+      }
       if (path === '/api/auth/verify-email' && method === 'POST') {
         return handleVerifyEmail(request, env.DB);
       }
@@ -2581,6 +3023,35 @@ export default {
       }
       if (path === '/api/feedback' && method === 'POST') {
         return handleFeedback(request, env);
+      }
+
+      const profileFriendsMatch = path.match(/^\/api\/profiles\/([^/]+)\/friends$/);
+      if (profileFriendsMatch && method === 'GET') {
+        return handleGetProfileFriends(request, env.DB, profileFriendsMatch[1]);
+      }
+
+      const profileMatch = path.match(/^\/api\/profiles\/([^/]+)$/);
+      if (profileMatch && method === 'GET') {
+        return handleGetProfile(request, env.DB, profileMatch[1]);
+      }
+
+      if (path === '/api/friends' && method === 'POST') {
+        return handleAddFriend(request, env.DB);
+      }
+
+      const removeFriendMatch = path.match(/^\/api\/friends\/([^/]+)$/);
+      if (removeFriendMatch && method === 'DELETE') {
+        return handleRemoveFriend(request, env.DB, removeFriendMatch[1]);
+      }
+
+      const acceptFriendRequestMatch = path.match(/^\/api\/friend-requests\/([^/]+)\/accept$/);
+      if (acceptFriendRequestMatch && method === 'POST') {
+        return handleAcceptFriendRequest(request, env.DB, acceptFriendRequestMatch[1]);
+      }
+
+      const declineFriendRequestMatch = path.match(/^\/api\/friend-requests\/([^/]+)\/decline$/);
+      if (declineFriendRequestMatch && method === 'POST') {
+        return handleDeclineFriendRequest(request, env.DB, declineFriendRequestMatch[1]);
       }
 
       // Proxy fetch for recipe import

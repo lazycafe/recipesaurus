@@ -15,6 +15,8 @@ import type {
   CreateCookbookData,
   UpdateCookbookData,
   Notification,
+  ProfileUser,
+  UserProfile,
 } from './types';
 
 // Default localStorage-based token storage
@@ -127,6 +129,10 @@ export class HttpClient implements IClient {
       const result = await this.transport.request<{ success: boolean }>('POST', '/api/auth/logout');
       this.tokenStorage.clearToken();
       return result;
+    },
+
+    updateProfile: (data: { name?: string; avatarUrl?: string | null }): Promise<ApiResponse<{ user: User }>> => {
+      return this.transport.request('PUT', '/api/auth/profile', data);
     },
 
     verifyEmail: async (token: string): Promise<ApiResponse<{ user: User; token?: string; verified?: boolean }>> => {
@@ -313,6 +319,32 @@ export class HttpClient implements IClient {
 
     saveCookbook: (cookbookId: string): Promise<ApiResponse<{ id: string }>> => {
       return this.transport.request('POST', `/api/discover/cookbooks/${cookbookId}/save`);
+    },
+  };
+
+  profile = {
+    get: (userId: string): Promise<ApiResponse<{ profile: UserProfile }>> => {
+      return this.transport.request('GET', `/api/profiles/${userId}`);
+    },
+
+    listFriends: (userId: string): Promise<ApiResponse<{ friends: ProfileUser[] }>> => {
+      return this.transport.request('GET', `/api/profiles/${userId}/friends`);
+    },
+
+    addFriend: (data: { userId?: string; email?: string }): Promise<ApiResponse<{ friend: ProfileUser }>> => {
+      return this.transport.request('POST', '/api/friends', data);
+    },
+
+    removeFriend: (userId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      return this.transport.request('DELETE', `/api/friends/${userId}`);
+    },
+
+    acceptFriendRequest: (friendRequestId: string): Promise<ApiResponse<{ success: boolean; friend: ProfileUser }>> => {
+      return this.transport.request('POST', `/api/friend-requests/${friendRequestId}/accept`);
+    },
+
+    declineFriendRequest: (friendRequestId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      return this.transport.request('POST', `/api/friend-requests/${friendRequestId}/decline`);
     },
   };
 }

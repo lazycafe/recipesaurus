@@ -4,6 +4,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  avatarUrl?: string | null;
 }
 
 export interface Recipe {
@@ -29,6 +30,7 @@ export interface Recipe {
 
 export interface Cookbook {
   id: string;
+  ownerId?: string;
   name: string;
   description?: string | null;
   coverImage?: string | null;
@@ -72,6 +74,25 @@ export interface RecipeSharePayload {
 export interface RecipeShareLink {
   token: string;
   createdAt: number;
+}
+
+export interface ProfileUser {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+}
+
+export interface UserProfile {
+  user: ProfileUser;
+  isCurrentUser: boolean;
+  isFriend: boolean;
+  hasPendingFriendRequest: boolean;
+  incomingFriendRequestId?: string | null;
+  friendCount: number;
+  recipeCount: number;
+  cookbookCount: number;
+  recipes: Recipe[];
+  cookbooks: Cookbook[];
 }
 
 export interface CreateRecipeData {
@@ -126,6 +147,7 @@ export interface IClient {
     login(email: string, password: string): Promise<ApiResponse<{ user: User; token?: string; requiresVerification?: boolean; email?: string }>>;
     register(email: string, name: string, password: string): Promise<ApiResponse<{ user?: User; token?: string; requiresVerification?: boolean; email?: string }>>;
     logout(): Promise<ApiResponse<{ success: boolean }>>;
+    updateProfile(data: { name?: string; avatarUrl?: string | null }): Promise<ApiResponse<{ user: User }>>;
     verifyEmail(token: string): Promise<ApiResponse<{ user: User; token?: string; verified?: boolean }>>;
     resendVerification(email: string): Promise<ApiResponse<{ success: boolean; message?: string }>>;
     forgotPassword(email: string): Promise<ApiResponse<{ message: string }>>;
@@ -189,15 +211,27 @@ export interface IClient {
     saveRecipe(recipeId: string): Promise<ApiResponse<{ id: string }>>;
     saveCookbook(cookbookId: string): Promise<ApiResponse<{ id: string }>>;
   };
+
+  profile: {
+    get(userId: string): Promise<ApiResponse<{ profile: UserProfile }>>;
+    listFriends(userId: string): Promise<ApiResponse<{ friends: ProfileUser[] }>>;
+    addFriend(data: { userId?: string; email?: string }): Promise<ApiResponse<{ friend: ProfileUser }>>;
+    removeFriend(userId: string): Promise<ApiResponse<{ success: boolean }>>;
+    acceptFriendRequest(friendRequestId: string): Promise<ApiResponse<{ success: boolean; friend: ProfileUser }>>;
+    declineFriendRequest(friendRequestId: string): Promise<ApiResponse<{ success: boolean }>>;
+  };
 }
 
 export interface Notification {
   id: string;
-  type: 'cookbook_invite' | 'recipe_added';
+  type: 'cookbook_invite' | 'recipe_added' | 'friend_request';
   title: string;
   message: string;
   data: {
     inviteId?: string;
+    friendRequestId?: string;
+    requesterId?: string;
+    requesterName?: string;
     cookbookId?: string;
     cookbookName?: string;
     recipeId?: string;

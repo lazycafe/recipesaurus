@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User, Share2 } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { Recipe as ClientRecipe } from '../client/types';
@@ -18,6 +19,7 @@ interface RecipeDetailProps {
 
 export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOnly = false, isPublicView = false }: RecipeDetailProps) {
   const [showShareModal, setShowShareModal] = useState(false);
+  const navigate = useNavigate();
 
   const handleDelete = () => {
     onDelete?.();
@@ -25,6 +27,7 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
 
   // Type guard for ClientRecipe with owner info
   const ownerName = 'ownerName' in recipe ? recipe.ownerName : null;
+  const ownerId = 'ownerId' in recipe ? recipe.ownerId : null;
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -47,10 +50,19 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
           <div className="detail-info">
             <h2 className="detail-title">{recipe.title}</h2>
             {ownerName && (
-              <p className="detail-author">
+              <button
+                className="detail-author"
+                onClick={() => {
+                  if (ownerId) {
+                    onClose();
+                    navigate(`/profiles/${ownerId}`);
+                  }
+                }}
+                disabled={!ownerId}
+              >
                 <User size={14} />
                 by {ownerName}
-              </p>
+              </button>
             )}
             <p className="detail-description">{recipe.description}</p>
 

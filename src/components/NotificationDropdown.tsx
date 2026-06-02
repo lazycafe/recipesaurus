@@ -1,13 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, X, Book, ChefHat, CheckCheck } from 'lucide-react';
+import { Bell, Check, X, Book, ChefHat, CheckCheck, UserPlus } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useCookbooks } from '../context/CookbookContext';
 import type { Notification } from '../client/types';
 
 export function NotificationDropdown() {
   const navigate = useNavigate();
-  const { notifications, unreadCount, markAsRead, markAllAsRead, acceptInvite, declineInvite } = useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    acceptInvite,
+    declineInvite,
+    acceptFriendRequest,
+    declineFriendRequest,
+  } = useNotifications();
   const { refreshCookbooks } = useCookbooks();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -33,6 +42,18 @@ export function NotificationDropdown() {
 
   const handleDecline = async (inviteId: string) => {
     await declineInvite(inviteId);
+  };
+
+  const handleAcceptFriendRequest = async (friendRequestId: string) => {
+    const result = await acceptFriendRequest(friendRequestId);
+    if (result) {
+      setIsOpen(false);
+      navigate(`/profiles/${result.friendId}`);
+    }
+  };
+
+  const handleDeclineFriendRequest = async (friendRequestId: string) => {
+    await declineFriendRequest(friendRequestId);
   };
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -94,6 +115,8 @@ export function NotificationDropdown() {
                   <div className="notification-icon">
                     {notification.type === 'cookbook_invite' ? (
                       <Book size={18} />
+                    ) : notification.type === 'friend_request' ? (
+                      <UserPlus size={18} />
                     ) : (
                       <ChefHat size={18} />
                     )}
@@ -120,6 +143,31 @@ export function NotificationDropdown() {
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDecline(notification.data!.inviteId!);
+                          }}
+                        >
+                          <X size={14} />
+                          Decline
+                        </button>
+                      </div>
+                    )}
+
+                    {notification.type === 'friend_request' && notification.data?.friendRequestId && (
+                      <div className="notification-actions">
+                        <button
+                          className="btn-accept"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAcceptFriendRequest(notification.data!.friendRequestId!);
+                          }}
+                        >
+                          <Check size={14} />
+                          Accept
+                        </button>
+                        <button
+                          className="btn-decline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeclineFriendRequest(notification.data!.friendRequestId!);
                           }}
                         >
                           <X size={14} />

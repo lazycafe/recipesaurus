@@ -58,6 +58,7 @@ export interface UserResponse {
   id: string;
   email: string;
   name: string;
+  avatarUrl?: string | null;
 }
 
 export interface AuthResponse {
@@ -172,6 +173,7 @@ export const recipesApi = {
 // Cookbooks API
 export interface CookbookResponse {
   id: string;
+  ownerId?: string;
   name: string;
   description?: string;
   coverImage?: string | null;

@@ -1,4 +1,5 @@
 import { User } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Cookbook } from '../types/Cookbook';
 import { DinoMascot } from './DinoMascot';
 
@@ -38,10 +39,21 @@ export function CookbookCard({ cookbook, onClick }: CookbookCardProps) {
           {cookbook.recipeCount} recipe{cookbook.recipeCount !== 1 ? 's' : ''}
         </span>
         {!cookbook.isOwner && cookbook.ownerName && (
-          <span className="cookbook-owner">
-            <User size={12} strokeWidth={2} />
-            {cookbook.ownerName}
-          </span>
+          cookbook.ownerId ? (
+            <Link
+              to={`/profiles/${cookbook.ownerId}`}
+              className="cookbook-owner"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <User size={12} strokeWidth={2} />
+              {cookbook.ownerName}
+            </Link>
+          ) : (
+            <span className="cookbook-owner">
+              <User size={12} strokeWidth={2} />
+              {cookbook.ownerName}
+            </span>
+          )
         )}
       </div>
 

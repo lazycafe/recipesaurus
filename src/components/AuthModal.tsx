@@ -273,8 +273,7 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
             type="button"
             className="dev-login-btn"
             onClick={() => {
-              devLogin();
-              onClose();
+              void devLogin().finally(onClose);
             }}
           >
             <Bug size={16} />
