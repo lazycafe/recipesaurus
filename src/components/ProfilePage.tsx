@@ -166,7 +166,8 @@ export function ProfilePage() {
     );
   }
 
-  const cookbooks = profile.cookbooks.map(mapCookbook);
+  const publicRecipes = profile.recipes.filter(recipe => recipe.isPublic);
+  const publicCookbooks = profile.cookbooks.filter(cookbook => cookbook.isPublic).map(mapCookbook);
 
   return (
     <div className="profile-page">
@@ -223,9 +224,9 @@ export function ProfilePage() {
         </div>
       </section>
 
-      {profile.recipes.length > 0 ? (
+      {publicRecipes.length > 0 ? (
         <Carousel title="Recipes">
-          {profile.recipes.map(recipe => (
+          {publicRecipes.map(recipe => (
             <RecipeCardCompact
               key={recipe.id}
               recipe={recipe}
@@ -237,13 +238,13 @@ export function ProfilePage() {
       ) : (
         <section className="profile-section-empty">
           <ChefHat size={24} />
-          <h2>No recipes yet</h2>
+          <h2>No public recipes yet</h2>
         </section>
       )}
 
-      {cookbooks.length > 0 ? (
+      {publicCookbooks.length > 0 ? (
         <Carousel title="Cookbooks">
-          {cookbooks.map(cookbook => (
+          {publicCookbooks.map(cookbook => (
             <CookbookCard
               key={cookbook.id}
               cookbook={cookbook}
@@ -254,7 +255,7 @@ export function ProfilePage() {
       ) : (
         <section className="profile-section-empty">
           <BookOpen size={24} />
-          <h2>No cookbooks yet</h2>
+          <h2>No public cookbooks yet</h2>
         </section>
       )}
 
