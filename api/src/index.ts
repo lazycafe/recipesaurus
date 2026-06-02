@@ -693,6 +693,18 @@ function errorResponse(message: string, status = 400, origin?: string | null, co
   );
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  if (typeof error === 'string' && error.trim()) {
+    return error;
+  }
+
+  return 'Unknown error';
+}
+
 function setCookie(name: string, value: string, maxAge: number, isSecure: boolean): string {
   const secureFlags = isSecure ? 'Secure; SameSite=None' : 'SameSite=Lax';
   return `${name}=${value}; Path=/; HttpOnly; ${secureFlags}; Max-Age=${maxAge}`;
@@ -1647,52 +1659,74 @@ async function acceptFriendRequestForUser(
 
 async function handleAcceptFriendRequest(request: Request, db: D1Database, friendRequestId: string): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const user = await getSessionUser(request, db);
 
-  if (!user) {
-    return errorResponse('Unauthorized', 401, origin);
+  try {
+    const user = await getSessionUser(request, db);
+
+    if (!user) {
+      return errorResponse('Unauthorized', 401, origin);
+    }
+
+    const accepted = await acceptFriendRequestForUser(db, user, friendRequestId);
+    if (!accepted) {
+      return errorResponse('Friend request not found or already responded', 404, origin);
+    }
+
+    return jsonResponse(
+      { success: true, friend: formatProfileUser(accepted.friend) },
+      200,
+      corsHeaders(origin)
+    );
+  } catch (error) {
+    console.error('Failed to accept friend request:', error);
+    return errorResponse(
+      `Failed to accept friend request: ${getErrorMessage(error)}`,
+      500,
+      origin,
+      'RECIPESAURUS_FRIEND_REQUEST_ACCEPT_FAILED'
+    );
   }
-
-  const accepted = await acceptFriendRequestForUser(db, user, friendRequestId);
-  if (!accepted) {
-    return errorResponse('Friend request not found or already responded', 404, origin);
-  }
-
-  return jsonResponse(
-    { success: true, friend: formatProfileUser(accepted.friend) },
-    200,
-    corsHeaders(origin)
-  );
 }
 
 async function handleDeclineFriendRequest(request: Request, db: D1Database, friendRequestId: string): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const user = await getSessionUser(request, db);
 
-  if (!user) {
-    return errorResponse('Unauthorized', 401, origin);
+  try {
+    const user = await getSessionUser(request, db);
+
+    if (!user) {
+      return errorResponse('Unauthorized', 401, origin);
+    }
+
+    const { request: friendRequest, notificationData } = await findFriendRequestForUser(db, user, friendRequestId);
+
+    if (!friendRequest) {
+      await deleteFriendRequestNotifications(db, user.id, [friendRequestId, notificationData?.friendRequestId]);
+      return errorResponse('Friend request not found or already responded', 404, origin);
+    }
+
+    if (friendRequest.status === 'pending') {
+      await db.prepare(
+        "UPDATE friend_requests SET status = 'declined', responded_at = ? WHERE id = ?"
+      ).bind(Date.now(), friendRequest.id).run();
+    }
+
+    await deleteFriendRequestNotifications(db, user.id, [
+      friendRequestId,
+      notificationData?.friendRequestId,
+      friendRequest.id,
+    ]);
+
+    return jsonResponse({ success: true }, 200, corsHeaders(origin));
+  } catch (error) {
+    console.error('Failed to decline friend request:', error);
+    return errorResponse(
+      `Failed to decline friend request: ${getErrorMessage(error)}`,
+      500,
+      origin,
+      'RECIPESAURUS_FRIEND_REQUEST_DECLINE_FAILED'
+    );
   }
-
-  const { request: friendRequest, notificationData } = await findFriendRequestForUser(db, user, friendRequestId);
-
-  if (!friendRequest) {
-    await deleteFriendRequestNotifications(db, user.id, [friendRequestId, notificationData?.friendRequestId]);
-    return errorResponse('Friend request not found or already responded', 404, origin);
-  }
-
-  if (friendRequest.status === 'pending') {
-    await db.prepare(
-      "UPDATE friend_requests SET status = 'declined', responded_at = ? WHERE id = ?"
-    ).bind(Date.now(), friendRequest.id).run();
-  }
-
-  await deleteFriendRequestNotifications(db, user.id, [
-    friendRequestId,
-    notificationData?.friendRequestId,
-    friendRequest.id,
-  ]);
-
-  return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
 async function getFriendRequestIdFromBody(request: Request): Promise<string | null> {
