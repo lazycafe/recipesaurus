@@ -1617,7 +1617,7 @@ async function acceptFriendRequestForUser(
     avatar_url: request.requester_avatar_url,
   };
 
-  if (request.status !== 'pending' && request.status !== 'accepted') {
+  if (request.status !== 'pending' && request.status !== 'accepted' && request.status !== 'declined') {
     if (await areFriends(db, user.id, request.requester_id)) {
       await deleteFriendRequestNotifications(db, user.id, notificationIds);
       return { friend };
@@ -1633,7 +1633,7 @@ async function acceptFriendRequestForUser(
     ).bind(userAId, userBId, now).run();
   }
 
-  if (request.status === 'pending') {
+  if (request.status === 'pending' || request.status === 'declined') {
     await db.prepare(
       "UPDATE friend_requests SET status = 'accepted', responded_at = ? WHERE id = ?"
     ).bind(now, request.id).run();

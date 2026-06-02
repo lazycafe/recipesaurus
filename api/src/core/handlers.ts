@@ -951,7 +951,7 @@ export class CoreHandlers {
       avatar_url: request.requester_avatar_url,
     };
 
-    if (request.status !== 'pending' && request.status !== 'accepted') {
+    if (request.status !== 'pending' && request.status !== 'accepted' && request.status !== 'declined') {
       if (await this.areFriends(user.id, request.requester_id)) {
         await this.deleteFriendRequestNotifications(user.id, notificationIds);
         return {
@@ -978,7 +978,7 @@ export class CoreHandlers {
       );
     }
 
-    if (request.status === 'pending') {
+    if (request.status === 'pending' || request.status === 'declined') {
       await this.db.run(
         "UPDATE friend_requests SET status = 'accepted', responded_at = ? WHERE id = ?",
         now,

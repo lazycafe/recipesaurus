@@ -172,6 +172,45 @@ describe('Profiles and friends', () => {
     expect(notificationsAfterAccept.data?.notifications).toHaveLength(0);
   });
 
+  it('accepts a declined friend request when the notification still exists', async () => {
+    const aliceClient = harness.createClient();
+    const bobClient = harness.createClient();
+
+    const alice = await aliceClient.auth.register('alice@example.com', 'Alice Chef', 'Password123');
+    const bob = await bobClient.auth.register('bob@example.com', 'Bob Baker', 'Password123');
+
+    const friendRequest = await aliceClient.profile.addFriend({ email: 'bob@example.com' });
+    expect(friendRequest.error).toBeUndefined();
+
+    const bobNotifications = await bobClient.notifications.list();
+    const friendRequestId = bobNotifications.data!.notifications[0].data?.friendRequestId!;
+
+    const db = (harness as unknown as {
+      db: { run: (sql: string, params?: unknown[]) => void };
+    }).db;
+    db.run("UPDATE friend_requests SET status = 'declined', responded_at = ? WHERE id = ?", [
+      Date.now(),
+      friendRequestId,
+    ]);
+
+    const accepted = await bobClient.profile.acceptFriendRequest(friendRequestId);
+    expect(accepted.error).toBeUndefined();
+    expect(accepted.data?.friend.id).toBe(alice.data?.user?.id);
+
+    const bobProfileAsAlice = await aliceClient.profile.get(bob.data!.user!.id);
+    expect(bobProfileAsAlice.data?.profile.isFriend).toBe(true);
+
+    const bobNotificationsAfterAccept = await bobClient.notifications.list();
+    expect(bobNotificationsAfterAccept.data?.notifications).toHaveLength(0);
+
+    const aliceNotifications = await aliceClient.notifications.list();
+    expect(aliceNotifications.data?.notifications).toHaveLength(1);
+    expect(aliceNotifications.data?.notifications[0]).toMatchObject({
+      type: 'friend_request_accepted',
+      message: 'Bob Baker accepted your friend request',
+    });
+  });
+
   it('treats repeated friend request declines as successful cleanup', async () => {
     const aliceClient = harness.createClient();
     const bobClient = harness.createClient();
