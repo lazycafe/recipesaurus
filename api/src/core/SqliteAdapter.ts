@@ -60,6 +60,7 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
+      avatar_url TEXT,
       password_hash TEXT NOT NULL,
       password_salt TEXT NOT NULL,
       created_at INTEGER NOT NULL
@@ -200,6 +201,29 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       UNIQUE(cookbook_id, invited_user_id)
     );
 
+    CREATE TABLE IF NOT EXISTS friendships (
+      user_a_id TEXT NOT NULL,
+      user_b_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (user_a_id, user_b_id),
+      FOREIGN KEY (user_a_id) REFERENCES users(id),
+      FOREIGN KEY (user_b_id) REFERENCES users(id),
+      CHECK (user_a_id <> user_b_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS friend_requests (
+      id TEXT PRIMARY KEY,
+      requester_id TEXT NOT NULL,
+      requested_user_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at INTEGER NOT NULL,
+      responded_at INTEGER,
+      FOREIGN KEY (requester_id) REFERENCES users(id),
+      FOREIGN KEY (requested_user_id) REFERENCES users(id),
+      UNIQUE(requester_id, requested_user_id),
+      CHECK (requester_id <> requested_user_id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
@@ -214,6 +238,10 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
     CREATE INDEX IF NOT EXISTS idx_cookbook_recipes_recipe_id ON cookbook_recipes(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_cookbook_shares_cookbook_id ON cookbook_shares(cookbook_id);
     CREATE INDEX IF NOT EXISTS idx_cookbook_shares_shared_with ON cookbook_shares(shared_with_user_id);
+    CREATE INDEX IF NOT EXISTS idx_friendships_user_a ON friendships(user_a_id);
+    CREATE INDEX IF NOT EXISTS idx_friendships_user_b ON friendships(user_b_id);
+    CREATE INDEX IF NOT EXISTS idx_friend_requests_requested_user ON friend_requests(requested_user_id);
+    CREATE INDEX IF NOT EXISTS idx_friend_requests_status ON friend_requests(status);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email);
     CREATE INDEX IF NOT EXISTS idx_recipe_share_links_token ON recipe_share_links(token);
     CREATE INDEX IF NOT EXISTS idx_recipe_share_links_created_at ON recipe_share_links(created_at);

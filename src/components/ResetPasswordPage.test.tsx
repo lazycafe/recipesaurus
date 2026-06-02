@@ -26,6 +26,7 @@ describe('ResetPasswordPage', () => {
         login: vi.fn(),
         register: vi.fn(),
         logout: vi.fn(),
+        updateProfile: vi.fn(),
         verifyEmail: vi.fn(),
         resendVerification: vi.fn(),
         forgotPassword: vi.fn(),
@@ -38,6 +39,7 @@ describe('ResetPasswordPage', () => {
       ai: {} as any,
       billing: {} as any,
       discover: {} as any,
+      profile: {} as any,
     });
   });
 

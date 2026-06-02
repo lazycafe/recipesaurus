@@ -72,6 +72,7 @@ describe('ShareCookbookModal', () => {
       ai: {} as IClient['ai'],
       billing: {} as IClient['billing'],
       discover: {} as IClient['discover'],
+      profile: {} as IClient['profile'],
     });
   });
 

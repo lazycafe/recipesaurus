@@ -4,6 +4,7 @@ export interface DbUser {
   id: string;
   email: string;
   name: string;
+  avatar_url: string | null;
   password_hash: string;
   password_salt: string;
   created_at: number;
@@ -86,6 +87,21 @@ export interface DbLoginAttempt {
   success: number;
 }
 
+export interface DbFriendship {
+  user_a_id: string;
+  user_b_id: string;
+  created_at: number;
+}
+
+export interface DbFriendRequest {
+  id: string;
+  requester_id: string;
+  requested_user_id: string;
+  status: 'pending' | 'accepted' | 'declined';
+  created_at: number;
+  responded_at: number | null;
+}
+
 // Query result types
 export interface QueryResult<T> {
   results: T[];
@@ -122,6 +138,26 @@ export interface UserInfo {
   id: string;
   email: string;
   name: string;
+  avatarUrl?: string | null;
+}
+
+export interface ProfileUserInfo {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+}
+
+export interface UserProfileInfo {
+  user: ProfileUserInfo;
+  isCurrentUser: boolean;
+  isFriend: boolean;
+  hasPendingFriendRequest: boolean;
+  incomingFriendRequestId?: string | null;
+  friendCount: number;
+  recipeCount: number;
+  cookbookCount: number;
+  recipes: RecipeInfo[];
+  cookbooks: CookbookInfo[];
 }
 
 // Public recipe format
@@ -149,6 +185,7 @@ export interface RecipeInfo {
 // Public cookbook format
 export interface CookbookInfo {
   id: string;
+  ownerId?: string;
   name: string;
   description?: string | null;
   coverImage?: string | null;
@@ -219,11 +256,14 @@ export interface DbUserSubscription {
 // Notification info
 export interface NotificationInfo {
   id: string;
-  type: 'cookbook_invite' | 'recipe_added';
+  type: 'cookbook_invite' | 'recipe_added' | 'friend_request';
   title: string;
   message: string;
   data: {
     inviteId?: string;
+    friendRequestId?: string;
+    requesterId?: string;
+    requesterName?: string;
     cookbookId?: string;
     cookbookName?: string;
     recipeId?: string;

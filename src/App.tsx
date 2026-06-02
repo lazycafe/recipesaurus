@@ -30,6 +30,7 @@ import { PublicCookbookDetailPage } from './components/PublicCookbookDetailPage'
 import { MyRecipesPage } from './components/MyRecipesPage';
 import { MealPlannerPage } from './components/MealPlannerPage';
 import { canAccessMealPlanner } from './utils/mealPlannerAccess';
+import { ProfilePage } from './components/ProfilePage';
 import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
 
@@ -51,6 +52,11 @@ function CookbooksView({
       onCreateCookbook={onCreateCookbook}
     />
   );
+}
+
+function CurrentProfileRedirect() {
+  const { user } = useAuth();
+  return <Navigate to={user ? `/profiles/${user.id}` : '/'} replace />;
 }
 
 function ScrollToTop() {
@@ -148,6 +154,14 @@ function RecipeApp() {
             <Route
               path="/settings"
               element={<SettingsPage />}
+            />
+            <Route
+              path="/profile"
+              element={<CurrentProfileRedirect />}
+            />
+            <Route
+              path="/profiles/:userId"
+              element={<ProfilePage />}
             />
             <Route
               path="/terms"

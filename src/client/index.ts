@@ -11,6 +11,8 @@ export type {
   CookbookShareLink,
   RecipeShareLink,
   RecipeSharePayload,
+  ProfileUser,
+  UserProfile,
   CreateRecipeData,
   UpdateRecipeData,
   CreateCookbookData,

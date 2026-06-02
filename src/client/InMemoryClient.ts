@@ -90,6 +90,14 @@ export interface ICoreHandlers {
   getMealPlanUsage(ctx: RequestContext): Promise<ApiResult<{ usage: MealPlanUsage }>>;
   getMealPlanHistory(ctx: RequestContext): Promise<ApiResult<{ history: MealPlanHistoryItem[] }>>;
   createMealPlan(ctx: RequestContext, request: string): Promise<ApiResult<MealPlanResult>>;
+  // Profiles and friends
+  updateProfile(ctx: RequestContext, data: { name?: string; avatarUrl?: string | null }): Promise<ApiResult<{ user: User }>>;
+  getProfile(ctx: RequestContext, userId: string): Promise<ApiResult<{ profile: import('./types').UserProfile }>>;
+  getFriends(ctx: RequestContext, userId: string): Promise<ApiResult<{ friends: import('./types').ProfileUser[] }>>;
+  addFriend(ctx: RequestContext, data: { userId?: string; email?: string }): Promise<ApiResult<{ friend: import('./types').ProfileUser }>>;
+  removeFriend(ctx: RequestContext, friendId: string): Promise<ApiResult<{ success: boolean }>>;
+  acceptFriendRequest(ctx: RequestContext, friendRequestId: string): Promise<ApiResult<{ success: boolean; friend: import('./types').ProfileUser }>>;
+  declineFriendRequest(ctx: RequestContext, friendRequestId: string): Promise<ApiResult<{ success: boolean }>>;
 }
 
 // In-memory token storage for testing
@@ -164,6 +172,11 @@ export class InMemoryClient implements IClient {
     logout: async (): Promise<ApiResponse<{ success: boolean }>> => {
       const result = await this.handlers.logout(this.getContext());
       this.tokenStorage.clearToken();
+      return toApiResponse(result);
+    },
+
+    updateProfile: async (data: { name?: string; avatarUrl?: string | null }): Promise<ApiResponse<{ user: User }>> => {
+      const result = await this.handlers.updateProfile(this.getContext(), data);
       return toApiResponse(result);
     },
 
@@ -437,6 +450,38 @@ export class InMemoryClient implements IClient {
 
     saveCookbook: async (cookbookId: string): Promise<ApiResponse<{ id: string }>> => {
       const result = await this.handlers.saveCookbook(this.getContext(), cookbookId);
+      return toApiResponse(result);
+    },
+  };
+
+  profile = {
+    get: async (userId: string): Promise<ApiResponse<{ profile: import('./types').UserProfile }>> => {
+      const result = await this.handlers.getProfile(this.getContext(), userId);
+      return toApiResponse(result);
+    },
+
+    listFriends: async (userId: string): Promise<ApiResponse<{ friends: import('./types').ProfileUser[] }>> => {
+      const result = await this.handlers.getFriends(this.getContext(), userId);
+      return toApiResponse(result);
+    },
+
+    addFriend: async (data: { userId?: string; email?: string }): Promise<ApiResponse<{ friend: import('./types').ProfileUser }>> => {
+      const result = await this.handlers.addFriend(this.getContext(), data);
+      return toApiResponse(result);
+    },
+
+    removeFriend: async (userId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      const result = await this.handlers.removeFriend(this.getContext(), userId);
+      return toApiResponse(result);
+    },
+
+    acceptFriendRequest: async (friendRequestId: string): Promise<ApiResponse<{ success: boolean; friend: import('./types').ProfileUser }>> => {
+      const result = await this.handlers.acceptFriendRequest(this.getContext(), friendRequestId);
+      return toApiResponse(result);
+    },
+
+    declineFriendRequest: async (friendRequestId: string): Promise<ApiResponse<{ success: boolean }>> => {
+      const result = await this.handlers.declineFriendRequest(this.getContext(), friendRequestId);
       return toApiResponse(result);
     },
   };

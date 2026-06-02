@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Heart, Loader2, User } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
@@ -104,10 +104,17 @@ export function PublicCookbookDetailPage() {
           {cookbook.description && <p className="description">{cookbook.description}</p>}
           <div className="meta">
             {cookbook.ownerName && (
-              <span className="author">
-                <User size={14} />
-                {cookbook.ownerName}
-              </span>
+              cookbook.ownerId ? (
+                <Link to={`/profiles/${cookbook.ownerId}`} className="author">
+                  <User size={14} />
+                  {cookbook.ownerName}
+                </Link>
+              ) : (
+                <span className="author">
+                  <User size={14} />
+                  {cookbook.ownerName}
+                </span>
+              )
             )}
             <span className="recipe-count">
               <BookOpen size={14} />

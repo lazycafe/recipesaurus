@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
+  avatar_url TEXT,
   password_hash TEXT NOT NULL,
   password_salt TEXT NOT NULL,
   email_verified INTEGER NOT NULL DEFAULT 0,
@@ -150,11 +151,42 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Mutual friendships between users. user_a_id and user_b_id are stored in
+-- lexical order so each friendship has exactly one row.
+CREATE TABLE IF NOT EXISTS friendships (
+  user_a_id TEXT NOT NULL,
+  user_b_id TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (user_a_id, user_b_id),
+  FOREIGN KEY (user_a_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_b_id) REFERENCES users(id) ON DELETE CASCADE,
+  CHECK (user_a_id <> user_b_id)
+);
+
+-- Friend requests are one-way until accepted. Accepted requests create a row in
+-- friendships, which remains the canonical mutual-friend table.
+CREATE TABLE IF NOT EXISTS friend_requests (
+  id TEXT PRIMARY KEY,
+  requester_id TEXT NOT NULL,
+  requested_user_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at INTEGER NOT NULL,
+  responded_at INTEGER,
+  FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (requested_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(requester_id, requested_user_id),
+  CHECK (requester_id <> requested_user_id)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX IF NOT EXISTS idx_cookbook_invites_invited_user ON cookbook_invites(invited_user_id);
 CREATE INDEX IF NOT EXISTS idx_cookbook_invites_status ON cookbook_invites(status);
+CREATE INDEX IF NOT EXISTS idx_friendships_user_a ON friendships(user_a_id);
+CREATE INDEX IF NOT EXISTS idx_friendships_user_b ON friendships(user_b_id);
+CREATE INDEX IF NOT EXISTS idx_friend_requests_requested_user ON friend_requests(requested_user_id);
+CREATE INDEX IF NOT EXISTS idx_friend_requests_status ON friend_requests(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_recipes_user_id ON recipes(user_id);
