@@ -619,6 +619,29 @@ export class CoreHandlers {
     }
   }
 
+  private async createFriendRequestAcceptedNotification(
+    acceptedBy: DbUser,
+    requesterId: string,
+    now: number
+  ): Promise<void> {
+    await this.db.run(
+      'INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      this.crypto.generateId(),
+      requesterId,
+      'friend_request_accepted',
+      'Friend request accepted',
+      `${acceptedBy.name} accepted your friend request`,
+      JSON.stringify({
+        friendId: acceptedBy.id,
+        friendName: acceptedBy.name,
+        accepterId: acceptedBy.id,
+        accepterName: acceptedBy.name,
+      }),
+      0,
+      now
+    );
+  }
+
   async updateProfile(
     ctx: RequestContext,
     data: { name?: string; avatarUrl?: string | null }
@@ -961,6 +984,7 @@ export class CoreHandlers {
         now,
         request.id
       );
+      await this.createFriendRequestAcceptedNotification(user, request.requester_id, now);
     }
 
     await this.deleteFriendRequestNotifications(

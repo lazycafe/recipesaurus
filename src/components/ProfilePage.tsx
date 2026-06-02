@@ -24,7 +24,7 @@ function mapCookbook(cookbook: ClientCookbook): Cookbook {
   };
 }
 
-type FriendRequestFeedback = {
+type FriendsModalFeedback = {
   type: 'success' | 'error';
   message: string;
 };
@@ -50,7 +50,8 @@ export function ProfilePage() {
   const [showFriends, setShowFriends] = useState(false);
   const [friends, setFriends] = useState<ProfileUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
-  const [friendRequestFeedback, setFriendRequestFeedback] = useState<FriendRequestFeedback | null>(null);
+  const [removingFriendId, setRemovingFriendId] = useState<string | null>(null);
+  const [friendsModalFeedback, setFriendsModalFeedback] = useState<FriendsModalFeedback | null>(null);
 
   const loadProfile = useCallback(async () => {
     if (!targetUserId) return;
@@ -88,7 +89,7 @@ export function ProfilePage() {
   };
 
   const openFriends = async () => {
-    setFriendRequestFeedback(null);
+    setFriendsModalFeedback(null);
     setShowFriends(true);
     await loadFriends();
   };
@@ -116,22 +117,47 @@ export function ProfilePage() {
     if (!friendEmail.trim()) return;
 
     setIsFriendActionLoading(true);
-    setFriendRequestFeedback(null);
+    setFriendsModalFeedback(null);
     const { data, error: friendError } = await client.profile.addFriend({ email: friendEmail.trim() });
     setIsFriendActionLoading(false);
 
     if (data?.friend) {
       setFriendEmail('');
-      setFriendRequestFeedback({
+      setFriendsModalFeedback({
         type: 'success',
         message: `Friend request sent to ${data.friend.name}`,
       });
     } else {
-      setFriendRequestFeedback({
+      setFriendsModalFeedback({
         type: 'error',
         message: friendError || 'Could not add friend',
       });
     }
+  };
+
+  const handleRemoveFriendFromModal = async (friend: ProfileUser) => {
+    setRemovingFriendId(friend.id);
+    setFriendsModalFeedback(null);
+    const { error: removeError } = await client.profile.removeFriend(friend.id);
+    setRemovingFriendId(null);
+
+    if (removeError) {
+      setFriendsModalFeedback({
+        type: 'error',
+        message: removeError || 'Could not remove friend',
+      });
+      return;
+    }
+
+    setFriends(current => current.filter(item => item.id !== friend.id));
+    setProfile(current => current?.isCurrentUser
+      ? { ...current, friendCount: Math.max(0, current.friendCount - 1) }
+      : current
+    );
+    setFriendsModalFeedback({
+      type: 'success',
+      message: `${friend.name} removed from friends`,
+    });
   };
 
   const handleToggleFriend = async () => {
@@ -331,35 +357,33 @@ export function ProfilePage() {
               <h2>{profile.user.name}'s Friends</h2>
             </div>
 
-            {profile.isCurrentUser && (
-              <form className="friends-modal-add" onSubmit={handleAddFriendByEmail}>
-                <div className="profile-input-row">
-                  <Users size={18} />
-                  <input
-                    type="email"
-                    value={friendEmail}
-                    onChange={(event) => {
-                      setFriendEmail(event.target.value);
-                      setFriendRequestFeedback(null);
-                    }}
-                    placeholder="friend@example.com"
-                    aria-label="Friend email"
-                  />
-                </div>
-                <button className="btn-primary" disabled={isFriendActionLoading || !friendEmail.trim()}>
-                  {isFriendActionLoading ? <Loader2 size={16} className="spin" /> : <UserPlus size={16} />}
-                  Add Friend
-                </button>
-              </form>
-            )}
+            <form className="friends-modal-add" onSubmit={handleAddFriendByEmail}>
+              <div className="profile-input-row">
+                <Users size={18} />
+                <input
+                  type="email"
+                  value={friendEmail}
+                  onChange={(event) => {
+                    setFriendEmail(event.target.value);
+                    setFriendsModalFeedback(null);
+                  }}
+                  placeholder="friend@example.com"
+                  aria-label="Friend email"
+                />
+              </div>
+              <button className="btn-primary" disabled={isFriendActionLoading || !friendEmail.trim()}>
+                {isFriendActionLoading ? <Loader2 size={16} className="spin" /> : <UserPlus size={16} />}
+                Add Friend
+              </button>
+            </form>
 
-            {friendRequestFeedback && (
+            {friendsModalFeedback && (
               <div
-                className={`friends-modal-feedback ${friendRequestFeedback.type}`}
-                role={friendRequestFeedback.type === 'error' ? 'alert' : 'status'}
+                className={`friends-modal-feedback ${friendsModalFeedback.type}`}
+                role={friendsModalFeedback.type === 'error' ? 'alert' : 'status'}
               >
-                {friendRequestFeedback.type === 'success' ? <Check size={16} /> : <X size={16} />}
-                <span>{friendRequestFeedback.message}</span>
+                {friendsModalFeedback.type === 'success' ? <Check size={16} /> : <X size={16} />}
+                <span>{friendsModalFeedback.message}</span>
               </div>
             )}
 
@@ -372,15 +396,31 @@ export function ProfilePage() {
             ) : (
               <div className="friends-list">
                 {friends.map(friend => (
-                  <Link
-                    key={friend.id}
-                    to={`/profiles/${friend.id}`}
-                    className="friend-list-item"
-                    onClick={() => setShowFriends(false)}
-                  >
-                    <UserAvatar name={friend.name} avatarUrl={friend.avatarUrl} size="sm" />
-                    <span>{friend.name}</span>
-                  </Link>
+                  <div key={friend.id} className="friend-list-item">
+                    <Link
+                      to={`/profiles/${friend.id}`}
+                      className="friend-list-link"
+                      onClick={() => setShowFriends(false)}
+                    >
+                      <UserAvatar name={friend.name} avatarUrl={friend.avatarUrl} size="sm" />
+                      <span>{friend.name}</span>
+                    </Link>
+                    {profile.isCurrentUser && (
+                      <button
+                        type="button"
+                        className="friend-remove-button"
+                        onClick={() => handleRemoveFriendFromModal(friend)}
+                        disabled={removingFriendId === friend.id}
+                        aria-label={`Remove ${friend.name}`}
+                      >
+                        {removingFriendId === friend.id ? (
+                          <Loader2 size={16} className="spin" />
+                        ) : (
+                          <UserMinus size={16} />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

@@ -158,6 +158,8 @@ export function UserMenu() {
                         <Book size={16} />
                       ) : notification.type === 'friend_request' ? (
                         <UserPlus size={16} />
+                      ) : notification.type === 'friend_request_accepted' ? (
+                        <Check size={16} />
                       ) : (
                         <ChefHat size={16} />
                       )}

@@ -290,7 +290,7 @@ export interface IClient {
 
 export interface Notification {
   id: string;
-  type: 'cookbook_invite' | 'recipe_added' | 'friend_request';
+  type: 'cookbook_invite' | 'recipe_added' | 'friend_request' | 'friend_request_accepted';
   title: string;
   message: string;
   data: {
@@ -298,6 +298,10 @@ export interface Notification {
     friendRequestId?: string;
     requesterId?: string;
     requesterName?: string;
+    friendId?: string;
+    friendName?: string;
+    accepterId?: string;
+    accepterName?: string;
     cookbookId?: string;
     cookbookName?: string;
     recipeId?: string;

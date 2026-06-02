@@ -892,6 +892,32 @@ async function deleteFriendRequestNotifications(
   }
 }
 
+async function createFriendRequestAcceptedNotification(
+  db: D1Database,
+  acceptedBy: User,
+  requesterId: string,
+  now: number
+): Promise<void> {
+  await db.prepare(`
+    INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    generateId(),
+    requesterId,
+    'friend_request_accepted',
+    'Friend request accepted',
+    `${acceptedBy.name} accepted your friend request`,
+    JSON.stringify({
+      friendId: acceptedBy.id,
+      friendName: acceptedBy.name,
+      accepterId: acceptedBy.id,
+      accepterName: acceptedBy.name,
+    }),
+    0,
+    now
+  ).run();
+}
+
 async function postDiscordWebhook(webhookUrl: string | undefined, payload: unknown): Promise<boolean> {
   if (!webhookUrl) {
     console.warn('Discord webhook URL is not configured');
@@ -1611,6 +1637,7 @@ async function acceptFriendRequestForUser(
     await db.prepare(
       "UPDATE friend_requests SET status = 'accepted', responded_at = ? WHERE id = ?"
     ).bind(now, request.id).run();
+    await createFriendRequestAcceptedNotification(db, user, request.requester_id, now);
   }
 
   await deleteFriendRequestNotifications(db, user.id, notificationIds);

@@ -50,9 +50,27 @@ describe('Profiles and friends', () => {
     expect(accepted.error).toBeUndefined();
     expect(accepted.data?.friend.id).toBe(alice.data?.user?.id);
 
+    const aliceNotifications = await aliceClient.notifications.list();
+    expect(aliceNotifications.data?.notifications).toHaveLength(1);
+    expect(aliceNotifications.data?.notifications[0]).toMatchObject({
+      type: 'friend_request_accepted',
+      title: 'Friend request accepted',
+      message: 'Bob Baker accepted your friend request',
+      data: {
+        friendId: bob.data?.user?.id,
+        friendName: 'Bob Baker',
+        accepterId: bob.data?.user?.id,
+        accepterName: 'Bob Baker',
+      },
+      isRead: false,
+    });
+
     const acceptedAgain = await bobClient.profile.acceptFriendRequest(friendRequestId);
     expect(acceptedAgain.error).toBeUndefined();
     expect(acceptedAgain.data?.friend.id).toBe(alice.data?.user?.id);
+
+    const aliceNotificationsAfterRetry = await aliceClient.notifications.list();
+    expect(aliceNotificationsAfterRetry.data?.notifications).toHaveLength(1);
 
     const aliceProfileAfterAccept = await aliceClient.profile.get(alice.data!.user!.id);
     expect(aliceProfileAfterAccept.data?.profile.friendCount).toBe(1);

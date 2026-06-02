@@ -117,6 +117,8 @@ export function NotificationDropdown() {
                       <Book size={18} />
                     ) : notification.type === 'friend_request' ? (
                       <UserPlus size={18} />
+                    ) : notification.type === 'friend_request_accepted' ? (
+                      <Check size={18} />
                     ) : (
                       <ChefHat size={18} />
                     )}

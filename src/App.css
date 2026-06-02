@@ -4630,8 +4630,8 @@ img {
 .friend-list-item {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
+  justify-content: space-between;
+  gap: var(--space-2);
   border-radius: var(--radius-md);
   transition: background var(--transition-fast);
 }
@@ -4640,12 +4640,46 @@ img {
   background: var(--color-cream);
 }
 
-.friend-list-item span {
+.friend-list-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1;
+  padding: var(--space-3);
+}
+
+.friend-list-link span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+
+.friend-remove-button {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-danger);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.friend-remove-button:hover:not(:disabled) {
+  background: var(--color-danger-light);
+}
+
+.friend-remove-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .profile-page .carousel-header,
