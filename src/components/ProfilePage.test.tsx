@@ -742,4 +742,95 @@ describe('ProfilePage', () => {
       expect.objectContaining({ message: 'Friend request sent to Bob Baker', type: 'success' })
     );
   });
+
+  it('only renders public recipes and cookbooks in profile carousels', async () => {
+    const publicRecipe: Recipe = {
+      id: 'recipe-public',
+      title: 'Public Pasta',
+      description: 'Shareable noodles',
+      ingredients: ['pasta'],
+      instructions: ['Boil water'],
+      tags: [],
+      isPublic: true,
+      ownerId: currentUser.id,
+      ownerName: currentUser.name,
+      isOwner: true,
+      createdAt: 1,
+    };
+    const privateRecipe: Recipe = {
+      ...publicRecipe,
+      id: 'recipe-private',
+      title: 'Private Tart',
+      isPublic: false,
+      createdAt: 2,
+    };
+    const publicCookbook: Cookbook = {
+      id: 'cookbook-public',
+      ownerId: currentUser.id,
+      name: 'Public Cookbook',
+      description: null,
+      coverImage: null,
+      recipeCount: 1,
+      isSystem: false,
+      systemType: null,
+      isPublic: true,
+      createdAt: 1,
+      updatedAt: 1,
+      isOwner: true,
+      ownerName: currentUser.name,
+    };
+    const privateCookbook: Cookbook = {
+      ...publicCookbook,
+      id: 'cookbook-private',
+      name: 'Secret Cookbook',
+      isPublic: false,
+      updatedAt: 2,
+    };
+
+    const getProfile = vi.fn(async () => ({
+      data: {
+        profile: {
+          user: {
+            id: currentUser.id,
+            name: currentUser.name,
+            avatarUrl: currentUser.avatarUrl,
+          },
+          isCurrentUser: true,
+          isFriend: false,
+          hasPendingFriendRequest: false,
+          incomingFriendRequestId: null,
+          friendCount: 0,
+          recipeCount: 2,
+          cookbookCount: 2,
+          recipes: [privateRecipe, publicRecipe],
+          cookbooks: [privateCookbook, publicCookbook],
+        } satisfies UserProfile,
+      },
+    }));
+
+    const client = {
+      profile: {
+        get: getProfile,
+        listFriends: vi.fn(),
+        addFriend: vi.fn(),
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/profiles/${currentUser.id}`]}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    await screen.findByText('Public Pasta');
+
+    expect(screen.queryByText('Private Tart')).toBeNull();
+    expect(screen.getAllByText('Public Cookbook').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Secret Cookbook')).toBeNull();
+  });
 });
