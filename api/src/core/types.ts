@@ -256,7 +256,7 @@ export interface DbUserSubscription {
 // Notification info
 export interface NotificationInfo {
   id: string;
-  type: 'cookbook_invite' | 'recipe_added' | 'friend_request' | 'friend_request_accepted';
+  type: 'cookbook_invite' | 'recipe_added' | 'friend_request' | 'friend_request_accepted' | 'recipe_share';
   title: string;
   message: string;
   data: {
@@ -271,8 +271,11 @@ export interface NotificationInfo {
     cookbookId?: string;
     cookbookName?: string;
     recipeId?: string;
+    recipeTitle?: string;
+    shareToken?: string;
     invitedBy?: string;
     addedBy?: string;
+    sharedBy?: string;
   } | null;
   isRead: boolean;
   createdAt: number;

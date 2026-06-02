@@ -2748,6 +2748,86 @@ async function handleCreateRecipeShareLink(request: Request, db: D1Database): Pr
   return jsonResponse({ token, createdAt }, 201, corsHeaders(origin));
 }
 
+async function handleShareRecipeWithUser(request: Request, db: D1Database): Promise<Response> {
+  const user = await getSessionUser(request, db);
+  const origin = request.headers.get('Origin');
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const body = await request.json() as { recipe?: RecipeSharePayload; userId?: string };
+  const targetUserId = typeof body.userId === 'string' ? body.userId.trim() : '';
+  if (!targetUserId) {
+    return errorResponse('User is required', 400, origin);
+  }
+
+  const targetUser = await db.prepare(
+    'SELECT id, name, avatar_url FROM users WHERE id = ?'
+  ).bind(targetUserId).first<{ id: string; name: string; avatar_url: string | null }>();
+
+  if (!targetUser) {
+    return errorResponse('User not found', 404, origin);
+  }
+
+  if (targetUser.id === user.id) {
+    return errorResponse('Cannot share with yourself', 400, origin);
+  }
+
+  if (!(await areFriends(db, user.id, targetUser.id))) {
+    return errorResponse('You can only share recipes with friends', 400, origin);
+  }
+
+  const rawRecipe = body.recipe;
+  const recipe = rawRecipe ? normalizeRecipeSharePayload(rawRecipe) : null;
+  if (!recipe) {
+    return errorResponse('Recipe must have a title, ingredients, and instructions', 400, origin);
+  }
+
+  const recipeData = JSON.stringify(recipe);
+  if (recipeData.length > MAX_RECIPE_SHARE_BYTES) {
+    return errorResponse('Recipe is too large to share', 413, origin);
+  }
+
+  const id = generateId();
+  const token = generateId();
+  const notificationId = generateId();
+  const createdAt = Date.now();
+
+  await db.prepare(`
+    INSERT INTO recipe_share_links (id, token, recipe_data, created_at)
+    VALUES (?, ?, ?, ?)
+  `).bind(id, token, recipeData, createdAt).run();
+
+  await db.prepare(`
+    INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    notificationId,
+    targetUser.id,
+    'recipe_share',
+    'Recipe shared with you',
+    `${user.name} shared "${recipe.title}" with you`,
+    JSON.stringify({
+      shareToken: token,
+      recipeTitle: recipe.title,
+      sharedBy: user.name,
+    }),
+    0,
+    createdAt
+  ).run();
+
+  return jsonResponse(
+    {
+      success: true,
+      sharedWith: formatProfileUser(targetUser),
+      shareLink: { token, createdAt },
+    },
+    201,
+    corsHeaders(origin)
+  );
+}
+
 async function handleGetSharedRecipe(request: Request, db: D1Database, token: string): Promise<Response> {
   const origin = request.headers.get('Origin');
   const link = await db.prepare('SELECT * FROM recipe_share_links WHERE token = ?')
@@ -4296,6 +4376,9 @@ export default {
       }
       if (path === '/api/recipe-shares' && method === 'POST') {
         return handleCreateRecipeShareLink(request, env.DB);
+      }
+      if (path === '/api/recipe-shares/share' && method === 'POST') {
+        return handleShareRecipeWithUser(request, env.DB);
       }
       const recipeShareMatch = path.match(/^\/api\/recipe-shares\/([^/]+)$/);
       if (recipeShareMatch && method === 'GET') {

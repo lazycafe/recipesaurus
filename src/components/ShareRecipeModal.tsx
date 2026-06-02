@@ -1,9 +1,11 @@
-import { useState } from 'react';
-import { X, Mail, Link, Copy, Check, Loader2 } from 'lucide-react';
-import { Recipe } from '../client/types';
+import { useEffect, useState } from 'react';
+import { X, Link, Copy, Check, Loader2, Users } from 'lucide-react';
+import { ProfileUser, Recipe, RecipeSharePayload } from '../client/types';
 import { Recipe as LocalRecipe } from '../types/Recipe';
 import { ModalOverlay } from './ModalOverlay';
 import { useClient } from '../client/ClientContext';
+import { useAuth } from '../context/AuthContext';
+import { UserAvatar } from './UserAvatar';
 
 interface ShareRecipeModalProps {
   recipe: Recipe | LocalRecipe;
@@ -12,12 +14,62 @@ interface ShareRecipeModalProps {
 
 export function ShareRecipeModal({ recipe, onClose }: ShareRecipeModalProps) {
   const client = useClient();
-  const [activeTab, setActiveTab] = useState<'email' | 'link'>('link');
-  const [email, setEmail] = useState('');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'user' | 'link'>('user');
+  const [friends, setFriends] = useState<ProfileUser[]>([]);
+  const [pendingShareUserIds, setPendingShareUserIds] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isCreatingLink, setIsCreatingLink] = useState(false);
+  const [isLoadingFriends, setIsLoadingFriends] = useState(true);
+  const [sharingUserId, setSharingUserId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const getSharePayload = (): RecipeSharePayload => ({
+    title: recipe.title,
+    description: recipe.description,
+    ingredients: recipe.ingredients,
+    instructions: recipe.instructions,
+    prepTime: recipe.prepTime,
+    cookTime: recipe.cookTime,
+    servings: recipe.servings,
+    imageUrl: recipe.imageUrl,
+    sourceUrl: recipe.sourceUrl || '',
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadFriends = async () => {
+      setIsLoadingFriends(true);
+      if (!user) {
+        if (isMounted) {
+          setFriends([]);
+          setError('Sign in to share with users');
+          setIsLoadingFriends(false);
+        }
+        return;
+      }
+
+      const { data, error: friendsError } = await client.profile.listFriends(user.id);
+      if (!isMounted) return;
+
+      if (data?.friends) {
+        setFriends(data.friends);
+        setError('');
+      } else if (friendsError) {
+        setError(friendsError);
+      }
+      setIsLoadingFriends(false);
+    };
+
+    loadFriends();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [client, user]);
 
   const createShareUrl = async () => {
     if (shareUrl) return shareUrl;
@@ -25,20 +77,8 @@ export function ShareRecipeModal({ recipe, onClose }: ShareRecipeModalProps) {
     setIsCreatingLink(true);
     setError('');
 
-    const shareData = {
-      title: recipe.title,
-      description: recipe.description,
-      ingredients: recipe.ingredients,
-      instructions: recipe.instructions,
-      prepTime: recipe.prepTime,
-      cookTime: recipe.cookTime,
-      servings: recipe.servings,
-      imageUrl: recipe.imageUrl,
-      sourceUrl: recipe.sourceUrl || '',
-    };
-
     try {
-      const { data, error: apiError } = await client.recipes.createShareLink(shareData);
+      const { data, error: apiError } = await client.recipes.createShareLink(getSharePayload());
 
       if (!data) {
         const message = apiError || 'Unable to create share link';
@@ -58,29 +98,33 @@ export function ShareRecipeModal({ recipe, onClose }: ShareRecipeModalProps) {
     }
   };
 
+  const handleShareWithUser = async (friend: ProfileUser) => {
+    if (sharingUserId) return;
+
+    setSharingUserId(friend.id);
+    setError('');
+    setSuccess('');
+
+    const { data, error: apiError } = await client.recipes.shareWithUser(getSharePayload(), friend.id);
+    if (apiError) {
+      setError(apiError);
+    } else if (data?.sharedWith) {
+      setSuccess(`Shared with ${data.sharedWith.name}`);
+      setPendingShareUserIds(current => new Set(current).add(friend.id));
+      if (data.shareLink?.token) {
+        setShareUrl(`${window.location.origin}/shared-recipe/${data.shareLink.token}`);
+      }
+    }
+
+    setSharingUserId(null);
+  };
+
   const handleCopyLink = async () => {
     try {
       const url = await createShareUrl();
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Error state is set by createShareUrl.
-    }
-  };
-
-  const handleShareByEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-
-    try {
-      const url = await createShareUrl();
-      const subject = encodeURIComponent(`Check out this recipe: ${recipe.title}`);
-      const body = encodeURIComponent(
-        `I wanted to share this recipe with you!\n\n${recipe.title}\n${recipe.description}\n\nView the full recipe here: ${url}`
-      );
-      window.open(`mailto:${email}?subject=${subject}&body=${body}`, '_blank');
-      setEmail('');
     } catch {
       // Error state is set by createShareUrl.
     }
@@ -97,45 +141,73 @@ export function ShareRecipeModal({ recipe, onClose }: ShareRecipeModalProps) {
 
         <div className="share-tabs">
           <button
-            className={`share-tab ${activeTab === 'email' ? 'active' : ''}`}
-            onClick={() => setActiveTab('email')}
+            className={`share-tab ${activeTab === 'user' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('user');
+              setError('');
+              setSuccess('');
+            }}
           >
-            <Mail size={16} />
-            Share by Email
+            <Users size={16} />
+            Share with User
           </button>
           <button
             className={`share-tab ${activeTab === 'link' ? 'active' : ''}`}
-            onClick={() => setActiveTab('link')}
+            onClick={() => {
+              setActiveTab('link');
+              setError('');
+              setSuccess('');
+            }}
           >
             <Link size={16} />
             Share Link
           </button>
         </div>
 
-        {activeTab === 'email' ? (
+        {activeTab === 'user' ? (
           <div className="share-content">
-            <form onSubmit={handleShareByEmail}>
-              {error && <div className="form-error">{error}</div>}
-              <div className="share-input-group">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  placeholder="Enter email address"
-                  disabled={isCreatingLink}
-                />
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={!email.trim() || isCreatingLink}
-                >
-                  {isCreatingLink ? <Loader2 size={16} className="spin" /> : 'Share'}
-                </button>
-              </div>
-            </form>
+            {error && <div className="form-error">{error}</div>}
+            {success && <div className="form-success">{success}</div>}
+
             <p className="share-link-info">
-              This will open your email client with a pre-filled message containing the recipe link.
+              Choose one of your Recipesaurus friends to send this recipe.
             </p>
+
+            {isLoadingFriends ? (
+              <div className="loading-state">
+                <Loader2 size={24} className="spin" />
+              </div>
+            ) : friends.length === 0 ? (
+              <div className="share-empty-state">Add friends before sharing recipes with users.</div>
+            ) : (
+              <div className="share-friend-list">
+                {friends.map(friend => {
+                  const isPending = pendingShareUserIds.has(friend.id);
+                  const isSharing = sharingUserId === friend.id;
+
+                  return (
+                    <div key={friend.id} className="share-friend-item">
+                      <div className="share-friend-info">
+                        <UserAvatar name={friend.name} avatarUrl={friend.avatarUrl} size="sm" />
+                        <div>
+                          <span className="share-item-name">{friend.name}</span>
+                          <span className="share-item-email">{isPending ? 'Shared' : 'Friend'}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-secondary share-friend-action"
+                        onClick={() => handleShareWithUser(friend)}
+                        disabled={Boolean(sharingUserId) || isPending}
+                      >
+                        {isSharing ? <Loader2 size={16} className="spin" /> : isPending ? <Check size={16} /> : null}
+                        {isPending ? 'Shared' : 'Share'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : (
           <div className="share-content">

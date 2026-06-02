@@ -200,6 +200,13 @@ export class HttpClient implements IClient {
       return this.transport.request('POST', '/api/recipe-shares', data);
     },
 
+    shareWithUser: (
+      data: RecipeSharePayload,
+      userId: string
+    ): Promise<ApiResponse<{ success: boolean; sharedWith?: ProfileUser; shareLink?: RecipeShareLink }>> => {
+      return this.transport.request('POST', '/api/recipe-shares/share', { recipe: data, userId });
+    },
+
     getShared: (token: string): Promise<ApiResponse<{ recipe: RecipeSharePayload }>> => {
       return this.transport.request('GET', `/api/recipe-shares/${token}`);
     },

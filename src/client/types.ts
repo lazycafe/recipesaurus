@@ -213,6 +213,7 @@ export interface IClient {
     delete(id: string): Promise<ApiResponse<{ success: boolean }>>;
     getCookbooksForRecipe(recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>>;
     createShareLink(data: RecipeSharePayload): Promise<ApiResponse<RecipeShareLink>>;
+    shareWithUser(data: RecipeSharePayload, userId: string): Promise<ApiResponse<{ success: boolean; sharedWith?: ProfileUser; shareLink?: RecipeShareLink }>>;
     getShared(token: string): Promise<ApiResponse<{ recipe: RecipeSharePayload }>>;
     saveFromPreview(data: {
       title: string;
@@ -291,7 +292,7 @@ export interface IClient {
 
 export interface Notification {
   id: string;
-  type: 'cookbook_invite' | 'recipe_added' | 'friend_request' | 'friend_request_accepted';
+  type: 'cookbook_invite' | 'recipe_added' | 'friend_request' | 'friend_request_accepted' | 'recipe_share';
   title: string;
   message: string;
   data: {
@@ -306,8 +307,11 @@ export interface Notification {
     cookbookId?: string;
     cookbookName?: string;
     recipeId?: string;
+    recipeTitle?: string;
+    shareToken?: string;
     invitedBy?: string;
     addedBy?: string;
+    sharedBy?: string;
   } | null;
   isRead: boolean;
   createdAt: number;

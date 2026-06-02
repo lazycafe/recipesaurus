@@ -1435,6 +1435,86 @@ export class CoreHandlers {
     return { data: { token, createdAt }, status: 201 };
   }
 
+  async shareRecipeWithUser(
+    ctx: RequestContext,
+    data: RecipeSharePayload,
+    userId: string
+  ): Promise<ApiResult<{ success: boolean; sharedWith?: ProfileUserInfo; shareLink?: RecipeShareLinkInfo }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const normalizedUserId = userId.trim();
+    if (!normalizedUserId) {
+      return { error: 'User is required', status: 400 };
+    }
+
+    const targetUser = await this.db.get<{ id: string; name: string; avatar_url: string | null }>(
+      'SELECT id, name, avatar_url FROM users WHERE id = ?',
+      normalizedUserId
+    );
+    if (!targetUser) {
+      return { error: 'User not found', status: 404 };
+    }
+
+    if (targetUser.id === user.id) {
+      return { error: 'You cannot share a recipe with yourself', status: 400 };
+    }
+
+    if (!(await this.areFriends(user.id, targetUser.id))) {
+      return { error: 'You can only share recipes with friends', status: 400 };
+    }
+
+    const recipe = normalizeRecipeSharePayload(data);
+    if (!recipe) {
+      return { error: 'Recipe must have a title, ingredients, and instructions', status: 400 };
+    }
+
+    const recipeData = JSON.stringify(recipe);
+    if (recipeData.length > MAX_RECIPE_SHARE_BYTES) {
+      return { error: 'Recipe is too large to share', status: 413 };
+    }
+
+    const id = this.crypto.generateId();
+    const token = this.crypto.generateId();
+    const notificationId = this.crypto.generateId();
+    const createdAt = Date.now();
+
+    await this.db.run(
+      'INSERT INTO recipe_share_links (id, token, recipe_data, created_at) VALUES (?, ?, ?, ?)',
+      id,
+      token,
+      recipeData,
+      createdAt
+    );
+
+    await this.db.run(
+      'INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      notificationId,
+      targetUser.id,
+      'recipe_share',
+      'Recipe shared with you',
+      `${user.name} shared "${recipe.title}" with you`,
+      JSON.stringify({
+        shareToken: token,
+        recipeTitle: recipe.title,
+        sharedBy: user.name,
+      }),
+      0,
+      createdAt
+    );
+
+    return {
+      data: {
+        success: true,
+        sharedWith: formatProfileUser(targetUser),
+        shareLink: { token, createdAt },
+      },
+      status: 201,
+    };
+  }
+
   async getSharedRecipe(token: string): Promise<ApiResult<{ recipe: RecipeSharePayload }>> {
     const link = await this.db.get<DbRecipeShareLink>(
       'SELECT * FROM recipe_share_links WHERE token = ?',

@@ -81,6 +81,10 @@ export function UserMenu() {
     if (!notification.isRead) {
       await markAsRead(notification.id);
     }
+    if (notification.type === 'recipe_share' && notification.data?.shareToken) {
+      setIsOpen(false);
+      navigate(`/shared-recipe/${notification.data.shareToken}`);
+    }
   };
 
   const formatTime = (timestamp: number) => {
