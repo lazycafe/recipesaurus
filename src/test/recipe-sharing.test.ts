@@ -65,6 +65,32 @@ describe('Recipe sharing with users', () => {
     expect(sharedRecipe.data?.recipe.title).toBe('Pasta Night');
   });
 
+  it('allows recipe share payloads larger than the previous 64 KB cap', async () => {
+    const ownerClient = harness.createClient();
+    await ownerClient.auth.register('owner@example.com', 'Owner Chef', 'Password123');
+
+    const recipientClient = harness.createClient();
+    const recipient = await recipientClient.auth.register('recipient@example.com', 'Recipe Friend', 'Password123');
+    const recipientUserId = recipient.data!.user!.id;
+
+    await acceptFriendRequest(ownerClient, recipientClient, recipientUserId);
+
+    const largeRecipe = {
+      title: 'Detailed Feast',
+      description: 'a'.repeat(90 * 1024),
+      ingredients: ['flour', 'water'],
+      instructions: ['mix', 'bake'],
+    };
+
+    const linkResult = await ownerClient.recipes.createShareLink(largeRecipe);
+    expect(linkResult.error).toBeUndefined();
+    expect(linkResult.data?.token).toBeDefined();
+
+    const shareResult = await ownerClient.recipes.shareWithUser(largeRecipe, recipientUserId);
+    expect(shareResult.error).toBeUndefined();
+    expect(shareResult.data?.shareLink?.token).toBeDefined();
+  });
+
   it('rejects recipe sharing with someone who is not a friend', async () => {
     const ownerClient = harness.createClient();
     await ownerClient.auth.register('owner@example.com', 'Owner Chef', 'Password123');

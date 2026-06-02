@@ -303,7 +303,7 @@ function dedupeRecipeRows<T extends DbRecipe>(recipes: T[], currentUserId: strin
   return recipes.filter(recipe => selectedByKey.get(recipeRowDedupeKey(recipe)) === recipe);
 }
 
-const MAX_RECIPE_SHARE_BYTES = 64 * 1024;
+const MAX_RECIPE_SHARE_BYTES = 512 * 1024;
 const MAX_RECIPE_SHARE_ITEMS = 250;
 
 function normalizeOptionalString(value: unknown): string | null {
