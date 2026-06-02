@@ -4,7 +4,6 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { DinoMascot } from './DinoMascot';
 import { useAuth } from '../context/AuthContext';
 import { UserMenu } from './UserMenu';
-import { canAccessMealPlanner } from '../utils/mealPlannerAccess';
 
 interface HeaderProps {
   onCreateRecipe?: () => void;
@@ -16,7 +15,6 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
   const location = useLocation();
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
-  const canUseMealPlanner = canAccessMealPlanner(user?.id);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -59,15 +57,13 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
                 <UtensilsCrossed size={18} />
                 My Recipes
               </NavLink>
-              {canUseMealPlanner && (
-                <NavLink
-                  to="/meal-planner"
-                  className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
-                >
-                  <Sparkles size={18} />
-                  Meal Plan
-                </NavLink>
-              )}
+              <NavLink
+                to="/meal-planner"
+                className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
+              >
+                <Sparkles size={18} />
+                Meal Plan
+              </NavLink>
               <NavLink
                 to="/cookbooks"
                 className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
@@ -137,15 +133,13 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
               <UtensilsCrossed size={20} />
               <span>My Recipes</span>
             </NavLink>
-            {canUseMealPlanner && (
-              <NavLink
-                to="/meal-planner"
-                className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
-              >
-                <Sparkles size={20} />
-                <span>Meal Plan</span>
-              </NavLink>
-            )}
+            <NavLink
+              to="/meal-planner"
+              className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
+            >
+              <Sparkles size={20} />
+              <span>Meal Plan</span>
+            </NavLink>
             <NavLink
               to="/cookbooks"
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}

@@ -23,7 +23,6 @@ import {
   MEAL_PLAN_BILLING_RESTORE_FAILED_CODE,
   MEAL_PLAN_BILLING_STRIPE_URL_MISSING_CODE,
   MEAL_PLAN_BILLING_SUBSCRIPTION_NOT_FOUND_CODE,
-  MEAL_PLAN_FORBIDDEN_CODE,
   MEAL_PLAN_GENERATION_FAILED_CODE,
   MEAL_PLAN_HISTORY_LIMIT,
   MEAL_PLAN_INVALID_REQUEST_CODE,
@@ -216,10 +215,6 @@ const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
 const ATTEMPT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const MAX_RECIPE_SHARE_BYTES = 64 * 1024;
 const MAX_RECIPE_SHARE_ITEMS = 250;
-const MEAL_PLANNER_ALLOWED_USER_IDS = new Set([
-  '01e661dd94b580d2ac099044800a3096',
-  '43edf8080df3693f5e0c7176d95ac39e',
-]);
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -360,31 +355,6 @@ function getMealPlanLimitForSubscription(subscription: UserSubscription | null):
 
 function getAppBaseUrl(env: Env): string {
   return (env.APP_URL || 'https://recipesaurus.ai').replace(/\/+$/, '');
-}
-
-function isLocalDevelopmentRequest(request: Request, env: Env): boolean {
-  if (env.ENVIRONMENT !== 'development') {
-    return false;
-  }
-
-  const url = new URL(request.url);
-  const origin = request.headers.get('Origin') || '';
-  return (
-    url.hostname === 'localhost' ||
-    url.hostname === '127.0.0.1' ||
-    url.hostname === '[::1]' ||
-    url.hostname === '::1' ||
-    origin.startsWith('http://localhost:') ||
-    origin.startsWith('http://127.0.0.1:')
-  );
-}
-
-function canAccessMealPlanner(userId: string, env: Env, request: Request): boolean {
-  if (isLocalDevelopmentRequest(request, env)) {
-    return true;
-  }
-
-  return MEAL_PLANNER_ALLOWED_USER_IDS.has(userId);
 }
 
 function getStripeId(value: string | { id?: string } | null | undefined): string | null {
@@ -1364,9 +1334,6 @@ async function handleGetMealPlanUsage(request: Request, env: Env): Promise<Respo
   if (!user) {
     return errorResponse('Unauthorized', 401, origin, MEAL_PLAN_UNAUTHORIZED_CODE);
   }
-  if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
-  }
 
   return jsonResponse({ usage: await getMealPlanUsage(env.DB, user.id) }, 200, corsHeaders(origin));
 }
@@ -1377,9 +1344,6 @@ async function handleGetMealPlanHistory(request: Request, env: Env): Promise<Res
 
   if (!user) {
     return errorResponse('Unauthorized', 401, origin, MEAL_PLAN_UNAUTHORIZED_CODE);
-  }
-  if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
   }
 
   const [recipes, historyRows] = await Promise.all([
@@ -1527,9 +1491,6 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
   if (!user) {
     return errorResponse('Unauthorized', 401, origin, MEAL_PLAN_UNAUTHORIZED_CODE);
   }
-  if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
-  }
 
   const body = await request.json() as { request?: unknown };
   const mealPlanRequest = normalizeMealPlanRequest(body.request);
@@ -1637,9 +1598,6 @@ async function handleCreateCheckoutSession(request: Request, env: Env): Promise<
   if (!user) {
     return errorResponse('Unauthorized', 401, origin);
   }
-  if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner billing is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
-  }
   if (!env.STRIPE_SECRET_KEY) {
     return errorResponse('Payments are not configured yet.', 503, origin, MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE);
   }
@@ -1707,9 +1665,6 @@ async function handleCreatePortalSession(request: Request, env: Env): Promise<Re
   if (!user) {
     return errorResponse('Unauthorized', 401, origin);
   }
-  if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner billing is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
-  }
   if (!env.STRIPE_SECRET_KEY) {
     return errorResponse('Payments are not configured yet.', 503, origin, MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE);
   }
@@ -1743,9 +1698,6 @@ async function handleCancelSubscription(request: Request, env: Env): Promise<Res
 
   if (!user) {
     return errorResponse('Unauthorized', 401, origin);
-  }
-  if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner billing is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
   }
   if (!env.STRIPE_SECRET_KEY) {
     return errorResponse('Payments are not configured yet.', 503, origin, MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE);
@@ -1786,9 +1738,6 @@ async function handleReinstateSubscription(request: Request, env: Env): Promise<
 
   if (!user) {
     return errorResponse('Unauthorized', 401, origin);
-  }
-  if (!canAccessMealPlanner(user.id, env, request)) {
-    return errorResponse('Meal planner billing is not available for this account.', 403, origin, MEAL_PLAN_FORBIDDEN_CODE);
   }
   if (!env.STRIPE_SECRET_KEY) {
     return errorResponse('Payments are not configured yet.', 503, origin, MEAL_PLAN_BILLING_NOT_CONFIGURED_CODE);
