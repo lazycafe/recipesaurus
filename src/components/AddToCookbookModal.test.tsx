@@ -72,6 +72,7 @@ describe('AddToCookbookModal', () => {
         login: vi.fn(),
         register: vi.fn(),
         logout: vi.fn(),
+        updateProfile: vi.fn(),
         verifyEmail: vi.fn(),
         resendVerification: vi.fn(),
         forgotPassword: vi.fn(),
@@ -119,6 +120,14 @@ describe('AddToCookbookModal', () => {
         getCookbook: vi.fn(),
         saveRecipe: vi.fn(),
         saveCookbook: vi.fn(),
+      },
+      profile: {
+        get: vi.fn(),
+        listFriends: vi.fn(),
+        addFriend: vi.fn(),
+        removeFriend: vi.fn(),
+        acceptFriendRequest: vi.fn(),
+        declineFriendRequest: vi.fn(),
       },
     });
   });

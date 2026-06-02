@@ -13,6 +13,8 @@ interface NotificationContextType {
   clearAll: () => Promise<void>;
   acceptInvite: (inviteId: string) => Promise<{ cookbookId: string; cookbookName: string } | null>;
   declineInvite: (inviteId: string) => Promise<boolean>;
+  acceptFriendRequest: (friendRequestId: string) => Promise<{ friendId: string; friendName: string } | null>;
+  declineFriendRequest: (friendRequestId: string) => Promise<boolean>;
 }
 
 const NotificationContext = createContext<NotificationContextType | null>(null);
@@ -100,6 +102,32 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
+  const acceptFriendRequest = async (friendRequestId: string) => {
+    const { data, error } = await client.profile.acceptFriendRequest(friendRequestId);
+    if (error) {
+      console.error('Failed to accept friend request:', error);
+      return null;
+    }
+    setNotifications(prev =>
+      prev.filter(n => !(n.type === 'friend_request' && n.data?.friendRequestId === friendRequestId))
+    );
+    setUnreadCount(prev => Math.max(0, prev - 1));
+    return data ? { friendId: data.friend.id, friendName: data.friend.name } : null;
+  };
+
+  const declineFriendRequest = async (friendRequestId: string) => {
+    const { error } = await client.profile.declineFriendRequest(friendRequestId);
+    if (error) {
+      console.error('Failed to decline friend request:', error);
+      return false;
+    }
+    setNotifications(prev =>
+      prev.filter(n => !(n.type === 'friend_request' && n.data?.friendRequestId === friendRequestId))
+    );
+    setUnreadCount(prev => Math.max(0, prev - 1));
+    return true;
+  };
+
   return (
     <NotificationContext.Provider
       value={{
@@ -112,6 +140,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         clearAll,
         acceptInvite,
         declineInvite,
+        acceptFriendRequest,
+        declineFriendRequest,
       }}
     >
       {children}

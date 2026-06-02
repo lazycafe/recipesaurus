@@ -1,15 +1,26 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, LogOut, Check, X, Book, ChefHat, CheckCheck, Bell, Settings, Trash2 } from 'lucide-react';
+import { LogOut, Check, X, Book, ChefHat, CheckCheck, Bell, Settings, Trash2, UserCircle, UserPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useCookbooks } from '../context/CookbookContext';
 import type { Notification } from '../client/types';
+import { UserAvatar } from './UserAvatar';
 
 export function UserMenu() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll, acceptInvite, declineInvite } = useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    clearAll,
+    acceptInvite,
+    declineInvite,
+    acceptFriendRequest,
+    declineFriendRequest,
+  } = useNotifications();
   const { refreshCookbooks } = useCookbooks();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -35,6 +46,18 @@ export function UserMenu() {
 
   const handleDecline = async (inviteId: string) => {
     await declineInvite(inviteId);
+  };
+
+  const handleAcceptFriendRequest = async (friendRequestId: string) => {
+    const result = await acceptFriendRequest(friendRequestId);
+    if (result) {
+      setIsOpen(false);
+      navigate(`/profiles/${result.friendId}`);
+    }
+  };
+
+  const handleDeclineFriendRequest = async (friendRequestId: string) => {
+    await declineFriendRequest(friendRequestId);
   };
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -69,9 +92,7 @@ export function UserMenu() {
         onClick={() => setIsOpen(!isOpen)}
         aria-label="User menu"
       >
-        <div className="user-avatar">
-          <User size={16} strokeWidth={2} />
-        </div>
+        <UserAvatar name={user.name} avatarUrl={user.avatarUrl} size="sm" className="user-avatar" />
         <span className="user-name">{user.name}</span>
         {unreadCount > 0 && <span className="user-notification-dot" />}
       </button>
@@ -79,14 +100,24 @@ export function UserMenu() {
       {isOpen && (
         <div className="user-menu-panel">
           <div className="user-menu-header">
-            <div className="user-menu-avatar">
-              <User size={20} strokeWidth={2} />
-            </div>
+            <UserAvatar name={user.name} avatarUrl={user.avatarUrl} size="md" className="user-menu-avatar" />
             <div className="user-menu-info">
               <span className="user-menu-name">{user.name}</span>
               <span className="user-menu-email">{user.email}</span>
             </div>
           </div>
+
+          <div className="user-menu-divider" />
+
+          <Link to={`/profiles/${user.id}`} className="user-menu-item" onClick={() => setIsOpen(false)}>
+            <UserCircle size={16} strokeWidth={2} />
+            Profile
+          </Link>
+
+          <Link to="/settings" className="user-menu-item" onClick={() => setIsOpen(false)}>
+            <Settings size={16} strokeWidth={2} />
+            Settings
+          </Link>
 
           <div className="user-menu-divider" />
 
@@ -125,6 +156,8 @@ export function UserMenu() {
                     <div className="notification-icon">
                       {notification.type === 'cookbook_invite' ? (
                         <Book size={16} />
+                      ) : notification.type === 'friend_request' ? (
+                        <UserPlus size={16} />
                       ) : (
                         <ChefHat size={16} />
                       )}
@@ -158,6 +191,31 @@ export function UserMenu() {
                           </button>
                         </div>
                       )}
+
+                      {notification.type === 'friend_request' && notification.data?.friendRequestId && (
+                        <div className="notification-actions">
+                          <button
+                            className="btn-accept"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAcceptFriendRequest(notification.data!.friendRequestId!);
+                            }}
+                          >
+                            <Check size={12} />
+                            Accept
+                          </button>
+                          <button
+                            className="btn-decline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeclineFriendRequest(notification.data!.friendRequestId!);
+                            }}
+                          >
+                            <X size={12} />
+                            Decline
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {!notification.isRead && <div className="notification-dot" />}
@@ -168,11 +226,6 @@ export function UserMenu() {
           </div>
 
           <div className="user-menu-divider" />
-
-          <Link to="/settings" className="user-menu-item" onClick={() => setIsOpen(false)}>
-            <Settings size={16} strokeWidth={2} />
-            Settings
-          </Link>
 
           <button className="user-menu-logout" onClick={handleLogout}>
             <LogOut size={16} strokeWidth={2} />

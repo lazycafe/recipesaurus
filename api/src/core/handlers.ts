@@ -7,6 +7,8 @@ import type {
   DbRecipe,
   DbCookbook,
   UserInfo,
+  ProfileUserInfo,
+  UserProfileInfo,
   RecipeInfo,
   CookbookInfo,
   CookbookShareInfo,
@@ -133,6 +135,53 @@ function validatePassword(password: string): { valid: boolean; error?: string } 
     return { valid: false, error: 'Password must contain at least one number' };
   }
   return { valid: true };
+}
+
+function formatUser(user: DbUser): UserInfo {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    avatarUrl: user.avatar_url,
+  };
+}
+
+function formatProfileUser(user: { id: string; name: string; avatar_url?: string | null }): ProfileUserInfo {
+  return {
+    id: user.id,
+    name: user.name,
+    avatarUrl: user.avatar_url ?? null,
+  };
+}
+
+function orderedFriendPair(userId: string, friendId: string): { userAId: string; userBId: string } {
+  return userId < friendId
+    ? { userAId: userId, userBId: friendId }
+    : { userAId: friendId, userBId: userId };
+}
+
+function normalizeDisplayName(name: unknown): string | null {
+  if (typeof name !== 'string') return null;
+  const trimmed = name.trim().replace(/\s+/g, ' ');
+  if (!trimmed || trimmed.length > 80) return null;
+  return trimmed;
+}
+
+function normalizeAvatarUrl(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 1000) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    return parsed.toString();
+  } catch {
+    return null;
+  }
 }
 
 // Helper to format recipe
@@ -347,7 +396,7 @@ export class CoreHandlers {
 
     return {
       data: {
-        user: { id: userId, email: normalizedEmail, name: name.trim() },
+        user: { id: userId, email: normalizedEmail, name: name.trim(), avatarUrl: null },
         token: sessionId,
       },
       status: 200,
@@ -401,7 +450,7 @@ export class CoreHandlers {
 
     return {
       data: {
-        user: { id: user.id, email: user.email, name: user.name },
+        user: formatUser(user),
         token: sessionId,
       },
       status: 200,
@@ -421,9 +470,418 @@ export class CoreHandlers {
       return { data: { user: null }, status: 200 };
     }
     return {
-      data: { user: { id: user.id, email: user.email, name: user.name } },
+      data: { user: formatUser(user) },
       status: 200,
     };
+  }
+
+  private async getFriendCount(userId: string): Promise<number> {
+    const result = await this.db.get<{ count: number }>(
+      'SELECT COUNT(*) as count FROM friendships WHERE user_a_id = ? OR user_b_id = ?',
+      userId,
+      userId
+    );
+    return result?.count || 0;
+  }
+
+  private async areFriends(userId: string, friendId: string): Promise<boolean> {
+    if (userId === friendId) return false;
+    const { userAId, userBId } = orderedFriendPair(userId, friendId);
+    const friendship = await this.db.get<{ created_at: number }>(
+      'SELECT created_at FROM friendships WHERE user_a_id = ? AND user_b_id = ?',
+      userAId,
+      userBId
+    );
+    return !!friendship;
+  }
+
+  async updateProfile(
+    ctx: RequestContext,
+    data: { name?: string; avatarUrl?: string | null }
+  ): Promise<ApiResult<{ user: UserInfo }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const hasName = Object.prototype.hasOwnProperty.call(data, 'name');
+    const hasAvatar = Object.prototype.hasOwnProperty.call(data, 'avatarUrl');
+
+    const nextName = hasName ? normalizeDisplayName(data.name) : user.name;
+    if (hasName && !nextName) {
+      return { error: 'Display name must be between 1 and 80 characters', status: 400 };
+    }
+
+    let nextAvatarUrl = user.avatar_url;
+    if (hasAvatar) {
+      nextAvatarUrl = normalizeAvatarUrl(data.avatarUrl);
+      if (typeof data.avatarUrl === 'string' && data.avatarUrl.trim() && !nextAvatarUrl) {
+        return { error: 'Profile picture must be a valid http or https URL', status: 400 };
+      }
+    }
+
+    await this.db.run(
+      'UPDATE users SET name = ?, avatar_url = ? WHERE id = ?',
+      nextName,
+      nextAvatarUrl,
+      user.id
+    );
+
+    return {
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: nextName!,
+          avatarUrl: nextAvatarUrl,
+        },
+      },
+      status: 200,
+    };
+  }
+
+  async getProfile(ctx: RequestContext, userId: string): Promise<ApiResult<{ profile: UserProfileInfo }>> {
+    const currentUser = await this.getSessionUser(ctx);
+    const profileUser = await this.db.get<Pick<DbUser, 'id' | 'name' | 'avatar_url'>>(
+      'SELECT id, name, avatar_url FROM users WHERE id = ?',
+      userId
+    );
+
+    if (!profileUser) {
+      return { error: 'Profile not found', status: 404 };
+    }
+
+    const isCurrentUser = currentUser?.id === profileUser.id;
+    const isFriend = currentUser ? await this.areFriends(currentUser.id, profileUser.id) : false;
+    const outgoingFriendRequest = currentUser && !isCurrentUser && !isFriend
+      ? await this.db.get<{ id: string }>(
+          "SELECT id FROM friend_requests WHERE requester_id = ? AND requested_user_id = ? AND status = 'pending'",
+          currentUser.id,
+          profileUser.id
+        )
+      : null;
+    const incomingFriendRequest = currentUser && !isCurrentUser && !isFriend
+      ? await this.db.get<{ id: string }>(
+          "SELECT id FROM friend_requests WHERE requester_id = ? AND requested_user_id = ? AND status = 'pending'",
+          profileUser.id,
+          currentUser.id
+        )
+      : null;
+    const contentVisibility = isCurrentUser ? '' : 'AND r.is_public = 1';
+    const cookbookVisibility = isCurrentUser ? '' : 'AND c.is_public = 1';
+
+    const recipeCount = await this.db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ? ${contentVisibility}`,
+      profileUser.id
+    );
+
+    const cookbookCount = await this.db.get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM cookbooks c WHERE c.user_id = ? AND c.is_system = 0 ${cookbookVisibility}`,
+      profileUser.id
+    );
+
+    const recipes = await this.db.all<DbRecipe & { owner_name: string | null }>(
+      `SELECT r.*, owner.name as owner_name
+       FROM recipes r
+       LEFT JOIN users owner ON r.owner_id = owner.id
+       WHERE r.user_id = ? ${contentVisibility}
+       ORDER BY r.created_at DESC
+       LIMIT 24`,
+      profileUser.id
+    );
+
+    const cookbooks = await this.db.all<DbCookbook & { recipe_count: number; owner_name: string }>(
+      `SELECT c.*, COUNT(cr.recipe_id) as recipe_count, owner.name as owner_name
+       FROM cookbooks c
+       LEFT JOIN cookbook_recipes cr ON c.id = cr.cookbook_id
+       JOIN users owner ON c.user_id = owner.id
+       WHERE c.user_id = ? AND c.is_system = 0 ${cookbookVisibility}
+       GROUP BY c.id
+       ORDER BY c.updated_at DESC
+       LIMIT 24`,
+      profileUser.id
+    );
+
+    return {
+      data: {
+        profile: {
+          user: formatProfileUser(profileUser),
+          isCurrentUser,
+          isFriend,
+          hasPendingFriendRequest: !!outgoingFriendRequest,
+          incomingFriendRequestId: incomingFriendRequest?.id ?? null,
+          friendCount: await this.getFriendCount(profileUser.id),
+          recipeCount: recipeCount?.count || 0,
+          cookbookCount: cookbookCount?.count || 0,
+          recipes: recipes.results.map(recipe => formatRecipe(recipe, currentUser?.id)),
+          cookbooks: cookbooks.results.map(cookbook => ({
+            id: cookbook.id,
+            ownerId: cookbook.user_id,
+            name: cookbook.name,
+            description: cookbook.description,
+            coverImage: cookbook.cover_image || null,
+            recipeCount: cookbook.recipe_count || 0,
+            isSystem: cookbook.is_system === 1,
+            systemType: cookbook.system_type,
+            isPublic: cookbook.is_public === 1,
+            createdAt: cookbook.created_at,
+            updatedAt: cookbook.updated_at,
+            isOwner: currentUser ? cookbook.user_id === currentUser.id : false,
+            ownerName: cookbook.owner_name,
+          })),
+        },
+      },
+      status: 200,
+    };
+  }
+
+  async getFriends(_ctx: RequestContext, userId: string): Promise<ApiResult<{ friends: ProfileUserInfo[] }>> {
+    const profileUser = await this.db.get<{ id: string }>('SELECT id FROM users WHERE id = ?', userId);
+    if (!profileUser) {
+      return { error: 'Profile not found', status: 404 };
+    }
+
+    const friends = await this.db.all<{ id: string; name: string; avatar_url: string | null }>(
+      `SELECT u.id, u.name, u.avatar_url
+       FROM friendships f
+       JOIN users u ON u.id = CASE
+         WHEN f.user_a_id = ? THEN f.user_b_id
+         ELSE f.user_a_id
+       END
+       WHERE f.user_a_id = ? OR f.user_b_id = ?
+       ORDER BY u.name COLLATE NOCASE ASC`,
+      userId,
+      userId,
+      userId
+    );
+
+    return {
+      data: { friends: friends.results.map(formatProfileUser) },
+      status: 200,
+    };
+  }
+
+  async addFriend(
+    ctx: RequestContext,
+    data: { userId?: string; email?: string }
+  ): Promise<ApiResult<{ friend: ProfileUserInfo }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const normalizedEmail = typeof data.email === 'string' ? data.email.toLowerCase().trim() : '';
+    const friend = data.userId
+      ? await this.db.get<{ id: string; name: string; avatar_url: string | null }>(
+          'SELECT id, name, avatar_url FROM users WHERE id = ?',
+          data.userId
+        )
+      : normalizedEmail
+        ? await this.db.get<{ id: string; name: string; avatar_url: string | null }>(
+            'SELECT id, name, avatar_url FROM users WHERE email = ?',
+            normalizedEmail
+          )
+        : null;
+
+    if (!friend) {
+      return { error: 'User not found', status: 404 };
+    }
+
+    if (friend.id === user.id) {
+      return { error: 'You cannot add yourself as a friend', status: 400 };
+    }
+
+    if (await this.areFriends(user.id, friend.id)) {
+      return { data: { friend: formatProfileUser(friend) }, status: 200 };
+    }
+
+    const incomingRequest = await this.db.get<{ id: string }>(
+      "SELECT id FROM friend_requests WHERE requester_id = ? AND requested_user_id = ? AND status = 'pending'",
+      friend.id,
+      user.id
+    );
+
+    if (incomingRequest) {
+      const accepted = await this.acceptFriendRequest(ctx, incomingRequest.id);
+      if (accepted.error) {
+        return { error: accepted.error, status: accepted.status };
+      }
+      return { data: { friend: formatProfileUser(friend) }, status: 200 };
+    }
+
+    const now = Date.now();
+    const existingRequest = await this.db.get<{ id: string; status: string }>(
+      'SELECT id, status FROM friend_requests WHERE requester_id = ? AND requested_user_id = ?',
+      user.id,
+      friend.id
+    );
+
+    const friendRequestId = existingRequest?.id ?? this.crypto.generateId();
+    if (existingRequest?.status === 'pending') {
+      return { data: { friend: formatProfileUser(friend) }, status: 200 };
+    }
+
+    if (existingRequest) {
+      await this.db.run(
+        "UPDATE friend_requests SET status = 'pending', created_at = ?, responded_at = NULL WHERE id = ?",
+        now,
+        friendRequestId
+      );
+    } else {
+      await this.db.run(
+        'INSERT INTO friend_requests (id, requester_id, requested_user_id, status, created_at) VALUES (?, ?, ?, ?, ?)',
+        friendRequestId,
+        user.id,
+        friend.id,
+        'pending',
+        now
+      );
+    }
+
+    await this.db.run(
+      "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?",
+      friend.id,
+      `%"friendRequestId":"${friendRequestId}"%`
+    );
+
+    await this.db.run(
+      'INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      this.crypto.generateId(),
+      friend.id,
+      'friend_request',
+      'Friend request',
+      `${user.name} sent you a friend request`,
+      JSON.stringify({
+        friendRequestId,
+        requesterId: user.id,
+        requesterName: user.name,
+      }),
+      0,
+      now
+    );
+
+    return { data: { friend: formatProfileUser(friend) }, status: 200 };
+  }
+
+  async acceptFriendRequest(
+    ctx: RequestContext,
+    friendRequestId: string
+  ): Promise<ApiResult<{ success: boolean; friend: ProfileUserInfo }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const request = await this.db.get<{
+      id: string;
+      requester_id: string;
+      requested_user_id: string;
+      status: string;
+      requester_name: string;
+      requester_avatar_url: string | null;
+    }>(
+      `SELECT fr.*, u.name as requester_name, u.avatar_url as requester_avatar_url
+       FROM friend_requests fr
+       JOIN users u ON u.id = fr.requester_id
+       WHERE fr.id = ? AND fr.requested_user_id = ?`,
+      friendRequestId,
+      user.id
+    );
+
+    if (!request) {
+      return { error: 'Friend request not found', status: 404 };
+    }
+
+    if (request.status !== 'pending') {
+      return { error: 'Friend request has already been processed', status: 400 };
+    }
+
+    const now = Date.now();
+    const { userAId, userBId } = orderedFriendPair(user.id, request.requester_id);
+    await this.db.run(
+      'INSERT OR IGNORE INTO friendships (user_a_id, user_b_id, created_at) VALUES (?, ?, ?)',
+      userAId,
+      userBId,
+      now
+    );
+
+    await this.db.run(
+      "UPDATE friend_requests SET status = 'accepted', responded_at = ? WHERE id = ?",
+      now,
+      friendRequestId
+    );
+
+    await this.db.run(
+      "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?",
+      user.id,
+      `%"friendRequestId":"${friendRequestId}"%`
+    );
+
+    return {
+      data: {
+        success: true,
+        friend: {
+          id: request.requester_id,
+          name: request.requester_name,
+          avatarUrl: request.requester_avatar_url,
+        },
+      },
+      status: 200,
+    };
+  }
+
+  async declineFriendRequest(
+    ctx: RequestContext,
+    friendRequestId: string
+  ): Promise<ApiResult<{ success: boolean }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const request = await this.db.get<{ id: string; status: string }>(
+      'SELECT id, status FROM friend_requests WHERE id = ? AND requested_user_id = ?',
+      friendRequestId,
+      user.id
+    );
+
+    if (!request) {
+      return { error: 'Friend request not found', status: 404 };
+    }
+
+    if (request.status !== 'pending') {
+      return { error: 'Friend request has already been processed', status: 400 };
+    }
+
+    await this.db.run(
+      "UPDATE friend_requests SET status = 'declined', responded_at = ? WHERE id = ?",
+      Date.now(),
+      friendRequestId
+    );
+
+    await this.db.run(
+      "DELETE FROM notifications WHERE user_id = ? AND type = 'friend_request' AND data LIKE ?",
+      user.id,
+      `%"friendRequestId":"${friendRequestId}"%`
+    );
+
+    return { data: { success: true }, status: 200 };
+  }
+
+  async removeFriend(ctx: RequestContext, friendId: string): Promise<ApiResult<{ success: boolean }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const { userAId, userBId } = orderedFriendPair(user.id, friendId);
+    await this.db.run(
+      'DELETE FROM friendships WHERE user_a_id = ? AND user_b_id = ?',
+      userAId,
+      userBId
+    );
+
+    return { data: { success: true }, status: 200 };
   }
 
   // Recipe handlers
@@ -665,6 +1123,7 @@ export class CoreHandlers {
 
     const formatCookbook = (c: DbCookbook & { recipe_count: number; owner_name?: string }, isOwner: boolean): CookbookInfo => ({
       id: c.id,
+      ownerId: c.user_id,
       name: c.name,
       description: c.description,
       coverImage: c.cover_image || null,
@@ -741,6 +1200,7 @@ export class CoreHandlers {
       data: {
         cookbook: {
           id: cookbook.id,
+          ownerId: cookbook.user_id,
           name: cookbook.name,
           description: cookbook.description,
           coverImage: cookbook.cover_image || null,
@@ -1231,6 +1691,7 @@ export class CoreHandlers {
       data: {
         cookbook: {
           id: cookbook.id,
+          ownerId: cookbook.user_id,
           name: cookbook.name,
           description: cookbook.description,
           coverImage: cookbook.cover_image || null,
@@ -1277,7 +1738,7 @@ export class CoreHandlers {
       data: {
         notifications: notifications.results.map(n => ({
           id: n.id,
-          type: n.type as 'cookbook_invite' | 'recipe_added',
+          type: n.type as NotificationInfo['type'],
           title: n.title,
           message: n.message,
           data: n.data ? JSON.parse(n.data) : null,
@@ -1668,6 +2129,7 @@ export class CoreHandlers {
       data: {
         cookbooks: result.results.map(c => ({
           id: c.id,
+          ownerId: c.user_id,
           name: c.name,
           description: c.description,
           coverImage: c.cover_image || null,
@@ -2009,6 +2471,7 @@ export class CoreHandlers {
       data: {
         cookbook: {
           id: cookbook.id,
+          ownerId: cookbook.user_id,
           name: cookbook.name,
           description: cookbook.description,
           coverImage: cookbook.cover_image || null,

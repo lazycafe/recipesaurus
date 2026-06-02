@@ -36,6 +36,7 @@ function mapRecipeResponse(r: ClientRecipe): ExtendedRecipe {
     cookTime: r.cookTime || undefined,
     servings: r.servings || undefined,
     isPublic: r.isPublic,
+    ownerId: r.ownerId,
     createdAt: r.createdAt,
     ownerName: r.ownerName || undefined,
     isOwner: r.isOwner,

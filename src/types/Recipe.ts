@@ -11,6 +11,9 @@ export interface Recipe {
   cookTime?: string;
   servings?: string;
   isPublic?: boolean;
+  ownerId?: string;
+  ownerName?: string | null;
+  isOwner?: boolean;
   createdAt: number;
 }
 

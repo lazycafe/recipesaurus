@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { UserMenu } from './UserMenu';
 import * as AuthContext from '../context/AuthContext';
@@ -36,6 +36,7 @@ describe('UserMenu', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      updateProfile: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),
@@ -51,6 +52,8 @@ describe('UserMenu', () => {
       clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
     });
 
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
@@ -74,6 +77,7 @@ describe('UserMenu', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      updateProfile: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),
@@ -119,6 +123,8 @@ describe('UserMenu', () => {
       clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
     });
 
     const { container } = renderWithRouter(<UserMenu />);
@@ -133,6 +139,7 @@ describe('UserMenu', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout,
+      updateProfile: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),
@@ -148,6 +155,37 @@ describe('UserMenu', () => {
     renderWithRouter(<UserMenu />);
     fireEvent.click(screen.getByLabelText('User menu'));
     expect(screen.getByText('Notifications')).toBeDefined();
+  });
+
+  it('accepts friend request notifications', async () => {
+    const acceptFriendRequest = vi.fn().mockResolvedValue({ friendId: 'friend-1', friendName: 'Friend' });
+    vi.mocked(NotificationContext.useNotifications).mockReturnValue({
+      notifications: [{
+        id: '1',
+        type: 'friend_request',
+        title: 'Friend request',
+        message: 'Friend sent you a friend request',
+        data: { friendRequestId: 'request-1', requesterId: 'friend-1', requesterName: 'Friend' },
+        isRead: false,
+        createdAt: Date.now()
+      }],
+      unreadCount: 1,
+      isLoading: false,
+      refresh: vi.fn(),
+      markAsRead: vi.fn(),
+      markAllAsRead: vi.fn(),
+      clearAll: vi.fn(),
+      acceptInvite: vi.fn(),
+      declineInvite: vi.fn(),
+      acceptFriendRequest,
+      declineFriendRequest: vi.fn(),
+    });
+
+    renderWithRouter(<UserMenu />);
+    fireEvent.click(screen.getByLabelText('User menu'));
+    fireEvent.click(screen.getByText('Accept'));
+
+    await waitFor(() => expect(acceptFriendRequest).toHaveBeenCalledWith('request-1'));
   });
 
   it('shows user email in menu header', () => {

@@ -216,6 +216,8 @@ export class ReactTestHarness {
     this.db.run('DELETE FROM recipes');
     this.db.run('DELETE FROM sessions');
     this.db.run('DELETE FROM login_attempts');
+    this.db.run('DELETE FROM friend_requests');
+    this.db.run('DELETE FROM friendships');
     this.db.run('DELETE FROM users');
 
     // Clear token storage

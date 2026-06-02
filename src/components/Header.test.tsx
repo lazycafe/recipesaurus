@@ -37,6 +37,7 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      updateProfile: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),
@@ -52,6 +53,8 @@ describe('Header', () => {
       clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
     });
 
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
@@ -86,6 +89,7 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      updateProfile: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),
@@ -103,6 +107,7 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      updateProfile: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),
@@ -120,6 +125,7 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout,
+      updateProfile: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),
@@ -140,6 +146,7 @@ describe('Header', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      updateProfile: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),

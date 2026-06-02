@@ -28,6 +28,7 @@ describe('VerifyEmailPage', () => {
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
+      updateProfile: vi.fn(),
       verifyEmail: mockVerifyEmail,
       resendVerification: mockResendVerification,
       devLogin: vi.fn(),
