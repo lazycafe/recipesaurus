@@ -176,22 +176,22 @@ describe('DiscoveryPage', () => {
     expect(screen.getByText('Cookbooks')).toBeDefined();
   });
 
-  it('navigates to cookbooks on right swipe', () => {
+  it('navigates to cookbooks on left swipe', () => {
     const { container, getPath } = renderWithLocation(<DiscoveryPage />, '/discover/recipes');
-    const page = container.querySelector('.discovery-page')!;
-
-    fireEvent.touchStart(page, { touches: [{ clientX: 80, clientY: 140 }] });
-    fireEvent.touchEnd(page, { changedTouches: [{ clientX: 170, clientY: 145 }] });
-
-    expect(getPath()).toBe('/discover/cookbooks');
-  });
-
-  it('navigates to recipes on left swipe', () => {
-    const { container, getPath } = renderWithLocation(<DiscoveryPage tab="cookbooks" />, '/discover/cookbooks');
     const page = container.querySelector('.discovery-page')!;
 
     fireEvent.touchStart(page, { touches: [{ clientX: 170, clientY: 140 }] });
     fireEvent.touchEnd(page, { changedTouches: [{ clientX: 80, clientY: 145 }] });
+
+    expect(getPath()).toBe('/discover/cookbooks');
+  });
+
+  it('navigates to recipes on right swipe', () => {
+    const { container, getPath } = renderWithLocation(<DiscoveryPage tab="cookbooks" />, '/discover/cookbooks');
+    const page = container.querySelector('.discovery-page')!;
+
+    fireEvent.touchStart(page, { touches: [{ clientX: 80, clientY: 140 }] });
+    fireEvent.touchEnd(page, { changedTouches: [{ clientX: 170, clientY: 145 }] });
 
     expect(getPath()).toBe('/discover/recipes');
   });

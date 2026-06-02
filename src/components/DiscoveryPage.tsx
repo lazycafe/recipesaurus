@@ -295,7 +295,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
       return;
     }
 
-    const nextTab = deltaX > 0 ? 'cookbooks' : 'recipes';
+    const nextTab = deltaX > 0 ? 'recipes' : 'cookbooks';
     if (nextTab !== tab) {
       navigate(`/discover/${nextTab}`);
     }
