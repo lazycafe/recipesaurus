@@ -94,4 +94,25 @@ describe('Carousel', () => {
     const content = container.querySelector('.carousel-content');
     expect(content?.children.length).toBe(3);
   });
+
+  it('resets horizontal scroll when carousel items change', () => {
+    const { container, rerender } = render(
+      <Carousel>
+        <div>Item 1</div>
+        <div>Item 2</div>
+      </Carousel>
+    );
+
+    const track = container.querySelector('.carousel-track') as HTMLDivElement;
+    track.scrollLeft = 200;
+
+    rerender(
+      <Carousel>
+        <div>New item 1</div>
+        <div>New item 2</div>
+      </Carousel>
+    );
+
+    expect(track.scrollLeft).toBe(0);
+  });
 });
