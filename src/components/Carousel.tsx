@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, ReactNode } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface CarouselProps {
@@ -19,6 +19,12 @@ export function Carousel({ title, children, showArrows = true }: CarouselProps) 
     setCanScrollLeft(scrollLeft > 0);
     setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
   };
+
+  useLayoutEffect(() => {
+    if (!scrollRef.current) return;
+    scrollRef.current.scrollLeft = 0;
+    updateScrollState();
+  }, [children]);
 
   useEffect(() => {
     updateScrollState();
