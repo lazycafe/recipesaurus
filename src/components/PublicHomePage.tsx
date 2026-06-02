@@ -2,6 +2,7 @@ import { useEffect, useState, type KeyboardEvent } from 'react';
 import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users, Book } from 'lucide-react';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
+import { Carousel } from './Carousel';
 import { fetchAndExtractRecipe } from '../utils/recipeExtractor';
 import { downloadRecipePdf } from '../utils/recipePdf';
 import { useOptionalClient } from '../client/ClientContext';
@@ -305,7 +306,7 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
           <p>Browse a few public recipes, peek at the details, then create an account to save the ones you love.</p>
         </div>
 
-        <div className="public-discover-grid">
+        <Carousel>
           {discoverRecipes.map(recipe => (
             <article
               key={recipe.id}
@@ -338,7 +339,7 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
               </div>
             </article>
           ))}
-        </div>
+        </Carousel>
       </section>
 
       {/* Features Section */}

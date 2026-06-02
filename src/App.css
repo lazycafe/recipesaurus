@@ -6449,7 +6449,7 @@ img {
 }
 
 .hero-section {
-  padding: var(--space-16) var(--space-6);
+  padding: var(--space-12) var(--space-6);
   text-align: center;
   background: linear-gradient(180deg, var(--color-cream) 0%, var(--color-background) 100%);
 }
@@ -6550,7 +6550,7 @@ img {
 
 /* Extracted Preview */
 .extracted-preview {
-  padding: var(--space-10) var(--space-6);
+  padding: var(--space-8) var(--space-6);
   background: var(--color-background);
 }
 
@@ -6691,13 +6691,13 @@ img {
 
 /* Public Discover Section */
 .public-discover-section {
-  padding: var(--space-10) var(--space-6) var(--space-16);
+  padding: var(--space-8) var(--space-6) var(--space-10);
   background: var(--color-background);
 }
 
 .public-section-header {
   max-width: 620px;
-  margin: 0 auto var(--space-8);
+  margin: 0 auto var(--space-5);
   text-align: center;
 }
 
@@ -6722,15 +6722,18 @@ img {
   line-height: 1.6;
 }
 
-.public-discover-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: var(--space-5);
+.public-discover-section .carousel {
   max-width: 1100px;
   margin: 0 auto;
 }
 
+.public-discover-section .carousel-content {
+  gap: var(--space-4);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+}
+
 .public-discover-card {
+  width: 250px;
   background: white;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -6802,7 +6805,7 @@ img {
 
 /* Features Section */
 .features-section {
-  padding: var(--space-16) var(--space-6);
+  padding: var(--space-10) var(--space-6);
   background: white;
   text-align: center;
 }
@@ -6810,15 +6813,22 @@ img {
 .features-section h2 {
   font-family: var(--font-display);
   font-size: var(--text-3xl);
-  margin-bottom: var(--space-10);
+  margin-bottom: var(--space-6);
 }
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-6);
   max-width: 1000px;
   margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+  .features-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 640px;
+  }
 }
 
 .feature-card {
@@ -6860,7 +6870,7 @@ img {
 
 /* CTA Section */
 .cta-section {
-  padding: var(--space-16) var(--space-6);
+  padding: var(--space-10) var(--space-6);
   text-align: center;
   background: linear-gradient(180deg, var(--color-background) 0%, var(--color-cream) 100%);
 }
@@ -6889,7 +6899,7 @@ img {
 /* Mobile */
 @media (max-width: 640px) {
   .hero-section {
-    padding: var(--space-10) var(--space-4);
+    padding: var(--space-8) var(--space-4);
   }
 
   .hero-section h1 {
@@ -6925,16 +6935,19 @@ img {
   }
 
   .public-discover-section {
-    padding: var(--space-8) var(--space-4) var(--space-10);
+    padding: var(--space-6) var(--space-4) var(--space-8);
   }
 
   .public-section-header h2 {
     font-size: var(--text-2xl);
   }
 
-  .public-discover-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
+  .public-discover-section .carousel-content {
+    padding-inline: var(--space-1);
+  }
+
+  .public-discover-card {
+    width: min(78vw, 280px);
   }
 
   .public-discover-card-body {
@@ -6956,6 +6969,11 @@ img {
   .features-section h2 {
     font-size: var(--text-2xl);
   }
+
+  .features-grid {
+    grid-template-columns: 1fr;
+    max-width: 360px;
+  }
 }
 
 /* ========================================
@@ -6972,6 +6990,11 @@ img {
   justify-content: space-between;
   margin-bottom: var(--space-4);
   padding: 0 var(--space-4);
+}
+
+.carousel-header.controls-only {
+  justify-content: flex-end;
+  margin-bottom: var(--space-2);
 }
 
 .carousel-title {
