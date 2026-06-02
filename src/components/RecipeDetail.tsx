@@ -16,6 +16,7 @@ interface RecipeDetailProps {
   onSave?: () => void;
   isSaving?: boolean;
   isSaved?: boolean;
+  saveLabel?: string;
   readOnly?: boolean;
   isPublicView?: boolean;
 }
@@ -28,6 +29,7 @@ export function RecipeDetail({
   onSave,
   isSaving = false,
   isSaved = false,
+  saveLabel = 'Save to My Recipes',
   readOnly = false,
   isPublicView = false,
 }: RecipeDetailProps) {
@@ -181,7 +183,7 @@ export function RecipeDetail({
               ) : (
                 <Heart size={16} strokeWidth={2} />
               )}
-              <span>{isSaved ? 'Saved to My Recipes' : 'Save to My Recipes'}</span>
+              <span>{isSaved ? 'Saved to My Recipes' : saveLabel}</span>
             </button>
           </div>
         )}

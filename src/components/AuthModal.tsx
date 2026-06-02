@@ -139,10 +139,18 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
           <X size={20} strokeWidth={2} />
         </button>
 
-        <div className="auth-header">
+        <div className={`auth-header ${mode === 'register' ? 'register' : ''}`}>
           <DinoMascot size={64} className="auth-mascot" />
           <h2>{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
-          <p>{mode === 'login' ? 'Sign in to access your recipes' : 'Join Recipesaurus today'}</p>
+          {mode === 'login' && <p>Sign in to access your recipes</p>}
+          {mode === 'register' && (
+            <div className="auth-top-switch">
+              <span>Already have an account?</span>
+              <button type="button" className="auth-toggle" onClick={toggleMode}>
+                Sign in
+              </button>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
@@ -253,19 +261,15 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
           </button>
         </form>
 
-        <div className="auth-footer">
-          <p>
-            {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}
-            <button type="button" className="auth-toggle" onClick={toggleMode}>
-              {mode === 'login' ? 'Sign up' : 'Sign in'}
-            </button>
-          </p>
-        </div>
-
-        {mode === 'register' && (
-          <p className="auth-security-note">
-            Your password is securely hashed using PBKDF2 with 100,000 iterations.
-          </p>
+        {mode === 'login' && (
+          <div className="auth-footer">
+            <p>
+              Don't have an account?
+              <button type="button" className="auth-toggle" onClick={toggleMode}>
+                Sign up
+              </button>
+            </p>
+          </div>
         )}
 
         {import.meta.env.DEV && (

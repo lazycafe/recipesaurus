@@ -39,6 +39,17 @@ describe('AuthModal', () => {
     expect(screen.getByRole('heading', { name: 'Create Account' })).toBeDefined();
   });
 
+  it('shows the sign-in switch under the register heading', () => {
+    render(<AuthModal onClose={vi.fn()} initialMode="register" />);
+
+    const heading = screen.getByRole('heading', { name: 'Create Account' });
+    const topSwitch = document.body.querySelector('.auth-top-switch');
+    expect(screen.queryByText('Join Recipesaurus today')).toBeNull();
+    expect(topSwitch?.textContent).toContain('Already have an account?');
+    expect(topSwitch?.textContent).toContain('Sign in');
+    expect(heading.nextElementSibling).toBe(topSwitch);
+  });
+
   it('shows forgot password link in login mode when handler provided', () => {
     render(<AuthModal onClose={vi.fn()} onForgotPassword={vi.fn()} />);
     expect(screen.getByText('Forgot password?')).toBeDefined();

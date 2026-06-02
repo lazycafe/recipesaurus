@@ -76,6 +76,21 @@ describe('PublicHomePage', () => {
     expect(screen.getByText('Ready to organize your recipes?')).toBeDefined();
   });
 
+  it('renders discover recipe previews', () => {
+    render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
+    expect(screen.getByText('Discover Recipes')).toBeDefined();
+    expect(screen.getByText('Creamy Tuscan Chicken')).toBeDefined();
+  });
+
+  it('opens account creation when saving a recipe from discover', () => {
+    render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
+
+    fireEvent.click(screen.getByText('Creamy Tuscan Chicken'));
+    fireEvent.click(screen.getByText('Save Recipe'));
+
+    expect(mockOnSignUp).toHaveBeenCalledTimes(1);
+  });
+
   it('renders Get Started Free buttons', () => {
     render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
     const getStartedButtons = screen.getAllByText('Get Started Free');
@@ -123,6 +138,10 @@ describe('PublicHomePage', () => {
 
     // Should show loading state
     expect(screen.queryByText('Extract')).toBeNull();
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Recipe')).toBeDefined();
+    }, { timeout: 3000 });
   });
 
   it('shows extracted recipe after extraction', async () => {
