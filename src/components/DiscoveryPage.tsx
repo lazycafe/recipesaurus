@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp, Check } from 'lucide-react';
+import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -16,14 +16,13 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 interface RecipeCardCompactProps {
   recipe: Recipe;
-  onSave: () => void;
+  onToggleSave: () => void;
   onClick: () => void;
   onAuthorClick?: () => void;
   isSaving?: boolean;
-  isSaved?: boolean;
 }
 
-function RecipeCardCompact({ recipe, onSave, onClick, onAuthorClick, isSaving, isSaved }: RecipeCardCompactProps) {
+function RecipeCardCompact({ recipe, onToggleSave, onClick, onAuthorClick, isSaving }: RecipeCardCompactProps) {
   return (
     <article className="discovery-card" onClick={onClick}>
       <div className="discovery-card-image">
@@ -34,26 +33,24 @@ function RecipeCardCompact({ recipe, onSave, onClick, onAuthorClick, isSaving, i
             <DinoMascot size={48} />
           </div>
         )}
-        <button
-          className={`discovery-save-btn ${isSaved ? 'saved' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isSaved) return;
-            onSave();
-          }}
-          disabled={isSaving || isSaved}
-          aria-label={isSaved ? 'Recipe saved' : 'Save recipe'}
-        >
-          {isSaving ? (
-            <Loader2 size={16} className="spin" />
-          ) : isSaved ? (
-            <>
-              <Check size={16} />
-            </>
-          ) : (
-            <Heart size={16} />
-          )}
-        </button>
+        {!recipe.isOwner && (
+          <button
+            className={`discovery-save-btn ${recipe.isSaved ? 'saved' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSave();
+            }}
+            disabled={isSaving}
+            aria-label={recipe.isSaved ? 'Unsave recipe' : 'Save recipe'}
+            aria-pressed={recipe.isSaved ? 'true' : 'false'}
+          >
+            {isSaving ? (
+              <Loader2 size={16} className="spin" />
+            ) : (
+              <Heart size={16} fill={recipe.isSaved ? 'currentColor' : 'none'} />
+            )}
+          </button>
+        )}
       </div>
       <div className="discovery-card-body">
         <h3 className="discovery-card-title">{recipe.title}</h3>
@@ -83,13 +80,12 @@ function RecipeCardCompact({ recipe, onSave, onClick, onAuthorClick, isSaving, i
 interface CookbookCardCompactProps {
   cookbook: Cookbook;
   onClick: () => void;
-  onSave: () => void;
+  onToggleSave: () => void;
   onAuthorClick?: () => void;
   isSaving?: boolean;
-  isSaved?: boolean;
 }
 
-function CookbookCardCompact({ cookbook, onClick, onSave, onAuthorClick, isSaving, isSaved }: CookbookCardCompactProps) {
+function CookbookCardCompact({ cookbook, onClick, onToggleSave, onAuthorClick, isSaving }: CookbookCardCompactProps) {
   return (
     <article className="discovery-card cookbook-card" onClick={onClick}>
       <div className="discovery-card-image">
@@ -100,26 +96,24 @@ function CookbookCardCompact({ cookbook, onClick, onSave, onAuthorClick, isSavin
             <BookOpen size={48} />
           </div>
         )}
-        <button
-          className={`discovery-save-btn ${isSaved ? 'saved' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isSaved) return;
-            onSave();
-          }}
-          disabled={isSaving || isSaved}
-          aria-label={isSaved ? 'Cookbook saved' : 'Save cookbook'}
-        >
-          {isSaving ? (
-            <Loader2 size={16} className="spin" />
-          ) : isSaved ? (
-            <>
-              <Check size={16} />
-            </>
-          ) : (
-            <Heart size={16} />
-          )}
-        </button>
+        {!cookbook.isOwner && (
+          <button
+            className={`discovery-save-btn ${cookbook.isSaved ? 'saved' : ''}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSave();
+            }}
+            disabled={isSaving}
+            aria-label={cookbook.isSaved ? 'Unsave cookbook' : 'Save cookbook'}
+            aria-pressed={cookbook.isSaved ? 'true' : 'false'}
+          >
+            {isSaving ? (
+              <Loader2 size={16} className="spin" />
+            ) : (
+              <Heart size={16} fill={cookbook.isSaved ? 'currentColor' : 'none'} />
+            )}
+          </button>
+        )}
       </div>
       <div className="discovery-card-body">
         <h3 className="discovery-card-title">{cookbook.name}</h3>
@@ -178,6 +172,8 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     setSelectedTags,
     saveRecipe,
     saveCookbook,
+    unsaveRecipe,
+    unsaveCookbook,
   } = useDiscovery();
 
   const { updateRecipe, deleteRecipe, refreshRecipes } = useRecipes();
@@ -188,8 +184,6 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
   const [savingCookbookId, setSavingCookbookId] = useState<string | null>(null);
-  const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(() => new Set());
-  const [savedCookbookIds, setSavedCookbookIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     loadRecipes();
@@ -197,7 +191,6 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   }, [loadRecipes, loadCookbooks]);
 
   const handleSaveRecipe = async (recipe: Recipe) => {
-    if (savedRecipeIds.has(recipe.id)) return;
     if (!user) {
       showToast({ message: 'Please sign in to save recipes', type: 'info' });
       return;
@@ -207,7 +200,6 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     setSavingRecipeId(null);
 
     if (savedId) {
-      setSavedRecipeIds(prev => new Set(prev).add(recipe.id));
       // Refresh the recipes list so it shows the new recipe
       await refreshRecipes();
       showToast({
@@ -218,11 +210,46 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
           onClick: () => navigate('/my-recipes'),
         },
       });
+    } else {
+      showToast({
+        message: 'Could not save recipe. Please try again.',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleUnsaveRecipe = async (recipe: Recipe) => {
+    if (!user) {
+      showToast({ message: 'Please sign in to save recipes', type: 'info' });
+      return;
+    }
+    setSavingRecipeId(recipe.id);
+    const didUnsave = await unsaveRecipe(recipe.id);
+    setSavingRecipeId(null);
+
+    if (didUnsave) {
+      await refreshRecipes();
+      showToast({
+        message: 'Removed from My Recipes',
+        type: 'success',
+      });
+    } else {
+      showToast({
+        message: 'Could not remove recipe. Please try again.',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleToggleRecipeSave = async (recipe: Recipe) => {
+    if (recipe.isSaved) {
+      await handleUnsaveRecipe(recipe);
+    } else {
+      await handleSaveRecipe(recipe);
     }
   };
 
   const handleSaveCookbook = async (cookbook: Cookbook) => {
-    if (savedCookbookIds.has(cookbook.id)) return;
     if (!user) {
       showToast({ message: 'Please sign in to save cookbooks', type: 'info' });
       return;
@@ -232,7 +259,6 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     setSavingCookbookId(null);
 
     if (savedId) {
-      setSavedCookbookIds(prev => new Set(prev).add(cookbook.id));
       // Refresh the cookbooks list so it shows the new cookbook
       await refreshCookbooks();
       showToast({
@@ -243,6 +269,42 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
           onClick: () => navigate('/cookbooks'),
         },
       });
+    } else {
+      showToast({
+        message: 'Could not save cookbook. Please try again.',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleUnsaveCookbook = async (cookbook: Cookbook) => {
+    if (!user) {
+      showToast({ message: 'Please sign in to save cookbooks', type: 'info' });
+      return;
+    }
+    setSavingCookbookId(cookbook.id);
+    const didUnsave = await unsaveCookbook(cookbook.id);
+    setSavingCookbookId(null);
+
+    if (didUnsave) {
+      await refreshCookbooks();
+      showToast({
+        message: 'Cookbook removed from your collection',
+        type: 'success',
+      });
+    } else {
+      showToast({
+        message: 'Could not remove cookbook. Please try again.',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleToggleCookbookSave = async (cookbook: Cookbook) => {
+    if (cookbook.isSaved) {
+      await handleUnsaveCookbook(cookbook);
+    } else {
+      await handleSaveCookbook(cookbook);
     }
   };
 
@@ -414,10 +476,9 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
                     key={recipe.id}
                     recipe={recipe}
                     onClick={() => setSelectedRecipe(recipe)}
-                    onSave={() => handleSaveRecipe(recipe)}
+                    onToggleSave={() => handleToggleRecipeSave(recipe)}
                     onAuthorClick={recipe.ownerId ? () => navigate(`/profiles/${recipe.ownerId}`) : undefined}
                     isSaving={savingRecipeId === recipe.id}
-                    isSaved={savedRecipeIds.has(recipe.id)}
                   />
                 ))}
               </div>
@@ -456,10 +517,9 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
                     key={cookbook.id}
                     cookbook={cookbook}
                     onClick={() => navigate(`/discover/cookbooks/${cookbook.id}`)}
-                    onSave={() => handleSaveCookbook(cookbook)}
+                    onToggleSave={() => handleToggleCookbookSave(cookbook)}
                     onAuthorClick={cookbook.ownerId ? () => navigate(`/profiles/${cookbook.ownerId}`) : undefined}
                     isSaving={savingCookbookId === cookbook.id}
-                    isSaved={savedCookbookIds.has(cookbook.id)}
                   />
                 ))}
               </div>
@@ -483,7 +543,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
           onClose={() => setSelectedRecipe(null)}
           onSave={!selectedRecipe.isOwner ? () => handleSaveRecipe(selectedRecipe) : undefined}
           isSaving={savingRecipeId === selectedRecipe.id}
-          isSaved={savedRecipeIds.has(selectedRecipe.id)}
+          isSaved={Boolean(selectedRecipe.isSaved)}
           onEdit={selectedRecipe.isOwner ? () => {
             setEditingRecipe(selectedRecipe);
             setSelectedRecipe(null);

@@ -239,8 +239,13 @@ function normalizeAvatarUrl(value: unknown): string | null {
 }
 
 // Helper to format recipe
-function formatRecipe(r: DbRecipe & { owner_name?: string | null }, currentUserId?: string, addedByUserName?: string | null): RecipeInfo {
-  return {
+function formatRecipe(
+  r: DbRecipe & { owner_name?: string | null },
+  currentUserId?: string,
+  addedByUserName?: string | null,
+  options?: { savedCopyId?: string | null }
+): RecipeInfo {
+  const recipe: RecipeInfo = {
     id: r.id,
     title: r.title,
     description: r.description,
@@ -255,10 +260,50 @@ function formatRecipe(r: DbRecipe & { owner_name?: string | null }, currentUserI
     isPublic: r.is_public === 1,
     ownerId: r.owner_id,
     ownerName: r.owner_name,
-    isOwner: currentUserId ? r.owner_id === currentUserId : undefined,
+    isOwner: currentUserId ? r.user_id === currentUserId : undefined,
     createdAt: r.created_at,
     addedByUserName,
   };
+
+  if (options) {
+    recipe.savedCopyId = options.savedCopyId || null;
+    recipe.isSaved = Boolean(options.savedCopyId);
+  }
+
+  return recipe;
+}
+
+function recipesHaveSameSavedContent(candidate: DbRecipe, source: DbRecipe): boolean {
+  return candidate.owner_id === source.owner_id &&
+    candidate.title === source.title &&
+    (candidate.description || '') === (source.description || '') &&
+    candidate.ingredients === source.ingredients &&
+    candidate.instructions === source.instructions &&
+    (candidate.tags || '') === (source.tags || '') &&
+    (candidate.image_url || '') === (source.image_url || '') &&
+    (candidate.source_url || '') === (source.source_url || '') &&
+    (candidate.prep_time || '') === (source.prep_time || '') &&
+    (candidate.cook_time || '') === (source.cook_time || '') &&
+    (candidate.servings || '') === (source.servings || '');
+}
+
+function isUneditedRecipeCopy(candidate: DbRecipe, source: DbRecipe): boolean {
+  return candidate.source_recipe_id === source.id &&
+    candidate.is_public === 0 &&
+    recipesHaveSameSavedContent(candidate, source);
+}
+
+function isSavedRecipeMatch(candidate: DbRecipe, source: DbRecipe, includeOriginal: boolean): boolean {
+  return (includeOriginal && candidate.id === source.id) || isUneditedRecipeCopy(candidate, source);
+}
+
+function cookbooksHaveSameSavedContent(candidate: DbCookbook, source: DbCookbook): boolean {
+  return candidate.user_id !== source.user_id &&
+    candidate.name === source.name &&
+    (candidate.description || '') === (source.description || '') &&
+    (candidate.cover_image || '') === (source.cover_image || '') &&
+    candidate.is_system === 0 &&
+    candidate.is_public === 0;
 }
 
 const RECIPE_DEDUPE_SEPARATOR = '\u001f';
@@ -1395,10 +1440,6 @@ export class CoreHandlers {
       return { error: 'Recipe not found', status: 404 };
     }
 
-    if (existing.owner_id !== user.id) {
-      return { error: 'Only the recipe owner can edit this recipe', status: 403 };
-    }
-
     await this.db.run(
       `UPDATE recipes SET
         title = COALESCE(?, title),
@@ -1411,6 +1452,7 @@ export class CoreHandlers {
         prep_time = ?,
         cook_time = ?,
         servings = ?,
+        source_recipe_id = NULL,
         is_public = COALESCE(?, is_public)
       WHERE id = ? AND user_id = ?`,
       data.title || null,
@@ -1877,6 +1919,7 @@ export class CoreHandlers {
         name = COALESCE(?, name),
         description = COALESCE(?, description),
         cover_image = ?,
+        source_cookbook_id = NULL,
         is_public = COALESCE(?, is_public),
         updated_at = ?
       WHERE id = ? AND user_id = ?`,
@@ -1974,7 +2017,7 @@ export class CoreHandlers {
       Date.now()
     );
 
-    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', Date.now(), cookbookId);
+    await this.db.run('UPDATE cookbooks SET source_cookbook_id = NULL, updated_at = ? WHERE id = ?', Date.now(), cookbookId);
 
     return { data: { success: true }, status: 200 };
   }
@@ -2022,7 +2065,7 @@ export class CoreHandlers {
       );
     }
 
-    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', Date.now(), cookbookId);
+    await this.db.run('UPDATE cookbooks SET source_cookbook_id = NULL, updated_at = ? WHERE id = ?', Date.now(), cookbookId);
 
     return { data: { success: true }, status: 200 };
   }
@@ -2730,9 +2773,16 @@ export class CoreHandlers {
 
     const result = await this.db.all<DbRecipe & { owner_name: string }>(query, ...params);
 
+    const recipes = await Promise.all(result.results.map(async r => {
+      const savedCopyId = user
+        ? await this.findExistingSavedRecipeId(user.id, r, false)
+        : null;
+      return formatRecipe(r, user?.id, null, { savedCopyId });
+    }));
+
     return {
       data: {
-        recipes: result.results.map(r => formatRecipe(r, user?.id)),
+        recipes,
         total: countResult?.count || 0,
       },
       status: 200,
@@ -2764,74 +2814,64 @@ export class CoreHandlers {
       offset
     );
 
+    const cookbooks = await Promise.all(result.results.map(async c => {
+      const savedCopyId = user
+        ? await this.findExistingSavedCookbookId(user.id, c, false)
+        : null;
+
+      return {
+        id: c.id,
+        ownerId: c.user_id,
+        name: c.name,
+        description: c.description,
+        coverImage: c.cover_image || null,
+        recipeCount: c.recipe_count || 0,
+        isSystem: c.is_system === 1,
+        systemType: c.system_type,
+        isPublic: c.is_public === 1,
+        createdAt: c.created_at,
+        updatedAt: c.updated_at,
+        isOwner: user ? c.user_id === user.id : false,
+        ownerName: c.owner_name,
+        isSaved: Boolean(savedCopyId),
+        savedCopyId,
+      };
+    }));
+
     return {
       data: {
-        cookbooks: result.results.map(c => ({
-          id: c.id,
-          ownerId: c.user_id,
-          name: c.name,
-          description: c.description,
-          coverImage: c.cover_image || null,
-          recipeCount: c.recipe_count || 0,
-          isSystem: c.is_system === 1,
-          systemType: c.system_type,
-          isPublic: c.is_public === 1,
-          createdAt: c.created_at,
-          updatedAt: c.updated_at,
-          isOwner: user ? c.user_id === user.id : false,
-          ownerName: c.owner_name,
-        })),
+        cookbooks,
         total: countResult?.count || 0,
       },
       status: 200,
     };
   }
 
-  private async findExistingSavedRecipeId(userId: string, recipe: DbRecipe): Promise<string | null> {
-    const existing = await this.db.get<{ id: string }>(
-      `SELECT id FROM recipes
+  private async findExistingSavedRecipeId(
+    userId: string,
+    recipe: DbRecipe,
+    includeOriginal = true
+  ): Promise<string | null> {
+    const candidates = await this.db.all<DbRecipe>(
+      `SELECT * FROM recipes
        WHERE user_id = ?
-         AND (
-           id = ?
-           OR source_recipe_id = ?
-           OR (
-             owner_id = ?
-             AND title = ?
-             AND COALESCE(description, '') = COALESCE(?, '')
-             AND ingredients = ?
-             AND instructions = ?
-             AND COALESCE(tags, '') = COALESCE(?, '')
-             AND COALESCE(image_url, '') = COALESCE(?, '')
-             AND COALESCE(source_url, '') = COALESCE(?, '')
-             AND COALESCE(prep_time, '') = COALESCE(?, '')
-             AND COALESCE(cook_time, '') = COALESCE(?, '')
-             AND COALESCE(servings, '') = COALESCE(?, '')
-           )
-         )
+         AND (id = ? OR source_recipe_id = ?)
        ORDER BY
          CASE
            WHEN id = ? THEN 0
            WHEN source_recipe_id = ? THEN 1
            ELSE 2
          END,
-         created_at ASC
-       LIMIT 1`,
+         created_at ASC`,
       userId,
       recipe.id,
       recipe.id,
-      recipe.owner_id,
-      recipe.title,
-      recipe.description,
-      recipe.ingredients,
-      recipe.instructions,
-      recipe.tags,
-      recipe.image_url,
-      recipe.source_url,
-      recipe.prep_time,
-      recipe.cook_time,
-      recipe.servings,
       recipe.id,
       recipe.id
+    );
+
+    const existing = candidates.results.find(candidate =>
+      isSavedRecipeMatch(candidate, recipe, includeOriginal)
     );
 
     return existing?.id || null;
@@ -2886,6 +2926,82 @@ export class CoreHandlers {
     }
 
     await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, collectionId);
+  }
+
+  private async getCookbookRecipeRows(cookbookId: string): Promise<DbRecipe[]> {
+    const recipes = await this.db.all<DbRecipe>(
+      `SELECT r.* FROM recipes r
+       JOIN cookbook_recipes cr ON r.id = cr.recipe_id
+       WHERE cr.cookbook_id = ?
+       ORDER BY cr.added_at ASC, r.id ASC`,
+      cookbookId
+    );
+
+    return recipes.results;
+  }
+
+  private async isUneditedCookbookCopy(candidate: DbCookbook, source: DbCookbook): Promise<boolean> {
+    if (candidate.source_cookbook_id !== source.id || !cookbooksHaveSameSavedContent(candidate, source)) {
+      return false;
+    }
+
+    const sourceRecipes = await this.getCookbookRecipeRows(source.id);
+    const candidateRecipes = await this.getCookbookRecipeRows(candidate.id);
+    if (sourceRecipes.length !== candidateRecipes.length) {
+      return false;
+    }
+
+    const unmatched = [...candidateRecipes];
+    for (const sourceRecipe of sourceRecipes) {
+      const matchIndex = unmatched.findIndex(candidateRecipe =>
+        isSavedRecipeMatch(candidateRecipe, sourceRecipe, true)
+      );
+
+      if (matchIndex === -1) {
+        return false;
+      }
+
+      unmatched.splice(matchIndex, 1);
+    }
+
+    return unmatched.length === 0;
+  }
+
+  private async findExistingSavedCookbookId(
+    userId: string,
+    cookbook: DbCookbook,
+    includeOriginal = true
+  ): Promise<string | null> {
+    const candidates = await this.db.all<DbCookbook>(
+      `SELECT * FROM cookbooks
+       WHERE user_id = ?
+         AND is_system = 0
+         AND (id = ? OR source_cookbook_id = ?)
+       ORDER BY
+         CASE
+           WHEN id = ? THEN 0
+           WHEN source_cookbook_id = ? THEN 1
+           ELSE 2
+         END,
+         created_at ASC`,
+      userId,
+      cookbook.id,
+      cookbook.id,
+      cookbook.id,
+      cookbook.id
+    );
+
+    for (const candidate of candidates.results) {
+      if (includeOriginal && candidate.id === cookbook.id) {
+        return candidate.id;
+      }
+
+      if (await this.isUneditedCookbookCopy(candidate, cookbook)) {
+        return candidate.id;
+      }
+    }
+
+    return null;
   }
 
   // Save a public recipe to user's collection (creates a copy)
@@ -2970,6 +3086,11 @@ export class CoreHandlers {
       return { error: 'Cookbook not found or not public', status: 404 };
     }
 
+    const existingCookbookId = await this.findExistingSavedCookbookId(user.id, cookbook);
+    if (existingCookbookId) {
+      return { data: { id: existingCookbookId }, status: 200 };
+    }
+
     // Get all recipes in the cookbook
     const cookbookRecipes = await this.db.all<DbRecipe>(
       `SELECT r.* FROM recipes r
@@ -2983,13 +3104,14 @@ export class CoreHandlers {
 
     // Create a copy of the cookbook
     await this.db.run(
-      `INSERT INTO cookbooks (id, user_id, name, description, cover_image, is_public, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO cookbooks (id, user_id, name, description, cover_image, source_cookbook_id, is_public, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       newCookbookId,
       user.id,
       cookbook.name,
       cookbook.description,
       cookbook.cover_image,
+      cookbook.id,
       0, // private
       now,
       now
@@ -3047,6 +3169,66 @@ export class CoreHandlers {
     }
 
     return { data: { id: newCookbookId }, status: 201 };
+  }
+
+  async unsaveRecipe(
+    ctx: RequestContext,
+    recipeId: string
+  ): Promise<ApiResult<{ success: boolean; id?: string | null }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const recipe = await this.db.get<DbRecipe>(
+      'SELECT * FROM recipes WHERE id = ? AND is_public = 1',
+      recipeId
+    );
+
+    if (!recipe) {
+      return { error: 'Recipe not found or not public', status: 404 };
+    }
+
+    const savedCopyId = await this.findExistingSavedRecipeId(user.id, recipe, false);
+    if (!savedCopyId) {
+      return { data: { success: true, id: null }, status: 200 };
+    }
+
+    await this.db.run('DELETE FROM cookbook_recipes WHERE recipe_id = ?', savedCopyId);
+    await this.db.run('DELETE FROM recipes WHERE id = ? AND user_id = ?', savedCopyId, user.id);
+
+    return { data: { success: true, id: savedCopyId }, status: 200 };
+  }
+
+  async unsaveCookbook(
+    ctx: RequestContext,
+    cookbookId: string
+  ): Promise<ApiResult<{ success: boolean; id?: string | null }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const cookbook = await this.db.get<DbCookbook>(
+      'SELECT * FROM cookbooks WHERE id = ? AND is_public = 1 AND is_system = 0',
+      cookbookId
+    );
+
+    if (!cookbook) {
+      return { error: 'Cookbook not found or not public', status: 404 };
+    }
+
+    const savedCopyId = await this.findExistingSavedCookbookId(user.id, cookbook, false);
+    if (!savedCopyId) {
+      return { data: { success: true, id: null }, status: 200 };
+    }
+
+    await this.db.run('DELETE FROM cookbook_recipes WHERE cookbook_id = ?', savedCopyId);
+    await this.db.run('DELETE FROM cookbook_shares WHERE cookbook_id = ?', savedCopyId);
+    await this.db.run('DELETE FROM cookbook_share_links WHERE cookbook_id = ?', savedCopyId);
+    await this.db.run('DELETE FROM cookbooks WHERE id = ? AND user_id = ?', savedCopyId, user.id);
+
+    return { data: { success: true, id: savedCopyId }, status: 200 };
   }
 
   // Save a recipe from preview data (for shared recipe links)

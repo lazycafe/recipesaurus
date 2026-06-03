@@ -44,6 +44,7 @@ export interface DbCookbook {
   cover_image: string | null;
   is_system: number; // 0 = normal, 1 = system cookbook (e.g., Liked Recipes)
   system_type: string | null; // 'liked' for Liked Recipes
+  source_cookbook_id?: string | null;
   is_public: number; // 0 = private, 1 = public
   created_at: number;
   updated_at: number;
@@ -177,6 +178,8 @@ export interface RecipeInfo {
   ownerId: string;
   ownerName?: string | null;
   isOwner?: boolean; // true if current user is the owner
+  isSaved?: boolean;
+  savedCopyId?: string | null;
   createdAt: number;
   addedByUserId?: string | null;
   addedByUserName?: string | null;
@@ -197,6 +200,8 @@ export interface CookbookInfo {
   updatedAt: number;
   isOwner: boolean;
   ownerName?: string;
+  isSaved?: boolean;
+  savedCopyId?: string | null;
 }
 
 // Cookbook share info

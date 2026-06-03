@@ -23,6 +23,8 @@ interface DiscoveryContextType extends DiscoveryState {
   setSelectedTags: (tags: string[]) => void;
   saveRecipe: (recipeId: string) => Promise<string | null>;
   saveCookbook: (cookbookId: string) => Promise<string | null>;
+  unsaveRecipe: (recipeId: string) => Promise<boolean>;
+  unsaveCookbook: (cookbookId: string) => Promise<boolean>;
   getPublicRecipe: (id: string) => Promise<Recipe | null>;
   getPublicCookbook: (id: string) => Promise<{ cookbook: Cookbook; recipes: Recipe[] } | null>;
 }
@@ -64,6 +66,18 @@ function combineWithSamplePage<T extends { id: string }>(
   return mergeUniqueById(publicItems, sampleItems.slice(sampleStart, sampleStart + sampleNeeded));
 }
 
+function markItemSaved<T extends { id: string }>(items: T[], itemId: string, savedCopyId: string): T[] {
+  return items.map(item =>
+    item.id === itemId ? { ...item, isSaved: true, savedCopyId } : item
+  );
+}
+
+function markItemUnsaved<T extends { id: string }>(items: T[], itemId: string): T[] {
+  return items.map(item =>
+    item.id === itemId ? { ...item, isSaved: false, savedCopyId: null } : item
+  );
+}
+
 // Filter sample recipes by tags
 function filterSampleRecipes(tags: string[]): Recipe[] {
   if (tags.length === 0) return SAMPLE_RECIPES;
@@ -86,6 +100,49 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
   const useSampleRecipes = useRef(false);
   const useSampleCookbooks = useRef(false);
 
+  const annotateSampleRecipes = useCallback(async (items: Recipe[]): Promise<Recipe[]> => {
+    if (!items.some(item => item.id.startsWith('sample-'))) {
+      return items;
+    }
+
+    const existingRecipes = await client.recipes.list();
+    const existing = existingRecipes.data?.recipes || [];
+    return items.map(item => {
+      if (!item.id.startsWith('sample-')) return item;
+      const duplicate = findDuplicateRecipe(existing, item);
+      return {
+        ...item,
+        isSaved: Boolean(duplicate),
+        savedCopyId: duplicate?.id || null,
+      };
+    });
+  }, [client]);
+
+  const annotateSampleCookbooks = useCallback(async (items: Cookbook[]): Promise<Cookbook[]> => {
+    if (!items.some(item => item.id.startsWith('cookbook-'))) {
+      return items;
+    }
+
+    const existingCookbooks = await client.cookbooks.list();
+    const owned = existingCookbooks.data?.owned || [];
+    return items.map(item => {
+      if (!item.id.startsWith('cookbook-')) return item;
+      const duplicate = owned.find(cookbook =>
+        !cookbook.isSystem &&
+        cookbook.name === item.name &&
+        (cookbook.description || '') === (item.description || '') &&
+        (cookbook.coverImage || '') === (item.coverImage || '') &&
+        cookbook.recipeCount === item.recipeCount
+      );
+
+      return {
+        ...item,
+        isSaved: Boolean(duplicate),
+        savedCopyId: duplicate?.id || null,
+      };
+    });
+  }, [client]);
+
   const loadRecipes = useCallback(async (options?: { offset?: number; tags?: string[] }) => {
     setState(s => ({ ...s, isLoadingRecipes: true }));
     const offset = options?.offset || 0;
@@ -94,10 +151,11 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
     if (offset > 0 && useSampleRecipes.current) {
       const filtered = filterSampleRecipes(tags);
       const paged = filtered.slice(offset, offset + PAGE_SIZE);
+      const annotated = await annotateSampleRecipes(paged);
 
       setState(s => ({
         ...s,
-        recipes: mergeUniqueById(s.recipes, paged),
+        recipes: mergeUniqueById(s.recipes, annotated),
         recipesTotal: filtered.length,
         isLoadingRecipes: false,
       }));
@@ -123,10 +181,11 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
           filteredSamples,
           offset
         );
+        const annotated = await annotateSampleRecipes(combinedPage);
 
         setState(s => ({
           ...s,
-          recipes: offset ? mergeUniqueById(s.recipes, combinedPage) : combinedPage,
+          recipes: offset ? mergeUniqueById(s.recipes, annotated) : annotated,
           recipesTotal: result.data!.total + filteredSamples.length,
           isLoadingRecipes: false,
         }));
@@ -135,10 +194,11 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         useSampleRecipes.current = true;
         const filtered = filterSampleRecipes(tags);
         const paged = filtered.slice(offset, offset + PAGE_SIZE);
+        const annotated = await annotateSampleRecipes(paged);
 
         setState(s => ({
           ...s,
-          recipes: offset ? mergeUniqueById(s.recipes, paged) : mergeUniqueById([], paged),
+          recipes: offset ? mergeUniqueById(s.recipes, annotated) : mergeUniqueById([], annotated),
           recipesTotal: filtered.length,
           isLoadingRecipes: false,
         }));
@@ -150,15 +210,16 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       useSampleRecipes.current = true;
       const filtered = filterSampleRecipes(tags);
       const paged = filtered.slice(offset, offset + PAGE_SIZE);
+      const annotated = await annotateSampleRecipes(paged);
 
       setState(s => ({
         ...s,
-        recipes: offset ? mergeUniqueById(s.recipes, paged) : mergeUniqueById([], paged),
+        recipes: offset ? mergeUniqueById(s.recipes, annotated) : mergeUniqueById([], annotated),
         recipesTotal: filtered.length,
         isLoadingRecipes: false,
       }));
     }
-  }, [client, state.selectedTags]);
+  }, [client, state.selectedTags, annotateSampleRecipes]);
 
   const loadCookbooks = useCallback(async (options?: { offset?: number }) => {
     setState(s => ({ ...s, isLoadingCookbooks: true }));
@@ -166,10 +227,11 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
 
     if (offset > 0 && useSampleCookbooks.current) {
       const paged = SAMPLE_COOKBOOKS.slice(offset, offset + PAGE_SIZE);
+      const annotated = await annotateSampleCookbooks(paged);
 
       setState(s => ({
         ...s,
-        cookbooks: mergeUniqueById(s.cookbooks, paged),
+        cookbooks: mergeUniqueById(s.cookbooks, annotated),
         cookbooksTotal: SAMPLE_COOKBOOKS.length,
         isLoadingCookbooks: false,
       }));
@@ -193,10 +255,11 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
           SAMPLE_COOKBOOKS,
           offset
         );
+        const annotated = await annotateSampleCookbooks(combinedPage);
 
         setState(s => ({
           ...s,
-          cookbooks: offset ? mergeUniqueById(s.cookbooks, combinedPage) : combinedPage,
+          cookbooks: offset ? mergeUniqueById(s.cookbooks, annotated) : annotated,
           cookbooksTotal: result.data!.total + SAMPLE_COOKBOOKS.length,
           isLoadingCookbooks: false,
         }));
@@ -204,10 +267,11 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         // Use sample cookbooks when no real data from API
         useSampleCookbooks.current = true;
         const paged = SAMPLE_COOKBOOKS.slice(offset, offset + PAGE_SIZE);
+        const annotated = await annotateSampleCookbooks(paged);
 
         setState(s => ({
           ...s,
-          cookbooks: offset ? mergeUniqueById(s.cookbooks, paged) : mergeUniqueById([], paged),
+          cookbooks: offset ? mergeUniqueById(s.cookbooks, annotated) : mergeUniqueById([], annotated),
           cookbooksTotal: SAMPLE_COOKBOOKS.length,
           isLoadingCookbooks: false,
         }));
@@ -218,15 +282,16 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       // Fallback to sample cookbooks on error
       useSampleCookbooks.current = true;
       const paged = SAMPLE_COOKBOOKS.slice(offset, offset + PAGE_SIZE);
+      const annotated = await annotateSampleCookbooks(paged);
 
       setState(s => ({
         ...s,
-        cookbooks: offset ? mergeUniqueById(s.cookbooks, paged) : mergeUniqueById([], paged),
+        cookbooks: offset ? mergeUniqueById(s.cookbooks, annotated) : mergeUniqueById([], annotated),
         cookbooksTotal: SAMPLE_COOKBOOKS.length,
         isLoadingCookbooks: false,
       }));
     }
-  }, [client]);
+  }, [client, annotateSampleCookbooks]);
 
   const loadMoreRecipes = useCallback(async () => {
     await loadRecipes({ offset: state.recipes.length });
@@ -251,6 +316,10 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
           const existingRecipe = findDuplicateRecipe(existingRecipes.data?.recipes || [], sampleRecipe);
 
           if (existingRecipe) {
+            setState(s => ({
+              ...s,
+              recipes: markItemSaved(s.recipes, recipeId, existingRecipe.id),
+            }));
             return existingRecipe.id;
           }
 
@@ -268,6 +337,10 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
             isPublic: false,
           });
           if (result.data) {
+            setState(s => ({
+              ...s,
+              recipes: markItemSaved(s.recipes, recipeId, result.data!.id),
+            }));
             return result.data.id;
           }
         }
@@ -277,6 +350,10 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       // For real public recipes, use the save endpoint
       const result = await client.discover.saveRecipe(recipeId);
       if (result.data) {
+        setState(s => ({
+          ...s,
+          recipes: markItemSaved(s.recipes, recipeId, result.data!.id),
+        }));
         return result.data.id;
       }
       return null;
@@ -338,6 +415,10 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
             }
           }
 
+          setState(s => ({
+            ...s,
+            cookbooks: markItemSaved(s.cookbooks, cookbookId, newCookbookId),
+          }));
           return newCookbookId;
         }
         return null;
@@ -346,6 +427,10 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       // For real public cookbooks, use the save endpoint
       const result = await client.discover.saveCookbook(cookbookId);
       if (result.data) {
+        setState(s => ({
+          ...s,
+          cookbooks: markItemSaved(s.cookbooks, cookbookId, result.data!.id),
+        }));
         return result.data.id;
       }
       return null;
@@ -354,6 +439,72 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       return null;
     }
   }, [client]);
+
+  const unsaveRecipe = useCallback(async (recipeId: string): Promise<boolean> => {
+    try {
+      if (recipeId.startsWith('sample-')) {
+        const sampleRecipe = SAMPLE_RECIPES.find(r => r.id === recipeId);
+        if (!sampleRecipe) return false;
+
+        const existingRecipes = await client.recipes.list();
+        const existingRecipe = findDuplicateRecipe(existingRecipes.data?.recipes || [], sampleRecipe);
+        if (existingRecipe) {
+          await client.recipes.delete(existingRecipe.id);
+        }
+
+        setState(s => ({
+          ...s,
+          recipes: markItemUnsaved(s.recipes, recipeId),
+        }));
+        return true;
+      }
+
+      const result = await client.discover.unsaveRecipe(recipeId);
+      if (result.error) {
+        return false;
+      }
+
+      setState(s => ({
+        ...s,
+        recipes: markItemUnsaved(s.recipes, recipeId),
+      }));
+      return true;
+    } catch (error) {
+      console.error('Failed to unsave recipe:', error);
+      return false;
+    }
+  }, [client]);
+
+  const unsaveCookbook = useCallback(async (cookbookId: string): Promise<boolean> => {
+    try {
+      if (cookbookId.startsWith('cookbook-')) {
+        const savedCopyId = state.cookbooks.find(cookbook => cookbook.id === cookbookId)?.savedCopyId;
+        if (savedCopyId) {
+          await client.cookbooks.delete(savedCopyId);
+        }
+
+        setState(s => ({
+          ...s,
+          cookbooks: markItemUnsaved(s.cookbooks, cookbookId),
+        }));
+        return true;
+      }
+
+      const result = await client.discover.unsaveCookbook(cookbookId);
+      if (result.error) {
+        return false;
+      }
+
+      setState(s => ({
+        ...s,
+        cookbooks: markItemUnsaved(s.cookbooks, cookbookId),
+      }));
+      return true;
+    } catch (error) {
+      console.error('Failed to unsave cookbook:', error);
+      return false;
+    }
+  }, [client, state.cookbooks]);
 
   const getPublicRecipe = useCallback(async (id: string): Promise<Recipe | null> => {
     try {
@@ -418,6 +569,8 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         setSelectedTags,
         saveRecipe,
         saveCookbook,
+        unsaveRecipe,
+        unsaveCookbook,
         getPublicRecipe,
         getPublicCookbook,
       }}

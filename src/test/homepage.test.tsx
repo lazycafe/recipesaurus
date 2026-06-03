@@ -61,6 +61,8 @@ describe('Home Page Routing', () => {
     setSelectedTags: vi.fn(),
     saveRecipe: vi.fn(),
     saveCookbook: vi.fn(),
+    unsaveRecipe: vi.fn(),
+    unsaveCookbook: vi.fn(),
     getPublicRecipe: vi.fn(),
     getPublicCookbook: vi.fn(),
   };

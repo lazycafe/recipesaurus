@@ -397,6 +397,14 @@ export class HttpClient implements IClient {
     saveCookbook: (cookbookId: string): Promise<ApiResponse<{ id: string }>> => {
       return this.transport.request('POST', `/api/discover/cookbooks/${cookbookId}/save`);
     },
+
+    unsaveRecipe: (recipeId: string): Promise<ApiResponse<{ success: boolean; id?: string | null }>> => {
+      return this.transport.request('DELETE', `/api/discover/recipes/${recipeId}/save`);
+    },
+
+    unsaveCookbook: (cookbookId: string): Promise<ApiResponse<{ success: boolean; id?: string | null }>> => {
+      return this.transport.request('DELETE', `/api/discover/cookbooks/${cookbookId}/save`);
+    },
   };
 
   profile = {

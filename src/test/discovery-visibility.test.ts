@@ -136,4 +136,113 @@ describe('public discovery visibility', () => {
     const matchingRecipes = recipesResult.data!.recipes.filter(recipe => recipe.title === 'Own Public Salad');
     expect(matchingRecipes).toHaveLength(1);
   });
+
+  it('reports and removes only the unedited saved copy for public recipes', async () => {
+    const ownerClient = harness.getClient();
+    const recipeResult = await ownerClient.recipes.create({
+      title: 'Heart State Tomato Soup',
+      description: 'A recipe with a tracked saved copy',
+      ingredients: ['tomatoes', 'stock'],
+      instructions: ['simmer'],
+      tags: ['soup'],
+      isPublic: true,
+    });
+
+    const saverClient = harness.createClient();
+    await saverClient.auth.register('recipe-saver@example.com', 'Recipe Saver', 'Password123');
+
+    let discoverResult = await saverClient.discover.recipes({ limit: 20 });
+    let discoveredRecipe = discoverResult.data!.recipes.find(recipe => recipe.id === recipeResult.data!.id)!;
+    expect(discoveredRecipe.isSaved).toBe(false);
+    expect(discoveredRecipe.savedCopyId).toBeNull();
+
+    const saveResult = await saverClient.discover.saveRecipe(recipeResult.data!.id);
+
+    discoverResult = await saverClient.discover.recipes({ limit: 20 });
+    discoveredRecipe = discoverResult.data!.recipes.find(recipe => recipe.id === recipeResult.data!.id)!;
+    expect(discoveredRecipe.isSaved).toBe(true);
+    expect(discoveredRecipe.savedCopyId).toBe(saveResult.data!.id);
+
+    let recipesResult = await saverClient.recipes.list();
+    const savedCopy = recipesResult.data!.recipes.find(recipe => recipe.id === saveResult.data!.id)!;
+    expect(savedCopy.isOwner).toBe(true);
+    expect(savedCopy.ownerName).toBe('Chef');
+
+    await saverClient.recipes.update(saveResult.data!.id, { title: 'Edited Tomato Soup' });
+
+    discoverResult = await saverClient.discover.recipes({ limit: 20 });
+    discoveredRecipe = discoverResult.data!.recipes.find(recipe => recipe.id === recipeResult.data!.id)!;
+    expect(discoveredRecipe.isSaved).toBe(false);
+    expect(discoveredRecipe.savedCopyId).toBeNull();
+
+    const secondSave = await saverClient.discover.saveRecipe(recipeResult.data!.id);
+    expect(secondSave.data!.id).not.toBe(saveResult.data!.id);
+
+    const unsaveResult = await saverClient.discover.unsaveRecipe(recipeResult.data!.id);
+    expect(unsaveResult.data!.id).toBe(secondSave.data!.id);
+
+    discoverResult = await saverClient.discover.recipes({ limit: 20 });
+    discoveredRecipe = discoverResult.data!.recipes.find(recipe => recipe.id === recipeResult.data!.id)!;
+    expect(discoveredRecipe.isSaved).toBe(false);
+    expect(discoveredRecipe.savedCopyId).toBeNull();
+
+    recipesResult = await saverClient.recipes.list();
+    expect(recipesResult.data!.recipes.some(recipe => recipe.id === saveResult.data!.id)).toBe(true);
+    expect(recipesResult.data!.recipes.some(recipe => recipe.id === secondSave.data!.id)).toBe(false);
+  });
+
+  it('reports and removes only the unedited saved copy for public cookbooks', async () => {
+    const ownerClient = harness.getClient();
+    const recipeResult = await ownerClient.recipes.create({
+      title: 'Cookbook Heart Beans',
+      description: 'A recipe in a public cookbook',
+      ingredients: ['beans'],
+      instructions: ['season'],
+      tags: ['dinner'],
+      isPublic: true,
+    });
+    const cookbookResult = await ownerClient.cookbooks.create({
+      name: 'Heart State Cookbook',
+      description: 'A cookbook with tracked saved state',
+      isPublic: true,
+    });
+    await ownerClient.cookbooks.addRecipe(cookbookResult.data!.id, recipeResult.data!.id);
+
+    const saverClient = harness.createClient();
+    await saverClient.auth.register('cookbook-saver@example.com', 'Cookbook Saver', 'Password123');
+
+    let discoverResult = await saverClient.discover.cookbooks({ limit: 20 });
+    let discoveredCookbook = discoverResult.data!.cookbooks.find(cookbook => cookbook.id === cookbookResult.data!.id)!;
+    expect(discoveredCookbook.isSaved).toBe(false);
+    expect(discoveredCookbook.savedCopyId).toBeNull();
+
+    const saveResult = await saverClient.discover.saveCookbook(cookbookResult.data!.id);
+
+    discoverResult = await saverClient.discover.cookbooks({ limit: 20 });
+    discoveredCookbook = discoverResult.data!.cookbooks.find(cookbook => cookbook.id === cookbookResult.data!.id)!;
+    expect(discoveredCookbook.isSaved).toBe(true);
+    expect(discoveredCookbook.savedCopyId).toBe(saveResult.data!.id);
+
+    await saverClient.cookbooks.update(saveResult.data!.id, { name: 'Edited Heart State Cookbook' });
+
+    discoverResult = await saverClient.discover.cookbooks({ limit: 20 });
+    discoveredCookbook = discoverResult.data!.cookbooks.find(cookbook => cookbook.id === cookbookResult.data!.id)!;
+    expect(discoveredCookbook.isSaved).toBe(false);
+    expect(discoveredCookbook.savedCopyId).toBeNull();
+
+    const secondSave = await saverClient.discover.saveCookbook(cookbookResult.data!.id);
+    expect(secondSave.data!.id).not.toBe(saveResult.data!.id);
+
+    const unsaveResult = await saverClient.discover.unsaveCookbook(cookbookResult.data!.id);
+    expect(unsaveResult.data!.id).toBe(secondSave.data!.id);
+
+    discoverResult = await saverClient.discover.cookbooks({ limit: 20 });
+    discoveredCookbook = discoverResult.data!.cookbooks.find(cookbook => cookbook.id === cookbookResult.data!.id)!;
+    expect(discoveredCookbook.isSaved).toBe(false);
+    expect(discoveredCookbook.savedCopyId).toBeNull();
+
+    const cookbooksResult = await saverClient.cookbooks.list();
+    expect(cookbooksResult.data!.owned.some(cookbook => cookbook.id === saveResult.data!.id)).toBe(true);
+    expect(cookbooksResult.data!.owned.some(cookbook => cookbook.id === secondSave.data!.id)).toBe(false);
+  });
 });

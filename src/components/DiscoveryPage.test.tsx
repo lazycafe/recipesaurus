@@ -48,6 +48,8 @@ describe('DiscoveryPage', () => {
   const mockSaveCookbook = vi.fn();
   const mockRefreshRecipes = vi.fn();
   const mockRefreshCookbooks = vi.fn();
+  const mockUnsaveRecipe = vi.fn();
+  const mockUnsaveCookbook = vi.fn();
 
   const mockRecipe = {
     id: 'recipe-1',
@@ -78,6 +80,8 @@ describe('DiscoveryPage', () => {
     mockSaveCookbook.mockResolvedValue('saved-cookbook-1');
     mockRefreshRecipes.mockResolvedValue(undefined);
     mockRefreshCookbooks.mockResolvedValue(undefined);
+    mockUnsaveRecipe.mockResolvedValue(true);
+    mockUnsaveCookbook.mockResolvedValue(true);
 
     vi.mocked(ToastContext.useToast).mockReturnValue({
       showToast: vi.fn(),
@@ -111,6 +115,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: mockSaveCookbook,
+      unsaveRecipe: mockUnsaveRecipe,
+      unsaveCookbook: mockUnsaveCookbook,
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -194,6 +200,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -203,7 +211,7 @@ describe('DiscoveryPage', () => {
     expect(screen.getByText('by Test Chef')).toBeDefined();
   });
 
-  it('shows saved feedback after saving a recipe from Discover', async () => {
+  it('saves a recipe from Discover', async () => {
     vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
       recipes: [mockRecipe],
       cookbooks: [],
@@ -219,6 +227,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: mockSaveCookbook,
+      unsaveRecipe: mockUnsaveRecipe,
+      unsaveCookbook: mockUnsaveCookbook,
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -227,9 +237,9 @@ describe('DiscoveryPage', () => {
     fireEvent.click(screen.getByLabelText('Save recipe'));
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Recipe saved')).toBeDefined();
+      expect(mockSaveRecipe).toHaveBeenCalledWith('recipe-1');
     });
-    expect(screen.getByLabelText('Recipe saved').classList.contains('saved')).toBe(true);
+    expect(mockRefreshRecipes).toHaveBeenCalled();
   });
 
   it('renders duplicate recipes only once', () => {
@@ -248,6 +258,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -272,6 +284,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -296,6 +310,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -304,7 +320,7 @@ describe('DiscoveryPage', () => {
     expect(screen.getByText('Test Cookbook')).toBeDefined();
   });
 
-  it('shows saved feedback after saving a cookbook from Discover', async () => {
+  it('saves a cookbook from Discover', async () => {
     vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
       recipes: [],
       cookbooks: [mockCookbook],
@@ -320,6 +336,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: mockSaveCookbook,
+      unsaveRecipe: mockUnsaveRecipe,
+      unsaveCookbook: mockUnsaveCookbook,
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -328,9 +346,9 @@ describe('DiscoveryPage', () => {
     fireEvent.click(screen.getByLabelText('Save cookbook'));
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Cookbook saved')).toBeDefined();
+      expect(mockSaveCookbook).toHaveBeenCalledWith('cookbook-1');
     });
-    expect(screen.getByLabelText('Cookbook saved').classList.contains('saved')).toBe(true);
+    expect(mockRefreshCookbooks).toHaveBeenCalled();
   });
 
   it('renders duplicate cookbooks only once', () => {
@@ -349,6 +367,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -379,6 +399,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -403,6 +425,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -428,6 +452,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -454,6 +480,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -480,6 +508,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -509,6 +539,8 @@ describe('DiscoveryPage', () => {
       setSelectedTags: mockSetSelectedTags,
       saveRecipe: mockSaveRecipe,
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
       getPublicRecipe: vi.fn(),
       getPublicCookbook: vi.fn(),
     });
@@ -516,5 +548,75 @@ describe('DiscoveryPage', () => {
     renderWithRouter(<DiscoveryPage />);
     expect(screen.getByText('(25)')).toBeDefined();
     expect(screen.getByText('(10)')).toBeDefined();
+  });
+
+  it('renders a saved recipe heart as selected and unsaves on click', async () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [{ ...mockRecipe, isSaved: true, savedCopyId: 'saved-recipe-1' }],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      saveCookbook: mockSaveCookbook,
+      unsaveRecipe: mockUnsaveRecipe,
+      unsaveCookbook: mockUnsaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+
+    const unsaveButton = screen.getByRole('button', { name: 'Unsave recipe' });
+    expect(unsaveButton.getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(unsaveButton);
+
+    await waitFor(() => {
+      expect(mockUnsaveRecipe).toHaveBeenCalledWith('recipe-1');
+    });
+    expect(mockSaveRecipe).not.toHaveBeenCalled();
+  });
+
+  it('renders a saved cookbook heart as selected and unsaves on click', async () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [],
+      cookbooks: [{ ...mockCookbook, isSaved: true, savedCopyId: 'saved-cookbook-1' }],
+      recipesTotal: 0,
+      cookbooksTotal: 1,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      saveCookbook: mockSaveCookbook,
+      unsaveRecipe: mockUnsaveRecipe,
+      unsaveCookbook: mockUnsaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+
+    const unsaveButton = screen.getByRole('button', { name: 'Unsave cookbook' });
+    expect(unsaveButton.getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(unsaveButton);
+
+    await waitFor(() => {
+      expect(mockUnsaveCookbook).toHaveBeenCalledWith('cookbook-1');
+    });
+    expect(mockSaveCookbook).not.toHaveBeenCalled();
   });
 });

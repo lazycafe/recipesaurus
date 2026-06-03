@@ -127,6 +127,8 @@ describe('AddToCookbookModal', () => {
         getCookbook: vi.fn(),
         saveRecipe: vi.fn(),
         saveCookbook: vi.fn(),
+        unsaveRecipe: vi.fn(),
+        unsaveCookbook: vi.fn(),
       },
       profile: {
         get: vi.fn(),

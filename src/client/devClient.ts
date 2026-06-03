@@ -47,7 +47,17 @@ export async function createDevClient(): Promise<IClient> {
         console.error('Failed to seed dev user:', registerResult.error);
       }
 
-      // Seed sample public recipes with images
+      const communityResult = await client.auth.register(
+        'community@example.com',
+        'Community Chef',
+        'CommunityPassword123'
+      );
+
+      if (communityResult.error) {
+        console.error('Failed to seed community user:', communityResult.error);
+      }
+
+      // Seed sample public recipes with images under another user so local save flows are testable.
       const sampleRecipes = [
         {
           title: 'Creamy Tuscan Chicken',
@@ -123,28 +133,50 @@ export async function createDevClient(): Promise<IClient> {
         },
       ];
 
+      const publicRecipeIds: string[] = [];
       for (const recipe of sampleRecipes) {
-        await client.recipes.create(recipe);
+        const result = await client.recipes.create(recipe);
+        if (result.data?.id) {
+          publicRecipeIds.push(result.data.id);
+        }
       }
 
       // Seed public cookbooks
-      await client.cookbooks.create({
+      const weeknightCookbook = await client.cookbooks.create({
         name: 'Quick Weeknight Dinners',
         description: 'Easy recipes for busy evenings when you want something delicious but simple',
         isPublic: true,
       });
 
-      await client.cookbooks.create({
+      const mealPrepCookbook = await client.cookbooks.create({
         name: 'Healthy Meal Prep',
         description: 'Nutritious recipes perfect for meal prepping on Sundays',
         isPublic: true,
       });
 
-      await client.cookbooks.create({
+      const comfortCookbook = await client.cookbooks.create({
         name: 'Comfort Food Classics',
         description: 'Timeless recipes that warm the soul',
         isPublic: true,
       });
+
+      if (weeknightCookbook.data?.id) {
+        for (const recipeId of publicRecipeIds.slice(0, 3)) {
+          await client.cookbooks.addRecipe(weeknightCookbook.data.id, recipeId);
+        }
+      }
+      if (mealPrepCookbook.data?.id) {
+        for (const recipeId of publicRecipeIds.slice(2, 5)) {
+          await client.cookbooks.addRecipe(mealPrepCookbook.data.id, recipeId);
+        }
+      }
+      if (comfortCookbook.data?.id) {
+        for (const recipeId of publicRecipeIds.slice(5, 8)) {
+          await client.cookbooks.addRecipe(comfortCookbook.data.id, recipeId);
+        }
+      }
+
+      await client.auth.login('dev@example.com', 'DevPassword123');
 
       devClientInstance = client;
       return client;

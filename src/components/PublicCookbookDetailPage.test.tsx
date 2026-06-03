@@ -37,6 +37,8 @@ function renderCookbookDetail() {
 describe('PublicCookbookDetailPage', () => {
   const mockGetPublicCookbook = vi.fn();
   const mockSaveRecipe = vi.fn();
+  const mockUnsaveRecipe = vi.fn();
+  const mockUnsaveCookbook = vi.fn();
   const mockSaveCookbook = vi.fn();
   const mockRefreshCookbooks = vi.fn();
   const mockShowToast = vi.fn();
@@ -70,6 +72,8 @@ describe('PublicCookbookDetailPage', () => {
       recipes: [mockRecipe],
     });
     mockSaveRecipe.mockResolvedValue('saved-recipe-1');
+    mockUnsaveRecipe.mockResolvedValue(true);
+    mockUnsaveCookbook.mockResolvedValue(true);
     mockSaveCookbook.mockResolvedValue('saved-cookbook-1');
     mockRefreshCookbooks.mockResolvedValue(undefined);
 
@@ -118,6 +122,8 @@ describe('PublicCookbookDetailPage', () => {
       setSelectedTags: vi.fn(),
       saveRecipe: mockSaveRecipe,
       saveCookbook: mockSaveCookbook,
+      unsaveRecipe: mockUnsaveRecipe,
+      unsaveCookbook: mockUnsaveCookbook,
       getPublicRecipe: vi.fn(),
       getPublicCookbook: mockGetPublicCookbook,
     });
@@ -155,6 +161,6 @@ describe('PublicCookbookDetailPage', () => {
     await waitFor(() => {
       expect(mockSaveRecipe).toHaveBeenCalledWith('recipe-1');
     });
-    expect(screen.getByLabelText('Recipe saved')).toBeDefined();
+    expect(screen.getByLabelText('Unsave recipe')).toBeDefined();
   });
 });

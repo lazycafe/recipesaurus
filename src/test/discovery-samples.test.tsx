@@ -16,13 +16,19 @@ function createClientMock() {
       getCookbook: vi.fn(),
       saveRecipe: vi.fn(),
       saveCookbook: vi.fn(),
+      unsaveRecipe: vi.fn(),
+      unsaveCookbook: vi.fn(),
     },
     recipes: {
+      list: vi.fn().mockResolvedValue({ data: { recipes: [] } }),
       create: vi.fn(),
+      delete: vi.fn(),
     },
     cookbooks: {
+      list: vi.fn().mockResolvedValue({ data: { owned: [], shared: [] } }),
       create: vi.fn(),
       addRecipe: vi.fn(),
+      delete: vi.fn(),
     },
   } as unknown as IClient;
 }

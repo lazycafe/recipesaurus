@@ -7046,6 +7046,7 @@ img {
     top: var(--space-1);
     right: var(--space-1);
     opacity: 1;
+    transform: translateY(0);
   }
 
   .card-action {
@@ -7375,20 +7376,16 @@ img {
 }
 
 .discovery-save-btn.saved {
+  opacity: 1;
+  transform: scale(1);
   background: var(--color-terracotta);
   color: white;
-  opacity: 1;
 }
 
 .discovery-save-btn.saved:hover {
-  background: var(--color-terracotta);
+  background: var(--color-terracotta-dark);
   color: white;
 }
-
-.discovery-save-btn.saved:disabled {
-  cursor: default;
-}
-
 .discovery-card-body {
   padding: var(--space-3);
 }
@@ -7713,14 +7710,13 @@ img {
 }
 
 .public-recipe-card .save-btn.saved {
+  opacity: 1;
   background: var(--color-terracotta);
   color: white;
-  opacity: 1;
-  cursor: default;
 }
 
 .public-recipe-card .save-btn.saved:hover {
-  background: var(--color-terracotta);
+  background: var(--color-terracotta-dark);
   color: white;
 }
 

@@ -15,7 +15,7 @@ export function PublicCookbookDetailPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const { refreshCookbooks } = useCookbooks();
-  const { getPublicCookbook, saveRecipe, saveCookbook } = useDiscovery();
+  const { getPublicCookbook, saveRecipe, unsaveRecipe, saveCookbook } = useDiscovery();
 
   const [cookbook, setCookbook] = useState<Cookbook | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -23,7 +23,6 @@ export function PublicCookbookDetailPage() {
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
   const [isSavingCookbook, setIsSavingCookbook] = useState(false);
-  const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(() => new Set());
   const [isCookbookSaved, setIsCookbookSaved] = useState(false);
 
   useEffect(() => {
@@ -34,6 +33,7 @@ export function PublicCookbookDetailPage() {
       if (result) {
         setCookbook(result.cookbook);
         setRecipes(result.recipes);
+        setIsCookbookSaved(Boolean(result.cookbook.isSaved));
       }
       setIsLoading(false);
     }
@@ -41,7 +41,6 @@ export function PublicCookbookDetailPage() {
   }, [id, getPublicCookbook]);
 
   const handleSaveRecipe = async (recipe: Recipe) => {
-    if (savedRecipeIds.has(recipe.id)) return;
     if (!user) {
       showToast({ message: 'Please sign in to save recipes', type: 'info' });
       return;
@@ -51,7 +50,16 @@ export function PublicCookbookDetailPage() {
     setSavingRecipeId(null);
 
     if (savedId) {
-      setSavedRecipeIds(prev => new Set(prev).add(recipe.id));
+      setRecipes(currentRecipes => currentRecipes.map(currentRecipe =>
+        currentRecipe.id === recipe.id
+          ? { ...currentRecipe, isSaved: true, savedCopyId: savedId }
+          : currentRecipe
+      ));
+      setSelectedRecipe(currentRecipe =>
+        currentRecipe?.id === recipe.id
+          ? { ...currentRecipe, isSaved: true, savedCopyId: savedId }
+          : currentRecipe
+      );
       showToast({
         message: 'Saved to My Recipes',
         type: 'success',
@@ -77,6 +85,9 @@ export function PublicCookbookDetailPage() {
 
     if (savedId) {
       setIsCookbookSaved(true);
+      setCookbook(currentCookbook =>
+        currentCookbook ? { ...currentCookbook, isSaved: true, savedCopyId: savedId } : currentCookbook
+      );
       await refreshCookbooks();
       showToast({
         message: 'Cookbook saved to your collection',
@@ -86,6 +97,41 @@ export function PublicCookbookDetailPage() {
           onClick: () => navigate('/cookbooks'),
         },
       });
+    }
+  };
+
+  const handleUnsaveRecipe = async (recipe: Recipe) => {
+    if (!user) {
+      showToast({ message: 'Please sign in to save recipes', type: 'info' });
+      return;
+    }
+    setSavingRecipeId(recipe.id);
+    const didUnsave = await unsaveRecipe(recipe.id);
+    setSavingRecipeId(null);
+
+    if (didUnsave) {
+      setRecipes(currentRecipes => currentRecipes.map(currentRecipe =>
+        currentRecipe.id === recipe.id
+          ? { ...currentRecipe, isSaved: false, savedCopyId: null }
+          : currentRecipe
+      ));
+      setSelectedRecipe(currentRecipe =>
+        currentRecipe?.id === recipe.id
+          ? { ...currentRecipe, isSaved: false, savedCopyId: null }
+          : currentRecipe
+      );
+      showToast({
+        message: 'Removed from My Recipes',
+        type: 'success',
+      });
+    }
+  };
+
+  const handleToggleRecipeSave = async (recipe: Recipe) => {
+    if (recipe.isSaved) {
+      await handleUnsaveRecipe(recipe);
+    } else {
+      await handleSaveRecipe(recipe);
     }
   };
 
@@ -196,21 +242,19 @@ export function PublicCookbookDetailPage() {
                     </div>
                   )}
                   <button
-                    className={`save-btn ${savedRecipeIds.has(recipe.id) ? 'saved' : ''}`}
+                    className={`save-btn ${recipe.isSaved ? 'saved' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (savedRecipeIds.has(recipe.id)) return;
-                      handleSaveRecipe(recipe);
+                      handleToggleRecipeSave(recipe);
                     }}
-                    disabled={savingRecipeId === recipe.id || savedRecipeIds.has(recipe.id)}
-                    aria-label={savedRecipeIds.has(recipe.id) ? 'Recipe saved' : 'Save recipe'}
+                    disabled={savingRecipeId === recipe.id}
+                    aria-label={recipe.isSaved ? 'Unsave recipe' : 'Save recipe'}
+                    aria-pressed={recipe.isSaved ? 'true' : 'false'}
                   >
                     {savingRecipeId === recipe.id ? (
                       <Loader2 size={16} className="spin" />
-                    ) : savedRecipeIds.has(recipe.id) ? (
-                      <Check size={16} />
                     ) : (
-                      <Heart size={16} />
+                      <Heart size={16} fill={recipe.isSaved ? 'currentColor' : 'none'} />
                     )}
                   </button>
                 </div>
@@ -236,7 +280,7 @@ export function PublicCookbookDetailPage() {
           onClose={() => setSelectedRecipe(null)}
           onSave={() => handleSaveRecipe(selectedRecipe)}
           isSaving={savingRecipeId === selectedRecipe.id}
-          isSaved={savedRecipeIds.has(selectedRecipe.id)}
+          isSaved={Boolean(selectedRecipe.isSaved)}
           isPublicView={true}
         />
       )}

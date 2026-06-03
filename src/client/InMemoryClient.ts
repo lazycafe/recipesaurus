@@ -72,6 +72,8 @@ export interface ICoreHandlers {
   getPublicCookbook(cookbookId: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   saveRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ id: string }>>;
   saveCookbook(ctx: RequestContext, cookbookId: string): Promise<ApiResult<{ id: string }>>;
+  unsaveRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ success: boolean; id?: string | null }>>;
+  unsaveCookbook(ctx: RequestContext, cookbookId: string): Promise<ApiResult<{ success: boolean; id?: string | null }>>;
   savePreviewRecipe(ctx: RequestContext, data: {
     title: string;
     description: string;
@@ -481,6 +483,16 @@ export class InMemoryClient implements IClient {
 
     saveCookbook: async (cookbookId: string): Promise<ApiResponse<{ id: string }>> => {
       const result = await this.handlers.saveCookbook(this.getContext(), cookbookId);
+      return toApiResponse(result);
+    },
+
+    unsaveRecipe: async (recipeId: string): Promise<ApiResponse<{ success: boolean; id?: string | null }>> => {
+      const result = await this.handlers.unsaveRecipe(this.getContext(), recipeId);
+      return toApiResponse(result);
+    },
+
+    unsaveCookbook: async (cookbookId: string): Promise<ApiResponse<{ success: boolean; id?: string | null }>> => {
+      const result = await this.handlers.unsaveCookbook(this.getContext(), cookbookId);
       return toApiResponse(result);
     },
   };

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { MyRecipesPage } from './MyRecipesPage';
 import * as RecipeContext from '../context/RecipeContext';
 import * as CookbookContext from '../context/CookbookContext';
@@ -140,6 +141,39 @@ describe('MyRecipesPage', () => {
 
     render(<MyRecipesPage />);
     expect(screen.getByText('Test Recipe')).toBeDefined();
+  });
+
+  it('allows editing a saved copy attributed to another chef', () => {
+    const savedCopy = {
+      ...mockRecipe,
+      id: 'saved-copy-1',
+      title: 'Saved Pasta',
+      ownerId: 'community-chef',
+      ownerName: 'Community Chef',
+      isOwner: true,
+    };
+
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [savedCopy],
+      isLoading: false,
+      addRecipe: mockAddRecipe,
+      updateRecipe: mockUpdateRecipe,
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: mockGetAllTags.mockReturnValue(['dinner', 'quick']),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    render(
+      <MemoryRouter>
+        <MyRecipesPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByText('Saved Pasta'));
+    fireEvent.click(screen.getByText('Edit'));
+
+    expect(screen.getByText('Edit Recipe')).toBeDefined();
+    expect(screen.getByDisplayValue('Saved Pasta')).toBeDefined();
   });
 
   it('renders duplicate recipes only once', () => {

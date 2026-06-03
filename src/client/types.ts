@@ -23,6 +23,8 @@ export interface Recipe {
   ownerId?: string;
   ownerName?: string | null;
   isOwner?: boolean;
+  isSaved?: boolean;
+  savedCopyId?: string | null;
   createdAt: number;
   addedByUserId?: string | null;
   addedByUserName?: string | null;
@@ -42,6 +44,8 @@ export interface Cookbook {
   updatedAt: number;
   isOwner: boolean;
   ownerName?: string;
+  isSaved?: boolean;
+  savedCopyId?: string | null;
 }
 
 export interface CookbookShare {
@@ -280,6 +284,8 @@ export interface IClient {
     getCookbook(id: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>>;
     saveRecipe(recipeId: string): Promise<ApiResponse<{ id: string }>>;
     saveCookbook(cookbookId: string): Promise<ApiResponse<{ id: string }>>;
+    unsaveRecipe(recipeId: string): Promise<ApiResponse<{ success: boolean; id?: string | null }>>;
+    unsaveCookbook(cookbookId: string): Promise<ApiResponse<{ success: boolean; id?: string | null }>>;
   };
 
   profile: {
