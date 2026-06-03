@@ -208,6 +208,7 @@ function RecipeApp() {
 
 function AppContent() {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
   const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
@@ -216,6 +217,10 @@ function AppContent() {
   }
 
   if (!user) {
+    if (location.pathname.startsWith('/profiles/')) {
+      return <PublicProfileRoute />;
+    }
+
     return (
       <>
         <PublicHomePage
@@ -257,6 +262,47 @@ function AppContent() {
         </NotificationProvider>
       </CookbookProvider>
     </RecipeProvider>
+  );
+}
+
+function PublicProfileRoute() {
+  const [authModal, setAuthModal] = useState<'login' | 'register' | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  return (
+    <ToastProvider>
+      <Header />
+      <main className="main">
+        <div className="container">
+          <Routes>
+            <Route
+              path="/profiles/:userId"
+              element={<ProfilePage onSignIn={() => setAuthModal('login')} />}
+            />
+          </Routes>
+        </div>
+      </main>
+
+      {authModal && (
+        <AuthModal
+          initialMode={authModal}
+          onClose={() => setAuthModal(null)}
+          onForgotPassword={() => {
+            setAuthModal(null);
+            setShowForgotPassword(true);
+          }}
+        />
+      )}
+      {showForgotPassword && (
+        <ForgotPasswordModal
+          onClose={() => setShowForgotPassword(false)}
+          onBackToLogin={() => {
+            setShowForgotPassword(false);
+            setAuthModal('login');
+          }}
+        />
+      )}
+    </ToastProvider>
   );
 }
 

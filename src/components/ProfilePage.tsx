@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, Upload, Trash2 } from 'lucide-react';
+import { ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, Upload, Trash2, Share2 } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import type { Cookbook as ClientCookbook, ProfileUser, Recipe, UserProfile } from '../client/types';
 import type { Cookbook } from '../types/Cookbook';
@@ -32,7 +32,11 @@ type ModalFeedback = {
 const PROFILE_AVATAR_MAX_BYTES = 1024 * 1024;
 const PROFILE_AVATAR_ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
-export function ProfilePage() {
+interface ProfilePageProps {
+  onSignIn?: () => void;
+}
+
+export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const client = useClient();
@@ -261,6 +265,24 @@ export function ProfilePage() {
     }
   };
 
+  const handleShareProfile = async () => {
+    if (!profile) return;
+
+    const profileUrl = `${window.location.origin}/profiles/${encodeURIComponent(profile.user.id)}`;
+
+    if (!navigator.clipboard?.writeText) {
+      showToast({ message: 'Copy unavailable. Use the browser address bar to share this profile.', type: 'info' });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(profileUrl);
+      showToast({ message: 'Profile link copied', type: 'success' });
+    } catch {
+      showToast({ message: 'Could not copy profile link', type: 'error' });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="profile-page profile-loading">
@@ -298,29 +320,40 @@ export function ProfilePage() {
         <div className="profile-hero-main">
           <div className="profile-title-row">
             <h1>{profile.user.name}</h1>
-            {profile.isCurrentUser ? (
-              <button className="btn-secondary profile-action-btn" onClick={openEditProfile}>
-                <Edit3 size={16} />
-                Edit
-              </button>
-            ) : (
-              <button
-                className={`btn-secondary profile-action-btn ${profile.isFriend ? 'friend' : ''}`}
-                onClick={handleToggleFriend}
-                disabled={isFriendActionLoading || profile.hasPendingFriendRequest}
-              >
-                {isFriendActionLoading ? (
-                  <Loader2 size={16} className="spin" />
-                ) : profile.isFriend ? (
-                  <UserMinus size={16} />
-                ) : profile.hasPendingFriendRequest ? (
-                  <Check size={16} />
-                ) : (
+            <div className="profile-title-actions">
+              {profile.isCurrentUser ? (
+                <button className="btn-secondary profile-action-btn" onClick={openEditProfile}>
+                  <Edit3 size={16} />
+                  Edit
+                </button>
+              ) : !user ? (
+                <button className="btn-primary profile-action-btn" onClick={onSignIn}>
                   <UserPlus size={16} />
-                )}
-                {profile.isFriend ? 'Remove Friend' : profile.hasPendingFriendRequest ? 'Request Sent' : 'Add Friend'}
+                  Sign In to Add Friend
+                </button>
+              ) : (
+                <button
+                  className={`btn-secondary profile-action-btn ${profile.isFriend ? 'friend' : ''}`}
+                  onClick={handleToggleFriend}
+                  disabled={isFriendActionLoading || profile.hasPendingFriendRequest}
+                >
+                  {isFriendActionLoading ? (
+                    <Loader2 size={16} className="spin" />
+                  ) : profile.isFriend ? (
+                    <UserMinus size={16} />
+                  ) : profile.hasPendingFriendRequest ? (
+                    <Check size={16} />
+                  ) : (
+                    <UserPlus size={16} />
+                  )}
+                  {profile.isFriend ? 'Remove Friend' : profile.hasPendingFriendRequest ? 'Request Sent' : 'Add Friend'}
+                </button>
+              )}
+              <button className="btn-secondary profile-action-btn" onClick={handleShareProfile}>
+                <Share2 size={16} />
+                Share
               </button>
-            )}
+            </div>
           </div>
 
           <div className="profile-stats">

@@ -404,6 +404,161 @@ describe('ProfilePage', () => {
     expect(screen.getByText('Public Cookbooks')).toBeDefined();
   });
 
+  it('shows public profile content to signed-out visitors', async () => {
+    const onSignIn = vi.fn();
+    const addFriend = vi.fn();
+    const recipe: Recipe = {
+      id: 'recipe-1',
+      title: 'Public Pasta',
+      description: 'A public recipe',
+      ingredients: ['noodles'],
+      instructions: ['boil'],
+      tags: ['dinner'],
+      isPublic: true,
+      ownerId: 'user-2',
+      ownerName: 'Bob Baker',
+      isOwner: false,
+      createdAt: Date.now(),
+    };
+    const cookbook: Cookbook = {
+      id: 'cookbook-1',
+      name: 'Public Favorites',
+      description: null,
+      coverImage: null,
+      recipeCount: 1,
+      isSystem: false,
+      systemType: null,
+      isPublic: true,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      isOwner: false,
+      ownerId: 'user-2',
+      ownerName: 'Bob Baker',
+    };
+
+    vi.mocked(AuthContext.useAuth).mockReturnValue({
+      user: null,
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateProfile: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
+      devLogin: vi.fn(),
+    });
+
+    const client = {
+      profile: {
+        get: vi.fn(async () => ({
+          data: {
+            profile: {
+              user: {
+                id: 'user-2',
+                name: 'Bob Baker',
+                avatarUrl: null,
+              },
+              isCurrentUser: false,
+              isFriend: false,
+              hasPendingFriendRequest: false,
+              incomingFriendRequestId: null,
+              friendCount: 3,
+              recipeCount: 1,
+              cookbookCount: 1,
+              recipes: [recipe],
+              cookbooks: [cookbook],
+            } satisfies UserProfile,
+          },
+        })),
+        listFriends: vi.fn(),
+        addFriend,
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={['/profiles/user-2']}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage onSignIn={onSignIn} />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Bob Baker' })).toBeDefined();
+    expect(screen.getByText('Public Pasta')).toBeDefined();
+    expect(screen.getAllByText('Public Favorites').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In to Add Friend' }));
+
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+    expect(addFriend).not.toHaveBeenCalled();
+  });
+
+  it('copies a public profile link from the profile header', async () => {
+    const showToast = vi.fn();
+    const writeText = vi.fn(async () => undefined);
+
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+
+    const client = {
+      profile: {
+        get: vi.fn(async () => ({
+          data: {
+            profile: {
+              user: {
+                id: 'user-2',
+                name: 'Bob Baker',
+                avatarUrl: null,
+              },
+              isCurrentUser: false,
+              isFriend: false,
+              hasPendingFriendRequest: false,
+              incomingFriendRequestId: null,
+              friendCount: 3,
+              recipeCount: 0,
+              cookbookCount: 0,
+              recipes: [],
+              cookbooks: [],
+            } satisfies UserProfile,
+          },
+        })),
+        listFriends: vi.fn(),
+        addFriend: vi.fn(),
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={['/profiles/user-2']}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Bob Baker' })).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/profiles/user-2`);
+    });
+    expect(showToast).toHaveBeenCalledWith({ message: 'Profile link copied', type: 'success' });
+  });
+
   it('shows add friend by email errors inline inside the friends modal', async () => {
     const friends: ProfileUser[] = [];
     const showToast = vi.fn();

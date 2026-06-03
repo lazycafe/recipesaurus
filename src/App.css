@@ -4519,6 +4519,13 @@ img {
   overflow-wrap: anywhere;
 }
 
+.profile-title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
 .profile-action-btn {
   flex-shrink: 0;
 }
@@ -4861,6 +4868,11 @@ img {
 
   .profile-title-row h1 {
     font-size: var(--text-2xl);
+  }
+
+  .profile-title-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .profile-stats {
