@@ -215,6 +215,8 @@ export interface IClient {
     createShareLink(data: RecipeSharePayload): Promise<ApiResponse<RecipeShareLink>>;
     shareWithUser(data: RecipeSharePayload, userId: string): Promise<ApiResponse<{ success: boolean; sharedWith?: ProfileUser; shareLink?: RecipeShareLink }>>;
     getShared(token: string): Promise<ApiResponse<{ recipe: RecipeSharePayload }>>;
+    acceptShare(token: string): Promise<ApiResponse<{ success: boolean; recipeId: string; recipeTitle: string }>>;
+    declineShare(token: string): Promise<ApiResponse<{ success: boolean }>>;
     saveFromPreview(data: {
       title: string;
       description: string;

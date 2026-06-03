@@ -37,6 +37,27 @@ describe('HttpClient', () => {
     );
   });
 
+  it('encodes recipe share tokens in notification action paths', async () => {
+    const transport: ITransport = {
+      request: vi.fn(async () => ({ data: { success: true } })),
+    } as unknown as ITransport;
+    const client = new HttpClient(transport, tokenStorage);
+
+    await client.recipes.acceptShare('share/token with spaces%');
+    await client.recipes.declineShare('share/token with spaces%');
+
+    expect(transport.request).toHaveBeenNthCalledWith(
+      1,
+      'POST',
+      '/api/recipe-shares/share%2Ftoken%20with%20spaces%25/accept'
+    );
+    expect(transport.request).toHaveBeenNthCalledWith(
+      2,
+      'POST',
+      '/api/recipe-shares/share%2Ftoken%20with%20spaces%25/decline'
+    );
+  });
+
   it('returns response status for non-json api failures', async () => {
     vi.stubGlobal(
       'fetch',

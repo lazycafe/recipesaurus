@@ -88,6 +88,8 @@ describe('AddToCookbookModal', () => {
         createShareLink: vi.fn(),
         shareWithUser: vi.fn(),
         getShared: vi.fn(),
+        acceptShare: vi.fn(),
+        declineShare: vi.fn(),
         saveFromPreview: vi.fn(),
       },
       cookbooks: {

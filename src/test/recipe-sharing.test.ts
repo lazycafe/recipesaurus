@@ -63,6 +63,21 @@ describe('Recipe sharing with users', () => {
     const sharedRecipe = await recipientClient.recipes.getShared(shareResult.data!.shareLink!.token);
     expect(sharedRecipe.error).toBeUndefined();
     expect(sharedRecipe.data?.recipe.title).toBe('Pasta Night');
+
+    const beforeAccept = await recipientClient.recipes.list();
+    expect(beforeAccept.data?.recipes.some(recipe => recipe.title === 'Pasta Night')).toBe(false);
+
+    const acceptResult = await recipientClient.recipes.acceptShare(shareResult.data!.shareLink!.token);
+    expect(acceptResult.error).toBeUndefined();
+    expect(acceptResult.data?.recipeTitle).toBe('Pasta Night');
+
+    const afterAccept = await recipientClient.recipes.list();
+    expect(afterAccept.data?.recipes.some(recipe => recipe.title === 'Pasta Night')).toBe(true);
+
+    const notificationsAfterAccept = await recipientClient.notifications.list();
+    expect(notificationsAfterAccept.data!.notifications.some(
+      notification => notification.type === 'recipe_share'
+    )).toBe(false);
   });
 
   it('allows recipe share payloads larger than the previous 64 KB cap', async () => {
@@ -108,5 +123,38 @@ describe('Recipe sharing with users', () => {
     );
 
     expect(shareResult.error).toContain('friends');
+  });
+
+  it('declines a recipe share notification without adding the recipe', async () => {
+    const ownerClient = harness.createClient();
+    await ownerClient.auth.register('owner@example.com', 'Owner Chef', 'Password123');
+
+    const recipientClient = harness.createClient();
+    const recipient = await recipientClient.auth.register('recipient@example.com', 'Recipe Friend', 'Password123');
+    const recipientUserId = recipient.data!.user!.id;
+
+    await acceptFriendRequest(ownerClient, recipientClient, recipientUserId);
+
+    const shareResult = await ownerClient.recipes.shareWithUser(
+      {
+        title: 'Declined Pasta',
+        ingredients: ['pasta'],
+        instructions: ['cook'],
+      },
+      recipientUserId
+    );
+    expect(shareResult.error).toBeUndefined();
+
+    const declineResult = await recipientClient.recipes.declineShare(shareResult.data!.shareLink!.token);
+    expect(declineResult.error).toBeUndefined();
+    expect(declineResult.data?.success).toBe(true);
+
+    const recipes = await recipientClient.recipes.list();
+    expect(recipes.data?.recipes.some(recipe => recipe.title === 'Declined Pasta')).toBe(false);
+
+    const notifications = await recipientClient.notifications.list();
+    expect(notifications.data!.notifications.some(
+      notification => notification.type === 'recipe_share'
+    )).toBe(false);
   });
 });

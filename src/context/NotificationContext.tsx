@@ -13,6 +13,8 @@ interface NotificationContextType {
   clearAll: () => Promise<void>;
   acceptInvite: (inviteId: string) => Promise<{ cookbookId: string; cookbookName: string } | null>;
   declineInvite: (inviteId: string) => Promise<boolean>;
+  acceptRecipeShare: (shareToken: string) => Promise<{ recipeId: string; recipeTitle: string } | null>;
+  declineRecipeShare: (shareToken: string) => Promise<boolean>;
   acceptFriendRequest: (friendRequestId: string) => Promise<{ friendId: string; friendName: string } | null>;
   declineFriendRequest: (friendRequestId: string) => Promise<boolean>;
 }
@@ -74,6 +76,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     setUnreadCount(0);
   };
 
+  const removeNotifications = (shouldRemove: (notification: Notification) => boolean) => {
+    setNotifications(prev => {
+      const removedUnreadCount = prev.filter(notification => shouldRemove(notification) && !notification.isRead).length;
+      if (removedUnreadCount > 0) {
+        setUnreadCount(count => Math.max(0, count - removedUnreadCount));
+      }
+      return prev.filter(notification => !shouldRemove(notification));
+    });
+  };
+
   const acceptInvite = async (inviteId: string) => {
     const { data, error } = await client.invites.accept(inviteId);
     if (error) {
@@ -81,10 +93,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       return null;
     }
     // Remove the invite notification
-    setNotifications(prev =>
-      prev.filter(n => !(n.type === 'cookbook_invite' && n.data?.inviteId === inviteId))
-    );
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    removeNotifications(n => n.type === 'cookbook_invite' && n.data?.inviteId === inviteId);
     return data ? { cookbookId: data.cookbookId, cookbookName: data.cookbookName } : null;
   };
 
@@ -95,10 +104,29 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       return false;
     }
     // Remove the invite notification
-    setNotifications(prev =>
-      prev.filter(n => !(n.type === 'cookbook_invite' && n.data?.inviteId === inviteId))
-    );
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    removeNotifications(n => n.type === 'cookbook_invite' && n.data?.inviteId === inviteId);
+    return true;
+  };
+
+  const acceptRecipeShare = async (shareToken: string) => {
+    const { data, error } = await client.recipes.acceptShare(shareToken);
+    if (error) {
+      console.error('Failed to accept recipe share:', error);
+      return null;
+    }
+
+    removeNotifications(n => n.type === 'recipe_share' && n.data?.shareToken === shareToken);
+    return data ? { recipeId: data.recipeId, recipeTitle: data.recipeTitle } : null;
+  };
+
+  const declineRecipeShare = async (shareToken: string) => {
+    const { error } = await client.recipes.declineShare(shareToken);
+    if (error) {
+      console.error('Failed to decline recipe share:', error);
+      return false;
+    }
+
+    removeNotifications(n => n.type === 'recipe_share' && n.data?.shareToken === shareToken);
     return true;
   };
 
@@ -108,10 +136,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       console.error('Failed to accept friend request:', error);
       return null;
     }
-    setNotifications(prev =>
-      prev.filter(n => !(n.type === 'friend_request' && n.data?.friendRequestId === friendRequestId))
-    );
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    removeNotifications(n => n.type === 'friend_request' && n.data?.friendRequestId === friendRequestId);
     return data ? { friendId: data.friend.id, friendName: data.friend.name } : null;
   };
 
@@ -121,10 +146,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       console.error('Failed to decline friend request:', error);
       return false;
     }
-    setNotifications(prev =>
-      prev.filter(n => !(n.type === 'friend_request' && n.data?.friendRequestId === friendRequestId))
-    );
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    removeNotifications(n => n.type === 'friend_request' && n.data?.friendRequestId === friendRequestId);
     return true;
   };
 
@@ -140,6 +162,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         clearAll,
         acceptInvite,
         declineInvite,
+        acceptRecipeShare,
+        declineRecipeShare,
         acceptFriendRequest,
         declineFriendRequest,
       }}

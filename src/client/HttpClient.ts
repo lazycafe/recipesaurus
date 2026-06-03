@@ -211,6 +211,14 @@ export class HttpClient implements IClient {
       return this.transport.request('GET', `/api/recipe-shares/${token}`);
     },
 
+    acceptShare: (token: string): Promise<ApiResponse<{ success: boolean; recipeId: string; recipeTitle: string }>> => {
+      return this.transport.request('POST', `/api/recipe-shares/${encodeURIComponent(token)}/accept`);
+    },
+
+    declineShare: (token: string): Promise<ApiResponse<{ success: boolean }>> => {
+      return this.transport.request('POST', `/api/recipe-shares/${encodeURIComponent(token)}/decline`);
+    },
+
     saveFromPreview: (data: {
       title: string;
       description: string;

@@ -5,6 +5,7 @@ import { Header } from './Header';
 import * as AuthContext from '../context/AuthContext';
 import * as NotificationContext from '../context/NotificationContext';
 import * as CookbookContext from '../context/CookbookContext';
+import * as RecipeContext from '../context/RecipeContext';
 import * as ToastContext from '../context/ToastContext';
 
 // Mock the contexts
@@ -18,6 +19,10 @@ vi.mock('../context/NotificationContext', () => ({
 
 vi.mock('../context/CookbookContext', () => ({
   useCookbooks: vi.fn(),
+}));
+
+vi.mock('../context/RecipeContext', () => ({
+  useRecipes: vi.fn(),
 }));
 
 vi.mock('../context/ToastContext', () => ({
@@ -58,6 +63,8 @@ describe('Header', () => {
       clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
+      acceptRecipeShare: vi.fn(),
+      declineRecipeShare: vi.fn(),
       acceptFriendRequest: vi.fn(),
       declineFriendRequest: vi.fn(),
     });
@@ -73,6 +80,16 @@ describe('Header', () => {
       addRecipeToCookbook: vi.fn(),
       removeRecipeFromCookbook: vi.fn(),
       refreshCookbooks: vi.fn(),
+    });
+
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: vi.fn(),
+      getAllTags: vi.fn(() => []),
+      refreshRecipes: vi.fn(),
     });
 
     vi.mocked(ToastContext.useToast).mockReturnValue({

@@ -3,11 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, Check, X, Book, ChefHat, CheckCheck, Loader2, UserPlus } from 'lucide-react';
 import { useNotifications } from '../context/NotificationContext';
 import { useCookbooks } from '../context/CookbookContext';
+import { useRecipes } from '../context/RecipeContext';
 import { useToast } from '../context/ToastContext';
 import type { Notification } from '../client/types';
 
 type PendingFriendRequestAction = {
   friendRequestId: string;
+  action: 'accept' | 'decline';
+} | null;
+
+type PendingRecipeShareAction = {
+  shareToken: string;
   action: 'accept' | 'decline';
 } | null;
 
@@ -20,13 +26,17 @@ export function NotificationDropdown() {
     markAllAsRead,
     acceptInvite,
     declineInvite,
+    acceptRecipeShare,
+    declineRecipeShare,
     acceptFriendRequest,
     declineFriendRequest,
   } = useNotifications();
   const { refreshCookbooks } = useCookbooks();
+  const { refreshRecipes } = useRecipes();
   const { showToast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [pendingFriendRequestAction, setPendingFriendRequestAction] = useState<PendingFriendRequestAction>(null);
+  const [pendingRecipeShareAction, setPendingRecipeShareAction] = useState<PendingRecipeShareAction>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,6 +60,28 @@ export function NotificationDropdown() {
 
   const handleDecline = async (inviteId: string) => {
     await declineInvite(inviteId);
+  };
+
+  const handleAcceptRecipeShare = async (shareToken: string) => {
+    setPendingRecipeShareAction({ shareToken, action: 'accept' });
+    const result = await acceptRecipeShare(shareToken);
+    setPendingRecipeShareAction(null);
+    if (result) {
+      await refreshRecipes();
+      showToast({ message: `"${result.recipeTitle}" added to My Recipes`, type: 'success' });
+    } else {
+      showToast({ message: 'Could not accept recipe share', type: 'error' });
+    }
+  };
+
+  const handleDeclineRecipeShare = async (shareToken: string) => {
+    setPendingRecipeShareAction({ shareToken, action: 'decline' });
+    const success = await declineRecipeShare(shareToken);
+    setPendingRecipeShareAction(null);
+    showToast({
+      message: success ? 'Recipe share declined' : 'Could not decline recipe share',
+      type: success ? 'success' : 'error',
+    });
   };
 
   const handleAcceptFriendRequest = async (friendRequestId: string) => {
@@ -79,7 +111,11 @@ export function NotificationDropdown() {
     }
     if (notification.type === 'recipe_share' && notification.data?.shareToken) {
       setIsOpen(false);
-      navigate(`/shared-recipe/${notification.data.shareToken}`);
+      window.open(
+        `${window.location.origin}/shared-recipe/${encodeURIComponent(notification.data.shareToken)}`,
+        '_blank',
+        'noopener,noreferrer'
+      );
     }
   };
 
@@ -169,6 +205,43 @@ export function NotificationDropdown() {
                           }}
                         >
                           <X size={14} />
+                          Decline
+                        </button>
+                      </div>
+                    )}
+
+                    {notification.type === 'recipe_share' && notification.data?.shareToken && (
+                      <div className="notification-actions">
+                        <button
+                          className="btn-accept"
+                          disabled={pendingRecipeShareAction?.shareToken === notification.data.shareToken}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAcceptRecipeShare(notification.data!.shareToken!);
+                          }}
+                        >
+                          {pendingRecipeShareAction?.shareToken === notification.data.shareToken &&
+                          pendingRecipeShareAction.action === 'accept' ? (
+                            <Loader2 size={14} className="spin" />
+                          ) : (
+                            <Check size={14} />
+                          )}
+                          Accept
+                        </button>
+                        <button
+                          className="btn-decline"
+                          disabled={pendingRecipeShareAction?.shareToken === notification.data.shareToken}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeclineRecipeShare(notification.data!.shareToken!);
+                          }}
+                        >
+                          {pendingRecipeShareAction?.shareToken === notification.data.shareToken &&
+                          pendingRecipeShareAction.action === 'decline' ? (
+                            <Loader2 size={14} className="spin" />
+                          ) : (
+                            <X size={14} />
+                          )}
                           Decline
                         </button>
                       </div>

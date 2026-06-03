@@ -5,6 +5,7 @@ import { UserMenu } from './UserMenu';
 import * as AuthContext from '../context/AuthContext';
 import * as NotificationContext from '../context/NotificationContext';
 import * as CookbookContext from '../context/CookbookContext';
+import * as RecipeContext from '../context/RecipeContext';
 import * as ToastContext from '../context/ToastContext';
 
 vi.mock('../context/AuthContext', () => ({
@@ -17,6 +18,10 @@ vi.mock('../context/NotificationContext', () => ({
 
 vi.mock('../context/CookbookContext', () => ({
   useCookbooks: vi.fn(),
+}));
+
+vi.mock('../context/RecipeContext', () => ({
+  useRecipes: vi.fn(),
 }));
 
 vi.mock('../context/ToastContext', () => ({
@@ -57,6 +62,8 @@ describe('UserMenu', () => {
       clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
+      acceptRecipeShare: vi.fn(),
+      declineRecipeShare: vi.fn(),
       acceptFriendRequest: vi.fn(),
       declineFriendRequest: vi.fn(),
     });
@@ -72,6 +79,16 @@ describe('UserMenu', () => {
       addRecipeToCookbook: vi.fn(),
       removeRecipeFromCookbook: vi.fn(),
       refreshCookbooks: vi.fn(),
+    });
+
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: vi.fn(),
+      getAllTags: vi.fn(() => []),
+      refreshRecipes: vi.fn(),
     });
 
     vi.mocked(ToastContext.useToast).mockReturnValue({
@@ -133,6 +150,8 @@ describe('UserMenu', () => {
       clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
+      acceptRecipeShare: vi.fn(),
+      declineRecipeShare: vi.fn(),
       acceptFriendRequest: vi.fn(),
       declineFriendRequest: vi.fn(),
     });
@@ -192,6 +211,8 @@ describe('UserMenu', () => {
       clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
+      acceptRecipeShare: vi.fn(),
+      declineRecipeShare: vi.fn(),
       acceptFriendRequest,
       declineFriendRequest: vi.fn(),
     });
@@ -233,6 +254,8 @@ describe('UserMenu', () => {
       clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
+      acceptRecipeShare: vi.fn(),
+      declineRecipeShare: vi.fn(),
       acceptFriendRequest,
       declineFriendRequest: vi.fn(),
     });
@@ -274,6 +297,8 @@ describe('UserMenu', () => {
       clearAll: vi.fn(),
       acceptInvite: vi.fn(),
       declineInvite: vi.fn(),
+      acceptRecipeShare: vi.fn(),
+      declineRecipeShare: vi.fn(),
       acceptFriendRequest: vi.fn(),
       declineFriendRequest,
     });
@@ -288,6 +313,142 @@ describe('UserMenu', () => {
       type: 'success',
     });
     expect(screen.getByText('Notifications')).toBeDefined();
+  });
+
+  it('opens recipe share notifications in a new window', async () => {
+    const markAsRead = vi.fn();
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    vi.mocked(NotificationContext.useNotifications).mockReturnValue({
+      notifications: [{
+        id: '1',
+        type: 'recipe_share',
+        title: 'Recipe shared with you',
+        message: 'Friend shared "Pasta" with you',
+        data: { shareToken: 'share-token', recipeTitle: 'Pasta', sharedBy: 'Friend' },
+        isRead: false,
+        createdAt: Date.now()
+      }],
+      unreadCount: 1,
+      isLoading: false,
+      refresh: vi.fn(),
+      markAsRead,
+      markAllAsRead: vi.fn(),
+      clearAll: vi.fn(),
+      acceptInvite: vi.fn(),
+      declineInvite: vi.fn(),
+      acceptRecipeShare: vi.fn(),
+      declineRecipeShare: vi.fn(),
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
+    });
+
+    renderWithRouter(<UserMenu />);
+    fireEvent.click(screen.getByLabelText('User menu'));
+    fireEvent.click(screen.getByText('Friend shared "Pasta" with you'));
+
+    await waitFor(() => expect(markAsRead).toHaveBeenCalledWith('1'));
+    expect(openSpy).toHaveBeenCalledWith(
+      `${window.location.origin}/shared-recipe/share-token`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+
+    openSpy.mockRestore();
+  });
+
+  it('accepts recipe share notifications and refreshes recipes', async () => {
+    const acceptRecipeShare = vi.fn().mockResolvedValue({ recipeId: 'recipe-1', recipeTitle: 'Pasta' });
+    const refreshRecipes = vi.fn();
+    const showToast = vi.fn();
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [],
+      isLoading: false,
+      addRecipe: vi.fn(),
+      updateRecipe: vi.fn(),
+      deleteRecipe: vi.fn(),
+      getAllTags: vi.fn(() => []),
+      refreshRecipes,
+    });
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+    vi.mocked(NotificationContext.useNotifications).mockReturnValue({
+      notifications: [{
+        id: '1',
+        type: 'recipe_share',
+        title: 'Recipe shared with you',
+        message: 'Friend shared "Pasta" with you',
+        data: { shareToken: 'share-token', recipeTitle: 'Pasta', sharedBy: 'Friend' },
+        isRead: false,
+        createdAt: Date.now()
+      }],
+      unreadCount: 1,
+      isLoading: false,
+      refresh: vi.fn(),
+      markAsRead: vi.fn(),
+      markAllAsRead: vi.fn(),
+      clearAll: vi.fn(),
+      acceptInvite: vi.fn(),
+      declineInvite: vi.fn(),
+      acceptRecipeShare,
+      declineRecipeShare: vi.fn(),
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
+    });
+
+    renderWithRouter(<UserMenu />);
+    fireEvent.click(screen.getByLabelText('User menu'));
+    fireEvent.click(screen.getByText('Accept'));
+
+    await waitFor(() => expect(acceptRecipeShare).toHaveBeenCalledWith('share-token'));
+    await waitFor(() => expect(refreshRecipes).toHaveBeenCalled());
+    expect(showToast).toHaveBeenCalledWith({
+      message: '"Pasta" added to My Recipes',
+      type: 'success',
+    });
+  });
+
+  it('declines recipe share notifications', async () => {
+    const declineRecipeShare = vi.fn().mockResolvedValue(true);
+    const showToast = vi.fn();
+    vi.mocked(ToastContext.useToast).mockReturnValue({
+      showToast,
+      hideToast: vi.fn(),
+    });
+    vi.mocked(NotificationContext.useNotifications).mockReturnValue({
+      notifications: [{
+        id: '1',
+        type: 'recipe_share',
+        title: 'Recipe shared with you',
+        message: 'Friend shared "Pasta" with you',
+        data: { shareToken: 'share-token', recipeTitle: 'Pasta', sharedBy: 'Friend' },
+        isRead: false,
+        createdAt: Date.now()
+      }],
+      unreadCount: 1,
+      isLoading: false,
+      refresh: vi.fn(),
+      markAsRead: vi.fn(),
+      markAllAsRead: vi.fn(),
+      clearAll: vi.fn(),
+      acceptInvite: vi.fn(),
+      declineInvite: vi.fn(),
+      acceptRecipeShare: vi.fn(),
+      declineRecipeShare,
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
+    });
+
+    renderWithRouter(<UserMenu />);
+    fireEvent.click(screen.getByLabelText('User menu'));
+    fireEvent.click(screen.getByText('Decline'));
+
+    await waitFor(() => expect(declineRecipeShare).toHaveBeenCalledWith('share-token'));
+    expect(showToast).toHaveBeenCalledWith({
+      message: 'Recipe share declined',
+      type: 'success',
+    });
   });
 
   it('shows user email in menu header', () => {

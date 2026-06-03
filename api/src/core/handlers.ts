@@ -66,6 +66,12 @@ interface FriendRequestNotificationData {
   requesterId?: string;
 }
 
+interface RecipeShareNotificationData {
+  shareToken?: string;
+  recipeTitle?: string;
+  sharedBy?: string;
+}
+
 // Default crypto provider using Web Crypto API
 export const webCryptoProvider: CryptoProvider = {
   generateId(): string {
@@ -648,6 +654,56 @@ export class CoreHandlers {
     for (const id of notificationIds) {
       await this.db.run(
         "DELETE FROM notifications WHERE id = ? AND user_id = ? AND type = 'friend_request'",
+        id,
+        userId
+      );
+    }
+  }
+
+  private parseRecipeShareNotificationData(data: string | null): RecipeShareNotificationData | null {
+    if (!data) return null;
+
+    try {
+      const parsed = JSON.parse(data) as RecipeShareNotificationData;
+      if (typeof parsed !== 'object' || parsed === null) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  private async getRecipeShareNotification(
+    userId: string,
+    shareToken: string
+  ): Promise<{ id: string; data: RecipeShareNotificationData } | null> {
+    const notifications = await this.db.all<{ id: string; data: string | null }>(
+      "SELECT id, data FROM notifications WHERE user_id = ? AND type = 'recipe_share' ORDER BY created_at DESC",
+      userId
+    );
+
+    for (const notification of notifications.results) {
+      const notificationData = this.parseRecipeShareNotificationData(notification.data);
+      if (notificationData?.shareToken === shareToken) {
+        return { id: notification.id, data: notificationData };
+      }
+    }
+
+    return null;
+  }
+
+  private async deleteRecipeShareNotifications(userId: string, shareToken: string): Promise<void> {
+    const notifications = await this.db.all<{ id: string; data: string | null }>(
+      "SELECT id, data FROM notifications WHERE user_id = ? AND type = 'recipe_share'",
+      userId
+    );
+
+    const notificationIds = notifications.results
+      .filter(notification => this.parseRecipeShareNotificationData(notification.data)?.shareToken === shareToken)
+      .map(notification => notification.id);
+
+    for (const id of notificationIds) {
+      await this.db.run(
+        "DELETE FROM notifications WHERE id = ? AND user_id = ? AND type = 'recipe_share'",
         id,
         userId
       );
@@ -1526,6 +1582,113 @@ export class CoreHandlers {
     }
 
     return { data: { recipe: JSON.parse(link.recipe_data) }, status: 200 };
+  }
+
+  private async saveRecipeSharePayloadForUser(
+    userId: string,
+    recipe: RecipeSharePayload
+  ): Promise<{ recipeId: string; collectionId: string }> {
+    const recipeId = this.crypto.generateId();
+    const now = Date.now();
+
+    await this.db.run(
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      recipeId,
+      userId,
+      userId,
+      recipe.title,
+      recipe.description || '',
+      JSON.stringify(recipe.ingredients),
+      JSON.stringify(recipe.instructions),
+      JSON.stringify([]),
+      recipe.imageUrl || null,
+      recipe.sourceUrl || null,
+      recipe.prepTime || null,
+      recipe.cookTime || null,
+      recipe.servings || null,
+      0,
+      now
+    );
+
+    const collectionId = await this.getOrCreateRecipeCollection(userId);
+    await this.db.run(
+      'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
+      collectionId,
+      recipeId,
+      userId,
+      now
+    );
+    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, collectionId);
+
+    return { recipeId, collectionId };
+  }
+
+  async acceptRecipeShare(
+    ctx: RequestContext,
+    token: string
+  ): Promise<ApiResult<{ success: boolean; recipeId: string; recipeTitle: string }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const shareToken = token.trim();
+    if (!shareToken) {
+      return { error: 'Share token is required', status: 400 };
+    }
+
+    if (!(await this.getRecipeShareNotification(user.id, shareToken))) {
+      return { error: 'Recipe share not found or already responded', status: 404 };
+    }
+
+    const link = await this.db.get<DbRecipeShareLink>(
+      'SELECT * FROM recipe_share_links WHERE token = ?',
+      shareToken
+    );
+    if (!link) {
+      return { error: 'Shared recipe not found', status: 404 };
+    }
+
+    const recipe = normalizeRecipeSharePayload(JSON.parse(link.recipe_data) as RecipeSharePayload);
+    if (!recipe) {
+      return { error: 'Shared recipe is invalid', status: 400 };
+    }
+
+    const saved = await this.saveRecipeSharePayloadForUser(user.id, recipe);
+    await this.deleteRecipeShareNotifications(user.id, shareToken);
+
+    return {
+      data: {
+        success: true,
+        recipeId: saved.recipeId,
+        recipeTitle: recipe.title,
+      },
+      status: 200,
+    };
+  }
+
+  async declineRecipeShare(
+    ctx: RequestContext,
+    token: string
+  ): Promise<ApiResult<{ success: boolean }>> {
+    const user = await this.getSessionUser(ctx);
+    if (!user) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
+    const shareToken = token.trim();
+    if (!shareToken) {
+      return { error: 'Share token is required', status: 400 };
+    }
+
+    if (!(await this.getRecipeShareNotification(user.id, shareToken))) {
+      return { error: 'Recipe share not found or already responded', status: 404 };
+    }
+
+    await this.deleteRecipeShareNotifications(user.id, shareToken);
+
+    return { data: { success: true }, status: 200 };
   }
 
   // Cookbook handlers

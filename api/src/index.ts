@@ -80,6 +80,12 @@ interface FriendRequestNotificationData {
   requesterId?: string;
 }
 
+interface RecipeShareNotificationData {
+  shareToken?: string;
+  recipeTitle?: string;
+  sharedBy?: string;
+}
+
 interface Session {
   id: string;
   user_id: string;
@@ -935,6 +941,57 @@ async function deleteFriendRequestNotifications(
   for (const id of notificationIds) {
     await db.prepare(
       "DELETE FROM notifications WHERE id = ? AND user_id = ? AND type = 'friend_request'"
+    ).bind(id, userId).run();
+  }
+}
+
+function parseRecipeShareNotificationData(data: string | null): RecipeShareNotificationData | null {
+  if (!data) return null;
+
+  try {
+    const parsed = JSON.parse(data) as RecipeShareNotificationData;
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function getRecipeShareNotification(
+  db: D1Database,
+  userId: string,
+  shareToken: string
+): Promise<{ id: string; data: RecipeShareNotificationData } | null> {
+  const notifications = await db.prepare(
+    "SELECT id, data FROM notifications WHERE user_id = ? AND type = 'recipe_share' ORDER BY created_at DESC"
+  ).bind(userId).all<{ id: string; data: string | null }>();
+
+  for (const notification of notifications.results) {
+    const notificationData = parseRecipeShareNotificationData(notification.data);
+    if (notificationData?.shareToken === shareToken) {
+      return { id: notification.id, data: notificationData };
+    }
+  }
+
+  return null;
+}
+
+async function deleteRecipeShareNotifications(
+  db: D1Database,
+  userId: string,
+  shareToken: string
+): Promise<void> {
+  const notifications = await db.prepare(
+    "SELECT id, data FROM notifications WHERE user_id = ? AND type = 'recipe_share'"
+  ).bind(userId).all<{ id: string; data: string | null }>();
+
+  const notificationIds = notifications.results
+    .filter(notification => parseRecipeShareNotificationData(notification.data)?.shareToken === shareToken)
+    .map(notification => notification.id);
+
+  for (const id of notificationIds) {
+    await db.prepare(
+      "DELETE FROM notifications WHERE id = ? AND user_id = ? AND type = 'recipe_share'"
     ).bind(id, userId).run();
   }
 }
@@ -2628,6 +2685,46 @@ async function getOrCreateRecipeCollection(db: D1Database, userId: string): Prom
   return collectionId;
 }
 
+async function saveRecipeSharePayloadForUser(
+  db: D1Database,
+  userId: string,
+  recipe: RecipeSharePayload
+): Promise<{ recipeId: string; collectionId: string }> {
+  const recipeId = generateId();
+  const now = Date.now();
+
+  await db.prepare(`
+    INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    recipeId,
+    userId,
+    userId,
+    recipe.title,
+    recipe.description || '',
+    JSON.stringify(recipe.ingredients),
+    JSON.stringify(recipe.instructions),
+    JSON.stringify([]),
+    recipe.imageUrl || null,
+    recipe.sourceUrl || null,
+    recipe.prepTime || null,
+    recipe.cookTime || null,
+    recipe.servings || null,
+    0,
+    now
+  ).run();
+
+  const collectionId = await getOrCreateRecipeCollection(db, userId);
+  await db.prepare('INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)')
+    .bind(collectionId, recipeId, userId, now)
+    .run();
+  await db.prepare('UPDATE cookbooks SET updated_at = ? WHERE id = ?')
+    .bind(now, collectionId)
+    .run();
+
+  return { recipeId, collectionId };
+}
+
 async function handleSavePreviewRecipe(request: Request, db: D1Database): Promise<Response> {
   const user = await getSessionUser(request, db);
   const origin = request.headers.get('Origin');
@@ -2839,6 +2936,68 @@ async function handleGetSharedRecipe(request: Request, db: D1Database, token: st
   }
 
   return jsonResponse({ recipe: JSON.parse(link.recipe_data) }, 200, corsHeaders(origin));
+}
+
+async function handleAcceptRecipeShare(request: Request, db: D1Database, token: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const shareToken = token.trim();
+  if (!shareToken) {
+    return errorResponse('Share token is required', 400, origin);
+  }
+
+  if (!(await getRecipeShareNotification(db, user.id, shareToken))) {
+    return errorResponse('Recipe share not found or already responded', 404, origin);
+  }
+
+  const link = await db.prepare('SELECT * FROM recipe_share_links WHERE token = ?')
+    .bind(shareToken)
+    .first<RecipeShareLink>();
+
+  if (!link) {
+    return errorResponse('Shared recipe not found', 404, origin);
+  }
+
+  const recipe = normalizeRecipeSharePayload(JSON.parse(link.recipe_data) as RecipeSharePayload);
+  if (!recipe) {
+    return errorResponse('Shared recipe is invalid', 400, origin);
+  }
+
+  const saved = await saveRecipeSharePayloadForUser(db, user.id, recipe);
+  await deleteRecipeShareNotifications(db, user.id, shareToken);
+
+  return jsonResponse(
+    { success: true, recipeId: saved.recipeId, recipeTitle: recipe.title },
+    200,
+    corsHeaders(origin)
+  );
+}
+
+async function handleDeclineRecipeShare(request: Request, db: D1Database, token: string): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+
+  if (!user) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
+  const shareToken = token.trim();
+  if (!shareToken) {
+    return errorResponse('Share token is required', 400, origin);
+  }
+
+  if (!(await getRecipeShareNotification(db, user.id, shareToken))) {
+    return errorResponse('Recipe share not found or already responded', 404, origin);
+  }
+
+  await deleteRecipeShareNotifications(db, user.id, shareToken);
+
+  return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
 
 async function handleUpdateRecipe(request: Request, db: D1Database, recipeId: string): Promise<Response> {
@@ -4379,6 +4538,14 @@ export default {
       }
       if (path === '/api/recipe-shares/share' && method === 'POST') {
         return handleShareRecipeWithUser(request, env.DB);
+      }
+      const acceptRecipeShareMatch = path.match(/^\/api\/recipe-shares\/([^/]+)\/accept$/);
+      if (acceptRecipeShareMatch && method === 'POST') {
+        return handleAcceptRecipeShare(request, env.DB, decodeURIComponent(acceptRecipeShareMatch[1]));
+      }
+      const declineRecipeShareMatch = path.match(/^\/api\/recipe-shares\/([^/]+)\/decline$/);
+      if (declineRecipeShareMatch && method === 'POST') {
+        return handleDeclineRecipeShare(request, env.DB, decodeURIComponent(declineRecipeShareMatch[1]));
       }
       const recipeShareMatch = path.match(/^\/api\/recipe-shares\/([^/]+)$/);
       if (recipeShareMatch && method === 'GET') {
