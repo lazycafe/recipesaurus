@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Heart, Loader2, User } from 'lucide-react';
+import { ArrowLeft, BookOpen, Heart, Loader2, User, Check } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useCookbooks } from '../context/CookbookContext';
 import { Recipe, Cookbook } from '../client/types';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
@@ -13,13 +14,17 @@ export function PublicCookbookDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { getPublicCookbook, saveRecipe } = useDiscovery();
+  const { refreshCookbooks } = useCookbooks();
+  const { getPublicCookbook, saveRecipe, saveCookbook } = useDiscovery();
 
   const [cookbook, setCookbook] = useState<Cookbook | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
+  const [isSavingCookbook, setIsSavingCookbook] = useState(false);
+  const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(() => new Set());
+  const [isCookbookSaved, setIsCookbookSaved] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -36,6 +41,7 @@ export function PublicCookbookDetailPage() {
   }, [id, getPublicCookbook]);
 
   const handleSaveRecipe = async (recipe: Recipe) => {
+    if (savedRecipeIds.has(recipe.id)) return;
     if (!user) {
       showToast({ message: 'Please sign in to save recipes', type: 'info' });
       return;
@@ -45,12 +51,39 @@ export function PublicCookbookDetailPage() {
     setSavingRecipeId(null);
 
     if (savedId) {
+      setSavedRecipeIds(prev => new Set(prev).add(recipe.id));
       showToast({
         message: 'Saved to My Recipes',
         type: 'success',
         action: {
           label: 'View',
           onClick: () => navigate('/my-recipes'),
+        },
+      });
+    }
+  };
+
+  const handleSaveCookbook = async () => {
+    if (!cookbook) return;
+    if (isCookbookSaved) return;
+    if (!user) {
+      showToast({ message: 'Please sign in to save cookbooks', type: 'info' });
+      return;
+    }
+
+    setIsSavingCookbook(true);
+    const savedId = await saveCookbook(cookbook.id);
+    setIsSavingCookbook(false);
+
+    if (savedId) {
+      setIsCookbookSaved(true);
+      await refreshCookbooks();
+      showToast({
+        message: 'Cookbook saved to your collection',
+        type: 'success',
+        action: {
+          label: 'View',
+          onClick: () => navigate('/cookbooks'),
         },
       });
     }
@@ -121,6 +154,22 @@ export function PublicCookbookDetailPage() {
               {cookbook.recipeCount} recipes
             </span>
           </div>
+          <div className="public-cookbook-actions">
+            <button
+              className="btn-primary"
+              onClick={handleSaveCookbook}
+              disabled={isSavingCookbook || isCookbookSaved}
+            >
+              {isSavingCookbook ? (
+                <Loader2 size={16} className="spin" />
+              ) : isCookbookSaved ? (
+                <Check size={16} />
+              ) : (
+                <Heart size={16} />
+              )}
+              <span>{isCookbookSaved ? 'Saved' : 'Save Cookbook'}</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -147,16 +196,19 @@ export function PublicCookbookDetailPage() {
                     </div>
                   )}
                   <button
-                    className="save-btn"
+                    className={`save-btn ${savedRecipeIds.has(recipe.id) ? 'saved' : ''}`}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (savedRecipeIds.has(recipe.id)) return;
                       handleSaveRecipe(recipe);
                     }}
-                    disabled={savingRecipeId === recipe.id}
-                    aria-label="Save recipe"
+                    disabled={savingRecipeId === recipe.id || savedRecipeIds.has(recipe.id)}
+                    aria-label={savedRecipeIds.has(recipe.id) ? 'Recipe saved' : 'Save recipe'}
                   >
                     {savingRecipeId === recipe.id ? (
                       <Loader2 size={16} className="spin" />
+                    ) : savedRecipeIds.has(recipe.id) ? (
+                      <Check size={16} />
                     ) : (
                       <Heart size={16} />
                     )}
@@ -183,6 +235,8 @@ export function PublicCookbookDetailPage() {
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
           onSave={() => handleSaveRecipe(selectedRecipe)}
+          isSaving={savingRecipeId === selectedRecipe.id}
+          isSaved={savedRecipeIds.has(selectedRecipe.id)}
           isPublicView={true}
         />
       )}

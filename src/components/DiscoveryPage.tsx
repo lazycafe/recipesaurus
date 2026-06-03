@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp } from 'lucide-react';
+import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp, Check } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -20,9 +20,10 @@ interface RecipeCardCompactProps {
   onClick: () => void;
   onAuthorClick?: () => void;
   isSaving?: boolean;
+  isSaved?: boolean;
 }
 
-function RecipeCardCompact({ recipe, onSave, onClick, onAuthorClick, isSaving }: RecipeCardCompactProps) {
+function RecipeCardCompact({ recipe, onSave, onClick, onAuthorClick, isSaving, isSaved }: RecipeCardCompactProps) {
   return (
     <article className="discovery-card" onClick={onClick}>
       <div className="discovery-card-image">
@@ -34,15 +35,25 @@ function RecipeCardCompact({ recipe, onSave, onClick, onAuthorClick, isSaving }:
           </div>
         )}
         <button
-          className="discovery-save-btn"
+          className={`discovery-save-btn ${isSaved ? 'saved' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
+            if (isSaved) return;
             onSave();
           }}
-          disabled={isSaving}
-          aria-label="Save recipe"
+          disabled={isSaving || isSaved}
+          aria-label={isSaved ? 'Recipe saved' : 'Save recipe'}
         >
-          {isSaving ? <Loader2 size={16} className="spin" /> : <Heart size={16} />}
+          {isSaving ? (
+            <Loader2 size={16} className="spin" />
+          ) : isSaved ? (
+            <>
+              <Check size={16} />
+              <span>Saved</span>
+            </>
+          ) : (
+            <Heart size={16} />
+          )}
         </button>
       </div>
       <div className="discovery-card-body">
@@ -76,12 +87,12 @@ interface CookbookCardCompactProps {
   onSave: () => void;
   onAuthorClick?: () => void;
   isSaving?: boolean;
+  isSaved?: boolean;
 }
 
-function CookbookCardCompact({ cookbook, onClick, onSave, onAuthorClick, isSaving }: CookbookCardCompactProps) {
+function CookbookCardCompact({ cookbook, onClick, onSave, onAuthorClick, isSaving, isSaved }: CookbookCardCompactProps) {
   return (
     <article className="discovery-card cookbook-card" onClick={onClick}>
-      <span className="cookbook-badge">Cookbook</span>
       <div className="discovery-card-image">
         {cookbook.coverImage ? (
           <img src={cookbook.coverImage} alt={cookbook.name} loading="lazy" />
@@ -91,15 +102,25 @@ function CookbookCardCompact({ cookbook, onClick, onSave, onAuthorClick, isSavin
           </div>
         )}
         <button
-          className="discovery-save-btn"
+          className={`discovery-save-btn ${isSaved ? 'saved' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
+            if (isSaved) return;
             onSave();
           }}
-          disabled={isSaving}
-          aria-label="Save cookbook"
+          disabled={isSaving || isSaved}
+          aria-label={isSaved ? 'Cookbook saved' : 'Save cookbook'}
         >
-          {isSaving ? <Loader2 size={16} className="spin" /> : <Heart size={16} />}
+          {isSaving ? (
+            <Loader2 size={16} className="spin" />
+          ) : isSaved ? (
+            <>
+              <Check size={16} />
+              <span>Saved</span>
+            </>
+          ) : (
+            <Heart size={16} />
+          )}
         </button>
       </div>
       <div className="discovery-card-body">
@@ -169,6 +190,8 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
   const [savingCookbookId, setSavingCookbookId] = useState<string | null>(null);
+  const [savedRecipeIds, setSavedRecipeIds] = useState<Set<string>>(() => new Set());
+  const [savedCookbookIds, setSavedCookbookIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     loadRecipes();
@@ -176,6 +199,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   }, [loadRecipes, loadCookbooks]);
 
   const handleSaveRecipe = async (recipe: Recipe) => {
+    if (savedRecipeIds.has(recipe.id)) return;
     if (!user) {
       showToast({ message: 'Please sign in to save recipes', type: 'info' });
       return;
@@ -185,6 +209,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     setSavingRecipeId(null);
 
     if (savedId) {
+      setSavedRecipeIds(prev => new Set(prev).add(recipe.id));
       // Refresh the recipes list so it shows the new recipe
       await refreshRecipes();
       showToast({
@@ -199,6 +224,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   };
 
   const handleSaveCookbook = async (cookbook: Cookbook) => {
+    if (savedCookbookIds.has(cookbook.id)) return;
     if (!user) {
       showToast({ message: 'Please sign in to save cookbooks', type: 'info' });
       return;
@@ -208,6 +234,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     setSavingCookbookId(null);
 
     if (savedId) {
+      setSavedCookbookIds(prev => new Set(prev).add(cookbook.id));
       // Refresh the cookbooks list so it shows the new cookbook
       await refreshCookbooks();
       showToast({
@@ -392,6 +419,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
                     onSave={() => handleSaveRecipe(recipe)}
                     onAuthorClick={recipe.ownerId ? () => navigate(`/profiles/${recipe.ownerId}`) : undefined}
                     isSaving={savingRecipeId === recipe.id}
+                    isSaved={savedRecipeIds.has(recipe.id)}
                   />
                 ))}
               </div>
@@ -433,6 +461,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
                     onSave={() => handleSaveCookbook(cookbook)}
                     onAuthorClick={cookbook.ownerId ? () => navigate(`/profiles/${cookbook.ownerId}`) : undefined}
                     isSaving={savingCookbookId === cookbook.id}
+                    isSaved={savedCookbookIds.has(cookbook.id)}
                   />
                 ))}
               </div>
@@ -455,6 +484,8 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
           onSave={!selectedRecipe.isOwner ? () => handleSaveRecipe(selectedRecipe) : undefined}
+          isSaving={savingRecipeId === selectedRecipe.id}
+          isSaved={savedRecipeIds.has(selectedRecipe.id)}
           onEdit={selectedRecipe.isOwner ? () => {
             setEditingRecipe(selectedRecipe);
             setSelectedRecipe(null);
