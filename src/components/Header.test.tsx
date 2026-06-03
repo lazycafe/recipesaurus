@@ -135,8 +135,8 @@ describe('Header', () => {
     expect(Array.from(container.querySelectorAll('.header-nav .nav-tab')).map(item => item.textContent?.trim())).toEqual([
       'Discover',
       'My Recipes',
-      'Meal Plan',
       'Cookbooks',
+      'Meal Plan',
     ]);
   });
 
@@ -198,8 +198,8 @@ describe('Header', () => {
     expect(Array.from(container.querySelectorAll('.mobile-nav-item')).map(item => item.textContent?.trim())).toEqual([
       'Discover',
       'My Recipes',
-      'Meal Plan',
       'Cookbooks',
+      'Meal Plan',
     ]);
   });
 

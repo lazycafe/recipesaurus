@@ -211,6 +211,35 @@ describe('DiscoveryPage', () => {
     expect(screen.getByText('by Test Chef')).toBeDefined();
   });
 
+  it('shows a yours badge instead of a save button for owned recipes', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [{ ...mockRecipe, isOwner: true }],
+      cookbooks: [],
+      recipesTotal: 1,
+      cookbooksTotal: 0,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      saveCookbook: mockSaveCookbook,
+      unsaveRecipe: mockUnsaveRecipe,
+      unsaveCookbook: mockUnsaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage />);
+
+    expect(screen.getByText('yours')).toBeDefined();
+    expect(screen.getByLabelText('You own this recipe')).toBeDefined();
+    expect(screen.queryByLabelText('Save recipe')).toBeNull();
+  });
+
   it('saves a recipe from Discover', async () => {
     vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
       recipes: [mockRecipe],
@@ -318,6 +347,35 @@ describe('DiscoveryPage', () => {
 
     renderWithRouter(<DiscoveryPage tab="cookbooks" />);
     expect(screen.getByText('Test Cookbook')).toBeDefined();
+  });
+
+  it('shows a yours badge instead of a save button for owned cookbooks', () => {
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [],
+      cookbooks: [{ ...mockCookbook, isOwner: true }],
+      recipesTotal: 0,
+      cookbooksTotal: 1,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      saveCookbook: mockSaveCookbook,
+      unsaveRecipe: mockUnsaveRecipe,
+      unsaveCookbook: mockUnsaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+
+    expect(screen.getByText('yours')).toBeDefined();
+    expect(screen.getByLabelText('You own this cookbook')).toBeDefined();
+    expect(screen.queryByLabelText('Save cookbook')).toBeNull();
   });
 
   it('saves a cookbook from Discover', async () => {

@@ -33,7 +33,11 @@ function RecipeCardCompact({ recipe, onToggleSave, onClick, onAuthorClick, isSav
             <DinoMascot size={48} />
           </div>
         )}
-        {!recipe.isOwner && (
+        {recipe.isOwner ? (
+          <span className="discovery-owned-badge" aria-label="You own this recipe">
+            yours
+          </span>
+        ) : (
           <button
             className={`discovery-save-btn ${recipe.isSaved ? 'saved' : ''}`}
             onClick={(e) => {
@@ -96,7 +100,11 @@ function CookbookCardCompact({ cookbook, onClick, onToggleSave, onAuthorClick, i
             <BookOpen size={48} />
           </div>
         )}
-        {!cookbook.isOwner && (
+        {cookbook.isOwner ? (
+          <span className="discovery-owned-badge" aria-label="You own this cookbook">
+            yours
+          </span>
+        ) : (
           <button
             className={`discovery-save-btn ${cookbook.isSaved ? 'saved' : ''}`}
             onClick={(e) => {
