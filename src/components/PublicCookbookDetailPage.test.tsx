@@ -79,6 +79,7 @@ describe('PublicCookbookDetailPage', () => {
       login: vi.fn(),
       logout: vi.fn(),
       register: vi.fn(),
+      updateProfile: vi.fn(),
       verifyEmail: vi.fn(),
       resendVerification: vi.fn(),
       devLogin: vi.fn(),
