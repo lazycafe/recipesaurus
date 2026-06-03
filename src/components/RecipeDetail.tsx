@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User, Share2 } from 'lucide-react';
+import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User, Share2, Download } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { Recipe as ClientRecipe } from '../client/types';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
 import { ShareRecipeModal } from './ShareRecipeModal';
+import { downloadRecipePdf } from '../utils/recipePdf';
 
 interface RecipeDetailProps {
   recipe: Recipe | ClientRecipe;
@@ -105,17 +106,31 @@ export function RecipeDetail({ recipe, onClose, onDelete, onEdit, onSave, readOn
             )}
 
             <div className="detail-actions-row">
+              {!isPublicView && (
+                <button
+                  className="btn-secondary detail-icon-action"
+                  onClick={() => setShowShareModal(true)}
+                  aria-label="Share"
+                  title="Share"
+                >
+                  <Share2 size={16} strokeWidth={2} />
+                  <span>Share</span>
+                </button>
+              )}
+              <button
+                className="btn-secondary detail-icon-action"
+                onClick={() => downloadRecipePdf(recipe)}
+                aria-label="Download PDF"
+                title="Download PDF"
+              >
+                <Download size={16} strokeWidth={2} />
+                <span>Download PDF</span>
+              </button>
               {recipe.sourceUrl && (
                 <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="source-link">
                   <span>View Original</span>
                   <ExternalLink size={14} strokeWidth={2} />
                 </a>
-              )}
-              {!isPublicView && (
-                <button className="btn-secondary" onClick={() => setShowShareModal(true)}>
-                  <Share2 size={16} strokeWidth={2} />
-                  <span>Share</span>
-                </button>
               )}
             </div>
           </div>

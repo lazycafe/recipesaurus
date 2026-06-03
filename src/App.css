@@ -1050,7 +1050,7 @@ img {
 .card-description {
   font-size: var(--text-sm);
   color: var(--color-taupe);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1757,14 +1757,14 @@ img {
   font-size: var(--text-base);
   color: var(--color-taupe);
   line-height: 1.7;
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 
 .detail-meta {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 
 .meta-block {
@@ -1825,6 +1825,22 @@ img {
   margin-top: var(--space-3);
 }
 
+@media (max-width: 480px) {
+  .detail-actions-row {
+    gap: var(--space-3);
+  }
+
+  .detail-actions-row .detail-icon-action {
+    width: 44px;
+    padding: 0;
+    flex: 0 0 44px;
+  }
+
+  .detail-actions-row .detail-icon-action span {
+    display: none;
+  }
+}
+
 .btn-share {
   display: inline-flex;
   align-items: center;
@@ -1857,13 +1873,13 @@ img {
 .detail-body {
   display: grid;
   gap: var(--space-6);
-  padding: var(--space-8);
+  padding: var(--space-5) var(--space-8) var(--space-8);
   background: var(--color-cream);
 }
 
 @media (max-width: 480px) {
   .detail-body {
-    padding: var(--space-5);
+    padding: var(--space-2) var(--space-5) var(--space-5);
     gap: var(--space-5);
   }
 }
