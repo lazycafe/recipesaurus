@@ -142,7 +142,7 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
         <div className="auth-header">
           <DinoMascot size={64} className="auth-mascot" />
           <h2>{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
-          <p>{mode === 'login' ? 'Sign in to access your recipes' : 'Join Recipesaurus today'}</p>
+          <p>{mode === 'login' ? 'Sign in to access recipes, cookbooks, and friends' : 'Join to save, plan, and share with friends'}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">

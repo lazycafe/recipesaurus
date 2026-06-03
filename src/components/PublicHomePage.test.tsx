@@ -44,7 +44,7 @@ describe('PublicHomePage', () => {
 
   it('renders hero section with title', () => {
     render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
-    expect(screen.getByText('Save Recipes from Anywhere')).toBeDefined();
+    expect(screen.getByText('Save Recipes and Plan Meals Together')).toBeDefined();
   });
 
   it('renders URL input', () => {
@@ -62,13 +62,14 @@ describe('PublicHomePage', () => {
     expect(screen.getByText('Why Recipesaurus?')).toBeDefined();
     expect(screen.getByText('Extract from Any URL')).toBeDefined();
     expect(screen.getByText('Organize in Cookbooks')).toBeDefined();
-    expect(screen.getByText('Share with Friends')).toBeDefined();
+    expect(screen.getByText('Friends and Sharing')).toBeDefined();
+    expect(screen.getByText('Plan Meals Together')).toBeDefined();
     expect(screen.getByText('Discover New Recipes')).toBeDefined();
   });
 
   it('renders CTA section', () => {
     render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
-    expect(screen.getByText('Ready to organize your recipes?')).toBeDefined();
+    expect(screen.getByText('Ready to make cooking more connected?')).toBeDefined();
   });
 
   it('renders Get Started Free buttons', () => {
