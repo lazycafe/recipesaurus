@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { PublicHomePage } from './PublicHomePage';
 
 // Mock HTML with JSON-LD recipe data
@@ -85,7 +86,11 @@ describe('PublicHomePage', () => {
   });
 
   it('opens account creation when saving a recipe from discover', () => {
-    render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
+    render(
+      <MemoryRouter>
+        <PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByText('Creamy Tuscan Chicken'));
     fireEvent.click(screen.getByText('Save Recipe'));
