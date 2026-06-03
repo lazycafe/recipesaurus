@@ -411,7 +411,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
           <TrendingUp size={28} />
           Discover
         </h1>
-        <p>Explore recipes and cookbooks shared by the community</p>
+        <p>Explore recipes and cookbooks from the community, then save favorites for meal planning</p>
       </div>
 
       <div className="discovery-search">

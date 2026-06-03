@@ -58,7 +58,7 @@ describe('CookbookList', () => {
     );
 
     expect(screen.getByText('No cookbooks yet')).toBeDefined();
-    expect(screen.getByText('Create a cookbook to organize your recipes. Shared cookbooks will appear here too.')).toBeDefined();
+    expect(screen.getByText('Create a cookbook to organize recipes, plan meals, and share favorites. Shared cookbooks will appear here too.')).toBeDefined();
   });
 
   it('shows page header with title and New Cookbook button', () => {
@@ -67,7 +67,7 @@ describe('CookbookList', () => {
     );
 
     expect(screen.getByText('Cookbooks')).toBeDefined();
-    expect(screen.getByText('Organize your recipes into collections')).toBeDefined();
+    expect(screen.getByText('Organize recipes into private, public, shared, and meal-planning collections')).toBeDefined();
     expect(screen.getAllByText('New Cookbook').length).toBeGreaterThanOrEqual(1);
   });
 

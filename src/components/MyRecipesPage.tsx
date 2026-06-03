@@ -191,7 +191,7 @@ export function MyRecipesPage() {
       <div className="page-header">
         <div className="page-header-title">
           <h1>My Recipes</h1>
-          <p className="page-subtitle">All recipes you've saved or created</p>
+          <p className="page-subtitle">Your saved, created, and shared recipes for everyday meal planning</p>
         </div>
         <button className="btn-primary" onClick={() => setShowAddRecipeModal(true)}>
           <Plus size={18} strokeWidth={2.5} />
@@ -346,7 +346,7 @@ export function MyRecipesPage() {
         <div className="empty-state">
           <DinoMascot size={80} />
           <h3>No recipes yet</h3>
-          <p>Save recipes from Discover or create your own!</p>
+          <p>Save recipes from Discover, collect shared favorites, or create your own.</p>
           <button className="btn-primary" onClick={() => setShowAddRecipeModal(true)}>
             <Plus size={18} strokeWidth={2.5} />
             <span>New Recipe</span>

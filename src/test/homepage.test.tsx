@@ -119,7 +119,7 @@ describe('Home Page Routing', () => {
         </MemoryRouter>
       );
 
-      expect(screen.getByText('Save Recipes from Anywhere')).toBeDefined();
+      expect(screen.getByText('Save Recipes and Plan Meals Together')).toBeDefined();
     });
 
     it('shows the URL extraction form', () => {
@@ -182,10 +182,10 @@ describe('Home Page Routing', () => {
       );
 
       // Should show public home page
-      expect(screen.getByText('Save Recipes from Anywhere')).toBeDefined();
+      expect(screen.getByText('Save Recipes and Plan Meals Together')).toBeDefined();
 
       // Should not show Discover page elements
-      expect(screen.queryByText('Explore recipes and cookbooks shared by the community')).toBeNull();
+      expect(screen.queryByText('Explore recipes and cookbooks from the community, then save favorites for meal planning')).toBeNull();
       expect(screen.queryByPlaceholderText('Search recipes and cookbooks...')).toBeNull();
     });
   });
@@ -222,7 +222,7 @@ describe('Home Page Routing', () => {
         </MemoryRouter>
       );
 
-      expect(screen.getByText('Explore recipes and cookbooks shared by the community')).toBeDefined();
+      expect(screen.getByText('Explore recipes and cookbooks from the community, then save favorites for meal planning')).toBeDefined();
     });
 
     it('shows the recipe search input', () => {
@@ -267,7 +267,7 @@ describe('Home Page Routing', () => {
       expect(screen.getByText('Discover')).toBeDefined();
 
       // Should not show public home page elements
-      expect(screen.queryByText('Save Recipes from Anywhere')).toBeNull();
+      expect(screen.queryByText('Save Recipes and Plan Meals Together')).toBeNull();
       expect(screen.queryByText('Why Recipesaurus?')).toBeNull();
       expect(screen.queryByPlaceholderText('Paste a recipe URL...')).toBeNull();
     });
@@ -319,7 +319,7 @@ describe('Home Page Routing', () => {
       );
 
       // Initially shows public home page
-      expect(screen.getByText('Save Recipes from Anywhere')).toBeDefined();
+      expect(screen.getByText('Save Recipes and Plan Meals Together')).toBeDefined();
 
       // Simulate login by updating the mock
       vi.mocked(AuthContext.useAuth).mockReturnValue({
@@ -392,7 +392,7 @@ describe('Home Page Routing', () => {
 
       // Now shows public home page
       await waitFor(() => {
-        expect(screen.getByText('Save Recipes from Anywhere')).toBeDefined();
+        expect(screen.getByText('Save Recipes and Plan Meals Together')).toBeDefined();
       });
     });
   });

@@ -21,7 +21,7 @@ export function CookbookList({ onCreateCookbook }: CookbookListProps) {
       <div className="page-header">
         <div className="page-header-title">
           <h1>Cookbooks</h1>
-          <p className="page-subtitle">Organize your recipes into collections</p>
+          <p className="page-subtitle">Organize recipes into private, public, shared, and meal-planning collections</p>
         </div>
         <button className="btn-primary" onClick={onCreateCookbook}>
           <Plus size={18} strokeWidth={2.5} />
@@ -41,7 +41,7 @@ export function CookbookList({ onCreateCookbook }: CookbookListProps) {
         <div className="empty-state">
           <DinoMascot size={120} />
           <h2>No cookbooks yet</h2>
-          <p>Create a cookbook to organize your recipes. Shared cookbooks will appear here too.</p>
+          <p>Create a cookbook to organize recipes, plan meals, and share favorites. Shared cookbooks will appear here too.</p>
         </div>
       )}
     </div>

@@ -68,7 +68,7 @@ describe('MyRecipesPage', () => {
 
   it('renders subtitle', () => {
     render(<MyRecipesPage />);
-    expect(screen.getByText("All recipes you've saved or created")).toBeDefined();
+    expect(screen.getByText('Your saved, created, and shared recipes for everyday meal planning')).toBeDefined();
   });
 
   it('renders New Recipe button', () => {
@@ -80,7 +80,7 @@ describe('MyRecipesPage', () => {
   it('shows empty state when no recipes', () => {
     render(<MyRecipesPage />);
     expect(screen.getByText('No recipes yet')).toBeDefined();
-    expect(screen.getByText('Save recipes from Discover or create your own!')).toBeDefined();
+    expect(screen.getByText('Save recipes from Discover, collect shared favorites, or create your own.')).toBeDefined();
   });
 
   it('shows search input when recipes exist', () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
-import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users, Book } from 'lucide-react';
+import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users, Book, CalendarDays } from 'lucide-react';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
 import { Carousel } from './Carousel';
@@ -168,10 +168,10 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
       <section className="hero-section">
         <div className="hero-content">
           <DinoMascot size={100} className="hero-mascot" />
-          <h1>Save Recipes from Anywhere</h1>
+          <h1>Save Recipes and Plan Meals Together</h1>
           <p className="hero-subtitle">
-            Paste any recipe URL and instantly extract, save, and organize your favorite recipes.
-            No more scattered bookmarks or lost recipes.
+            Import recipes from any URL, organize cookbooks, discover community favorites,
+            and coordinate what to cook next with friends.
           </p>
 
           {/* URL Extraction Form */}
@@ -282,7 +282,7 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
 
           <div className="signup-prompt">
             <h3>Want to save this recipe?</h3>
-            <p>Create a free account to save, organize, and share your recipes.</p>
+            <p>Create a free account to save, organize, plan, and share your recipes with friends.</p>
             <div className="prompt-actions">
               <button className="btn-primary btn-lg" onClick={onSignUp}>
                 Get Started Free
@@ -359,15 +359,23 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
               <Book size={28} />
             </div>
             <h3>Organize in Cookbooks</h3>
-            <p>Create collections to organize your recipes by cuisine, occasion, or however you like.</p>
+            <p>Create private or public collections by cuisine, occasion, weeknight plan, or however you cook.</p>
           </div>
 
           <div className="feature-card">
             <div className="feature-icon">
               <Users size={28} />
             </div>
-            <h3>Share with Friends</h3>
-            <p>Share cookbooks with family and friends. Collaborate on meal planning together.</p>
+            <h3>Friends and Sharing</h3>
+            <p>Send friend requests, share recipes or cookbooks, and collaborate around the food you love.</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon">
+              <CalendarDays size={28} />
+            </div>
+            <h3>Plan Meals Together</h3>
+            <p>Use shared cookbooks and saved favorites to coordinate dinners, prep days, and weekly menus.</p>
           </div>
 
           <div className="feature-card">
@@ -375,7 +383,7 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
               <Sparkles size={28} />
             </div>
             <h3>Discover New Recipes</h3>
-            <p>Explore public recipes shared by our community and save your favorites.</p>
+            <p>Explore public recipes and cookbooks from the community, then save the best finds.</p>
           </div>
         </div>
       </section>
@@ -383,8 +391,8 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
       {/* CTA Section */}
       <section className="cta-section">
         <DinoMascot size={80} />
-        <h2>Ready to organize your recipes?</h2>
-        <p>Join thousands of home cooks who use Recipesaurus to save and share their favorite recipes.</p>
+        <h2>Ready to make cooking more connected?</h2>
+        <p>Use Recipesaurus to import, organize, discover, and plan meals with the people you cook for.</p>
         <div className="cta-actions">
           <button className="btn-primary btn-lg" onClick={onSignUp}>
             Get Started Free

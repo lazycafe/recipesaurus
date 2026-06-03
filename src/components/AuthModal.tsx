@@ -142,7 +142,7 @@ export function AuthModal({ onClose, initialMode = 'login', onForgotPassword }: 
         <div className={`auth-header ${mode === 'register' ? 'register' : ''}`}>
           <DinoMascot size={64} className="auth-mascot" />
           <h2>{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
-          {mode === 'login' && <p>Sign in to access your recipes</p>}
+          {mode === 'login' && <p>Sign in to access recipes, cookbooks, and friends</p>}
           {mode === 'register' && (
             <div className="auth-top-switch">
               <span>Already have an account?</span>
