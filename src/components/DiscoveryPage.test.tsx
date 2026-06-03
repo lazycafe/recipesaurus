@@ -229,7 +229,7 @@ describe('DiscoveryPage', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Recipe saved')).toBeDefined();
     });
-    expect(screen.getByText('Saved')).toBeDefined();
+    expect(screen.getByLabelText('Recipe saved').classList.contains('saved')).toBe(true);
   });
 
   it('renders duplicate recipes only once', () => {
@@ -330,7 +330,7 @@ describe('DiscoveryPage', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('Cookbook saved')).toBeDefined();
     });
-    expect(screen.getByText('Saved')).toBeDefined();
+    expect(screen.getByLabelText('Cookbook saved').classList.contains('saved')).toBe(true);
   });
 
   it('renders duplicate cookbooks only once', () => {

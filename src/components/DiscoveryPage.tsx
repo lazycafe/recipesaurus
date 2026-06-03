@@ -49,7 +49,6 @@ function RecipeCardCompact({ recipe, onSave, onClick, onAuthorClick, isSaving, i
           ) : isSaved ? (
             <>
               <Check size={16} />
-              <span>Saved</span>
             </>
           ) : (
             <Heart size={16} />
@@ -116,7 +115,6 @@ function CookbookCardCompact({ cookbook, onClick, onSave, onAuthorClick, isSavin
           ) : isSaved ? (
             <>
               <Check size={16} />
-              <span>Saved</span>
             </>
           ) : (
             <Heart size={16} />
