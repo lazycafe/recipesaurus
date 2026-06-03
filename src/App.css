@@ -2007,6 +2007,12 @@ img {
   font-weight: 500;
   color: var(--color-terracotta);
   letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.footer-brand:hover {
+  color: var(--color-terracotta-dark);
 }
 
 .footer-links {
@@ -2430,6 +2436,22 @@ img {
   filter: drop-shadow(0 4px 12px rgba(196, 85, 61, 0.2));
 }
 
+.auth-mascot-link {
+  color: var(--color-terracotta);
+  display: inline-flex;
+  margin-bottom: var(--space-5);
+  text-decoration: none;
+  transition: transform var(--transition-bounce);
+}
+
+.auth-mascot-link:hover {
+  transform: rotate(-8deg) scale(1.05);
+}
+
+.auth-mascot-link .auth-mascot {
+  margin-bottom: 0;
+}
+
 @media (max-width: 480px) {
   .auth-mascot {
     width: 64px !important;
@@ -2741,6 +2763,22 @@ img {
 
 .verify-email-mascot {
   margin-bottom: var(--space-4);
+}
+
+.verify-email-home {
+  color: var(--color-terracotta);
+  display: inline-flex;
+  margin-bottom: var(--space-4);
+  text-decoration: none;
+  transition: transform var(--transition-bounce);
+}
+
+.verify-email-home:hover {
+  transform: rotate(-8deg) scale(1.05);
+}
+
+.verify-email-home .verify-email-mascot {
+  margin-bottom: 0;
 }
 
 .verify-email-icon {
@@ -5238,6 +5276,18 @@ img {
   gap: var(--space-5);
 }
 
+.shared-header-home {
+  color: var(--color-terracotta);
+  display: inline-flex;
+  flex-shrink: 0;
+  text-decoration: none;
+  transition: transform var(--transition-bounce);
+}
+
+.shared-header-home:hover {
+  transform: rotate(-8deg) scale(1.05);
+}
+
 .shared-header-info h1 {
   font-family: var(--font-display);
   font-size: var(--text-2xl);
@@ -6278,6 +6328,12 @@ img {
   font-size: var(--text-xl);
   font-weight: 600;
   color: var(--color-olive);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.public-header-logo:hover {
+  color: var(--color-olive-dark);
 }
 
 .public-header-nav {

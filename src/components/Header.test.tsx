@@ -103,6 +103,11 @@ describe('Header', () => {
     expect(screen.getByText('Recipesaurus')).toBeDefined();
   });
 
+  it('links the logo to the home page', () => {
+    renderWithRouter(<Header />);
+    expect(screen.getByRole('link', { name: /recipesaurus home/i }).getAttribute('href')).toBe('/');
+  });
+
   it('hides navigation when no user', () => {
     renderWithRouter(<Header />);
     expect(screen.queryByText('Discover')).toBeNull();

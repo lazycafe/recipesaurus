@@ -53,7 +53,9 @@ export function VerifyEmailPage() {
   return (
     <div className="verify-email-page">
       <div className="verify-email-card">
-        <DinoMascot size={60} className="verify-email-mascot" />
+        <Link to="/" className="verify-email-home" aria-label="Recipesaurus home">
+          <DinoMascot size={60} className="verify-email-mascot" />
+        </Link>
 
         {status === 'loading' && (
           <>

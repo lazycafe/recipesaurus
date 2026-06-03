@@ -65,6 +65,11 @@ describe('ResetPasswordPage', () => {
     expect(screen.getByText('Enter your new password below')).toBeDefined();
   });
 
+  it('links the mascot to the home page', () => {
+    renderWithRouter();
+    expect(screen.getByRole('link', { name: /recipesaurus home/i }).getAttribute('href')).toBe('/');
+  });
+
   it('shows error when no token provided', () => {
     renderWithRouter(['/reset-password']);
     expect(screen.getByText('Invalid reset link. Please request a new password reset.')).toBeDefined();

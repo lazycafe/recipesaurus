@@ -36,7 +36,7 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
     <>
       <header className="header">
         <div className="header-content">
-          <NavLink to="/discover/recipes" className="logo-section">
+          <NavLink to="/" className="logo-section" aria-label="Recipesaurus home">
             <DinoMascot size={48} className="logo-icon" />
             <div className="logo-text">
               <h1>Recipesaurus</h1>

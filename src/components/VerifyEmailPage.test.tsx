@@ -51,6 +51,11 @@ describe('VerifyEmailPage', () => {
     expect(screen.getByText('Verifying...')).toBeDefined();
   });
 
+  it('links the mascot to the home page', () => {
+    renderWithRouter(['/verify-email']);
+    expect(screen.getByRole('link', { name: /recipesaurus home/i }).getAttribute('href')).toBe('/');
+  });
+
   it('shows success state when verification succeeds', async () => {
     mockVerifyEmail.mockResolvedValue({ success: true });
     renderWithRouter(['/verify-email?token=valid-token']);

@@ -92,7 +92,9 @@ export function SharedCookbookView({ token }: SharedCookbookViewProps) {
     <div className="shared-view">
       <header className="shared-header">
         <div className="shared-header-content">
-          <DinoMascot size={48} />
+          <a href="/" className="shared-header-home" aria-label="Recipesaurus home">
+            <DinoMascot size={48} />
+          </a>
           <div className="shared-header-info">
             <h1>{cookbook.name}</h1>
             {cookbook.description && <p>{cookbook.description}</p>}

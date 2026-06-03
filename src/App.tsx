@@ -177,10 +177,10 @@ function RecipeApp() {
 
       <footer className="footer">
         <div className="footer-content">
-          <div className="footer-brand">
+          <Link to="/" className="footer-brand" aria-label="Recipesaurus home">
             <ChefHat size={16} />
             <span>Recipesaurus</span>
-          </div>
+          </Link>
           <div className="footer-links">
             <Link to="/terms">Terms of Use</Link>
             <Link to="/feedback">Give Feedback</Link>

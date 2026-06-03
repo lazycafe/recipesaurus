@@ -32,6 +32,17 @@ describe('SharedRecipePreview', () => {
     mockSaveFromPreview.mockResolvedValue({ data: { id: 'recipe-1', collectionId: 'collection-1' } });
   });
 
+  it('links the shared recipe header icon to the home page', async () => {
+    render(
+      <ClientProvider client={client}>
+        <SharedRecipePreview encodedData={encodedRecipe} isLoggedIn={false} />
+      </ClientProvider>
+    );
+
+    await screen.findByRole('heading', { name: 'Shared Pancakes' });
+    expect(screen.getByRole('link', { name: /recipesaurus home/i }).getAttribute('href')).toBe('/');
+  });
+
   it('saves the recipe when the public viewer is logged in', async () => {
     render(
       <ClientProvider client={client}>

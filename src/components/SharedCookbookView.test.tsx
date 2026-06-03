@@ -68,4 +68,11 @@ describe('SharedCookbookView', () => {
     expect(screen.getByRole('heading', { name: 'Shared Favorites' })).toBeDefined();
     expect(screen.getByText('Shared by Dev User')).toBeDefined();
   });
+
+  it('links the shared cookbook header icon to the home page', async () => {
+    render(<SharedCookbookView token="share-token" />);
+
+    await screen.findByRole('heading', { name: 'Shared Favorites' });
+    expect(screen.getByRole('link', { name: /recipesaurus home/i }).getAttribute('href')).toBe('/');
+  });
 });

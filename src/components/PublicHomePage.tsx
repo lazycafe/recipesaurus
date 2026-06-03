@@ -194,10 +194,10 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
       {/* Header */}
       <header className="public-header">
         <div className="public-header-content">
-          <div className="public-header-logo">
+          <a href="/" className="public-header-logo" aria-label="Recipesaurus home">
             <DinoMascot size={36} />
             <span>Recipesaurus</span>
-          </div>
+          </a>
           <nav className="public-header-nav">
             <button className="btn-text" onClick={onSignIn}>
               Sign In

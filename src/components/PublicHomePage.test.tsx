@@ -47,6 +47,11 @@ describe('PublicHomePage', () => {
     expect(screen.getByText('Save Recipes from Anywhere')).toBeDefined();
   });
 
+  it('links the public header logo to the home page', () => {
+    render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
+    expect(screen.getByRole('link', { name: /recipesaurus home/i }).getAttribute('href')).toBe('/');
+  });
+
   it('renders URL input', () => {
     render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
     expect(screen.getByPlaceholderText('Paste a recipe URL...')).toBeDefined();

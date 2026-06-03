@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Lock, Loader2, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import { DinoMascot } from './DinoMascot';
@@ -75,7 +75,9 @@ export function ResetPasswordPage() {
     <div className="reset-password-page">
       <div className="reset-password-container">
         <div className="auth-header">
-          <DinoMascot size={80} className="auth-mascot" />
+          <Link to="/" className="auth-mascot-link" aria-label="Recipesaurus home">
+            <DinoMascot size={80} className="auth-mascot" />
+          </Link>
           <h1>{isSuccess ? 'Password Reset!' : 'Create New Password'}</h1>
           <p>
             {isSuccess

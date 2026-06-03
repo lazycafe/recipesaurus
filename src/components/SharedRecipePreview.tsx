@@ -305,7 +305,9 @@ export function SharedRecipePreview({
     <div className="shared-view shared-recipe-preview">
       <header className="shared-header">
         <div className="shared-header-content">
-          <DinoMascot size={48} />
+          <a href="/" className="shared-header-home" aria-label="Recipesaurus home">
+            <DinoMascot size={48} />
+          </a>
           <div className="shared-header-info">
             <h1>{recipe.title}</h1>
             {recipe.description && <p>{recipe.description}</p>}
