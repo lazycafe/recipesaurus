@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Book } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useCookbooks } from '../context/CookbookContext';
 import { CookbookCard } from './CookbookCard';
 import { DinoMascot } from './DinoMascot';
@@ -11,14 +10,11 @@ interface CookbookListProps {
 
 export function CookbookList({ onCreateCookbook }: CookbookListProps) {
   const { ownedCookbooks, sharedCookbooks } = useCookbooks();
-  const [activeTab, setActiveTab] = useState<'owned' | 'shared'>('owned');
 
   // Filter out system cookbooks (like "My Recipe Collection")
   const filteredOwned = ownedCookbooks.filter(c => !c.isSystem);
   const filteredShared = sharedCookbooks.filter(c => !c.isSystem);
-
-  const cookbooks = activeTab === 'owned' ? filteredOwned : filteredShared;
-  const hasShared = filteredShared.length > 0;
+  const cookbooks = [...filteredOwned, ...filteredShared].sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
     <div className="cookbook-list">
@@ -33,28 +29,6 @@ export function CookbookList({ onCreateCookbook }: CookbookListProps) {
         </button>
       </div>
 
-      {hasShared && (
-        <div className="cookbook-tabs-container">
-          <div className="cookbook-tabs">
-            <button
-              className={`cookbook-tab ${activeTab === 'owned' ? 'active' : ''}`}
-              onClick={() => setActiveTab('owned')}
-            >
-              <Book size={16} />
-              My Cookbooks
-              <span className="tab-count">{filteredOwned.length}</span>
-            </button>
-            <button
-              className={`cookbook-tab ${activeTab === 'shared' ? 'active' : ''}`}
-              onClick={() => setActiveTab('shared')}
-            >
-              Shared with Me
-              <span className="tab-count">{sharedCookbooks.length}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {cookbooks.length > 0 ? (
         <div className="cookbook-grid">
           {cookbooks.map(cookbook => (
@@ -66,16 +40,8 @@ export function CookbookList({ onCreateCookbook }: CookbookListProps) {
       ) : (
         <div className="empty-state">
           <DinoMascot size={120} />
-          <h2>
-            {activeTab === 'owned'
-              ? 'No cookbooks yet'
-              : 'No shared cookbooks'}
-          </h2>
-          <p>
-            {activeTab === 'owned'
-              ? 'Create a cookbook to organize your recipes.'
-              : 'When someone shares a cookbook with you, it will appear here.'}
-          </p>
+          <h2>No cookbooks yet</h2>
+          <p>Create a cookbook to organize your recipes. Shared cookbooks will appear here too.</p>
         </div>
       )}
     </div>

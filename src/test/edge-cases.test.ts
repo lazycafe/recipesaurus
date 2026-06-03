@@ -313,6 +313,36 @@ describe('Edge cases and error handling', () => {
       expect(targetList.data?.shared.length).toBe(0);
     });
 
+    it('should copy shared cookbook recipes into the recipient recipe list when accepting invite', async () => {
+      const ownerClient = harness.createClient();
+      await ownerClient.auth.register('owner@example.com', 'Owner', 'Password123');
+      const cookbookResult = await ownerClient.cookbooks.create({ name: 'Shared Meals' });
+      const cookbookId = cookbookResult.data!.id;
+
+      const recipeResult = await ownerClient.recipes.create({
+        title: 'Shared Tomato Soup',
+        description: 'A bright soup from a shared cookbook',
+        ingredients: ['tomatoes', 'stock'],
+        instructions: ['Simmer everything together'],
+        tags: ['soup'],
+      });
+      await ownerClient.cookbooks.addRecipe(cookbookId, recipeResult.data!.id);
+
+      const targetClient = harness.createClient();
+      await targetClient.auth.register('target@example.com', 'Target', 'Password123');
+
+      await ownerClient.cookbooks.shareByEmail(cookbookId, 'target@example.com');
+      const notifications = await targetClient.notifications.list();
+      const inviteId = notifications.data!.notifications[0].data?.inviteId!;
+      await targetClient.invites.accept(inviteId);
+
+      const targetRecipes = await targetClient.recipes.list();
+      const copiedRecipes = targetRecipes.data!.recipes.filter(recipe => recipe.title === 'Shared Tomato Soup');
+
+      expect(copiedRecipes).toHaveLength(1);
+      expect(copiedRecipes[0].description).toBe('A bright soup from a shared cookbook');
+    });
+
     it('should get shares for cookbook', async () => {
       // Owner creates cookbook
       const ownerClient = harness.createClient();

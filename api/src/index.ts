@@ -3849,17 +3849,19 @@ async function handleAcceptInvite(request: Request, db: D1Database, inviteId: st
 
   const now = Date.now();
 
-  // Update invite status
-  await db.prepare(`
-    UPDATE cookbook_invites SET status = ? WHERE id = ?
-  `).bind('accepted', inviteId).run();
-
   // Create the actual share
   const shareId = generateId();
   await db.prepare(`
     INSERT INTO cookbook_shares (id, cookbook_id, shared_with_user_id, shared_by_user_id, created_at)
     VALUES (?, ?, ?, ?, ?)
   `).bind(shareId, invite.cookbook_id, user.id, invite.invited_by_user_id, now).run();
+
+  await copyCookbookRecipesToUserCollection(db, user.id, invite.cookbook_id, now);
+
+  // Update invite status
+  await db.prepare(`
+    UPDATE cookbook_invites SET status = ? WHERE id = ?
+  `).bind('accepted', inviteId).run();
 
   // Delete the notification
   await db.prepare(`
@@ -4219,6 +4221,58 @@ async function findExistingSavedRecipeId(db: D1Database, userId: string, recipe:
   ).first<{ id: string }>();
 
   return existing?.id || null;
+}
+
+async function copyCookbookRecipesToUserCollection(
+  db: D1Database,
+  userId: string,
+  cookbookId: string,
+  now: number = Date.now()
+): Promise<void> {
+  const collectionId = await getOrCreateRecipeCollection(db, userId);
+  const { results: cookbookRecipes } = await db.prepare(`
+    SELECT r.* FROM recipes r
+    JOIN cookbook_recipes cr ON r.id = cr.recipe_id
+    WHERE cr.cookbook_id = ?
+  `).bind(cookbookId).all<Recipe>();
+
+  for (const recipe of cookbookRecipes || []) {
+    let savedRecipeId = await findExistingSavedRecipeId(db, userId, recipe);
+
+    if (!savedRecipeId) {
+      savedRecipeId = generateId();
+
+      await db.prepare(`
+        INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        savedRecipeId,
+        userId,
+        recipe.owner_id,
+        recipe.title,
+        recipe.description,
+        recipe.ingredients,
+        recipe.instructions,
+        recipe.tags,
+        recipe.image_url,
+        recipe.source_url,
+        recipe.prep_time,
+        recipe.cook_time,
+        recipe.servings,
+        recipe.id,
+        0,
+        now
+      ).run();
+    }
+
+    await db.prepare('INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)')
+      .bind(collectionId, savedRecipeId, userId, now)
+      .run();
+  }
+
+  await db.prepare('UPDATE cookbooks SET updated_at = ? WHERE id = ?')
+    .bind(now, collectionId)
+    .run();
 }
 
 // Discover - save a public recipe to user's collection

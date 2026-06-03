@@ -112,7 +112,7 @@ describe('MyRecipesPage', () => {
     expect(screen.getByText('Filter')).toBeDefined();
   });
 
-  it('shows recipe count', () => {
+  it('does not show the recipe count summary', () => {
     vi.mocked(RecipeContext.useRecipes).mockReturnValue({
       recipes: [mockRecipe],
       isLoading: false,
@@ -124,7 +124,7 @@ describe('MyRecipesPage', () => {
     });
 
     render(<MyRecipesPage />);
-    expect(screen.getByText('1 recipe')).toBeDefined();
+    expect(screen.queryByText('1 recipe')).toBeNull();
   });
 
   it('shows recipes when available', () => {
@@ -156,7 +156,57 @@ describe('MyRecipesPage', () => {
     render(<MyRecipesPage />);
 
     expect(screen.getAllByText('Test Recipe')).toHaveLength(1);
-    expect(screen.getByText('1 recipe')).toBeDefined();
+    expect(screen.queryByText('1 recipe')).toBeNull();
+  });
+
+  it('shows recipe card details without requiring expansion', () => {
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [mockRecipe],
+      isLoading: false,
+      addRecipe: mockAddRecipe,
+      updateRecipe: mockUpdateRecipe,
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: mockGetAllTags.mockReturnValue(['dinner', 'quick']),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    render(<MyRecipesPage />);
+
+    expect(screen.getByText('Test Recipe')).toBeDefined();
+    expect(screen.getByText('A test recipe')).toBeDefined();
+    expect(screen.getByLabelText('Add to cookbook')).toBeDefined();
+  });
+
+  it('paginates my recipes at five items per page', () => {
+    const recipes = Array.from({ length: 6 }, (_, index) => ({
+      ...mockRecipe,
+      id: `recipe-${index + 1}`,
+      title: `Recipe ${index + 1}`,
+      description: `Description ${index + 1}`,
+      createdAt: mockRecipe.createdAt - index,
+    }));
+
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes,
+      isLoading: false,
+      addRecipe: mockAddRecipe,
+      updateRecipe: mockUpdateRecipe,
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: mockGetAllTags.mockReturnValue(['dinner', 'quick']),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    render(<MyRecipesPage />);
+
+    expect(screen.getByText('Recipe 1')).toBeDefined();
+    expect(screen.getByText('Recipe 5')).toBeDefined();
+    expect(screen.queryByText('Recipe 6')).toBeNull();
+    expect(screen.getByText('Page 1 of 2')).toBeDefined();
+
+    fireEvent.click(screen.getByLabelText('Next page'));
+
+    expect(screen.getByText('Recipe 6')).toBeDefined();
+    expect(screen.queryByText('Recipe 1')).toBeNull();
   });
 
   it('opens filter menu when filter button clicked', () => {

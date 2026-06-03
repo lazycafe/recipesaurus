@@ -52,7 +52,7 @@ export function NotificationDropdown() {
   const handleAccept = async (inviteId: string) => {
     const result = await acceptInvite(inviteId);
     if (result) {
-      await refreshCookbooks();
+      await Promise.all([refreshCookbooks(), refreshRecipes()]);
       setIsOpen(false);
       navigate(`/cookbooks/${result.cookbookId}`);
     }
