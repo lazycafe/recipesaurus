@@ -39,4 +39,45 @@ describe('RecipeDetail', () => {
 
     expect(downloadRecipePdf).toHaveBeenCalledWith(recipe);
   });
+
+  it('replaces the PDF download action with save on public recipes', () => {
+    const onSave = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <RecipeDetail
+          recipe={recipe}
+          onClose={vi.fn()}
+          onSave={onSave}
+          saveLabel="Save Recipe"
+          isPublicView
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByRole('button', { name: /download pdf/i })).toBeNull();
+    expect(downloadRecipePdf).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Recipe' }));
+
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a disabled saved action for public recipes already in My Recipes', () => {
+    render(
+      <MemoryRouter>
+        <RecipeDetail
+          recipe={recipe}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+          isPublicView
+          isSaved
+        />
+      </MemoryRouter>
+    );
+
+    const savedButton = screen.getByRole('button', { name: 'Saved to My Recipes' }) as HTMLButtonElement;
+    expect(savedButton.disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: /download pdf/i })).toBeNull();
+  });
 });

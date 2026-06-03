@@ -35,6 +35,7 @@ export function RecipeDetail({
 }: RecipeDetailProps) {
   const [showShareModal, setShowShareModal] = useState(false);
   const navigate = useNavigate();
+  const publicSaveLabel = isSaved ? 'Saved to My Recipes' : saveLabel;
 
   const handleDelete = () => {
     onDelete?.();
@@ -131,15 +132,34 @@ export function RecipeDetail({
                   <span>Share</span>
                 </button>
               )}
-              <button
-                className="btn-secondary detail-icon-action"
-                onClick={() => downloadRecipePdf(recipe)}
-                aria-label="Download PDF"
-                title="Download PDF"
-              >
-                <Download size={16} strokeWidth={2} />
-                <span>Download PDF</span>
-              </button>
+              {isPublicView && onSave ? (
+                <button
+                  className="btn-primary detail-icon-action"
+                  onClick={onSave}
+                  disabled={isSaving || isSaved}
+                  aria-label={publicSaveLabel}
+                  title={publicSaveLabel}
+                >
+                  {isSaving ? (
+                    <Loader2 size={16} strokeWidth={2} className="spin" />
+                  ) : isSaved ? (
+                    <Check size={16} strokeWidth={2} />
+                  ) : (
+                    <Heart size={16} strokeWidth={2} />
+                  )}
+                  <span>{publicSaveLabel}</span>
+                </button>
+              ) : !isPublicView ? (
+                <button
+                  className="btn-secondary detail-icon-action"
+                  onClick={() => downloadRecipePdf(recipe)}
+                  aria-label="Download PDF"
+                  title="Download PDF"
+                >
+                  <Download size={16} strokeWidth={2} />
+                  <span>Download PDF</span>
+                </button>
+              ) : null}
               {recipe.sourceUrl && (
                 <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="source-link">
                   <span>View Original</span>
@@ -172,21 +192,6 @@ export function RecipeDetail({
             </ol>
           </section>
         </div>
-
-        {isPublicView && onSave && (
-          <div className="detail-footer">
-            <button className="btn-primary" onClick={onSave} disabled={isSaving || isSaved}>
-              {isSaving ? (
-                <Loader2 size={16} strokeWidth={2} className="spin" />
-              ) : isSaved ? (
-                <Check size={16} strokeWidth={2} />
-              ) : (
-                <Heart size={16} strokeWidth={2} />
-              )}
-              <span>{isSaved ? 'Saved to My Recipes' : saveLabel}</span>
-            </button>
-          </div>
-        )}
 
         {!readOnly && !isPublicView && (onEdit || onDelete) && (
           <div className="detail-footer">
