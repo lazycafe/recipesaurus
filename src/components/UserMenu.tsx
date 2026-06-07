@@ -120,6 +120,15 @@ export function UserMenu() {
         '_blank',
         'noopener,noreferrer'
       );
+    } else if (
+      notification.type === 'recipe_added' &&
+      notification.data?.cookbookId &&
+      notification.data?.recipeId
+    ) {
+      setIsOpen(false);
+      navigate(
+        `/cookbooks/${encodeURIComponent(notification.data.cookbookId)}?recipeId=${encodeURIComponent(notification.data.recipeId)}`
+      );
     }
   };
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { UserMenu } from './UserMenu';
 import * as AuthContext from '../context/AuthContext';
 import * as NotificationContext from '../context/NotificationContext';
@@ -37,6 +37,20 @@ describe('UserMenu', () => {
 
   const renderWithRouter = (ui: React.ReactElement) => {
     return render(<MemoryRouter>{ui}</MemoryRouter>);
+  };
+
+  function LocationDisplay() {
+    const location = useLocation();
+    return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
+  }
+
+  const renderWithLocation = (ui: React.ReactElement, initialPath = '/') => {
+    return render(
+      <MemoryRouter initialEntries={[initialPath]}>
+        {ui}
+        <LocationDisplay />
+      </MemoryRouter>
+    );
   };
 
   beforeEach(() => {
@@ -354,6 +368,45 @@ describe('UserMenu', () => {
     );
 
     openSpy.mockRestore();
+  });
+
+  it('navigates recipe added notifications to the logged-in recipe detail', async () => {
+    const markAsRead = vi.fn();
+    vi.mocked(NotificationContext.useNotifications).mockReturnValue({
+      notifications: [{
+        id: '1',
+        type: 'recipe_added',
+        title: 'New Recipe Added',
+        message: 'Friend added "Pasta" to "Dinner"',
+        data: {
+          cookbookId: 'cookbook-1',
+          cookbookName: 'Dinner',
+          recipeId: 'recipe-1',
+          addedBy: 'Friend',
+        },
+        isRead: false,
+        createdAt: Date.now()
+      }],
+      unreadCount: 1,
+      isLoading: false,
+      refresh: vi.fn(),
+      markAsRead,
+      markAllAsRead: vi.fn(),
+      clearAll: vi.fn(),
+      acceptInvite: vi.fn(),
+      declineInvite: vi.fn(),
+      acceptRecipeShare: vi.fn(),
+      declineRecipeShare: vi.fn(),
+      acceptFriendRequest: vi.fn(),
+      declineFriendRequest: vi.fn(),
+    });
+
+    renderWithLocation(<UserMenu />, '/my-recipes');
+    fireEvent.click(screen.getByLabelText('User menu'));
+    fireEvent.click(screen.getByText('Friend added "Pasta" to "Dinner"'));
+
+    await waitFor(() => expect(markAsRead).toHaveBeenCalledWith('1'));
+    expect(screen.getByTestId('location').textContent).toBe('/cookbooks/cookbook-1?recipeId=recipe-1');
   });
 
   it('accepts recipe share notifications and refreshes recipes', async () => {

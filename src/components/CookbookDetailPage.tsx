@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Share2, Pencil, Loader2, User, Search, ArrowLeft, Check, LogOut, X, Plus } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { Recipe, RecipeFormData } from '../types/Recipe';
@@ -89,6 +89,7 @@ const parseFormData = (formData: RecipeFormData) => ({
 export function CookbookDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const client = useClient();
   const { createCookbook, updateCookbook, deleteCookbook, leaveCookbook } = useCookbooks();
   const { updateRecipe, deleteRecipe } = useRecipes();
@@ -129,6 +130,26 @@ export function CookbookDetailPage() {
     }
     fetchCookbook();
   }, [id, client]);
+
+  useEffect(() => {
+    const recipeId = searchParams.get('recipeId');
+    if (!recipeId || recipes.length === 0) return;
+
+    const recipe = recipes.find(item => item.id === recipeId);
+    if (recipe) {
+      setSelectedRecipe(current => (current?.id === recipe.id ? current : recipe));
+    }
+  }, [recipes, searchParams]);
+
+  const handleCloseSelectedRecipe = () => {
+    setSelectedRecipe(null);
+
+    if (searchParams.has('recipeId')) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('recipeId');
+      setSearchParams(nextParams, { replace: true });
+    }
+  };
 
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -404,7 +425,7 @@ export function CookbookDetailPage() {
       {selectedRecipe && (
         <RecipeDetail
           recipe={selectedRecipe}
-          onClose={() => setSelectedRecipe(null)}
+          onClose={handleCloseSelectedRecipe}
           onEdit={selectedRecipe.isOwner ? () => {
             setEditingRecipe(selectedRecipe);
             setSelectedRecipe(null);
