@@ -262,7 +262,7 @@ export function MyRecipesPage() {
           </p>
 
           {filteredRecipes.length > 0 ? (
-            <div className="recipe-grid">
+            <div className="recipe-grid my-recipes-grid">
               {filteredRecipes.map(recipe => (
                 <RecipeCard
                   key={recipe.id}
