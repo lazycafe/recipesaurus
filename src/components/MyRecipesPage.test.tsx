@@ -211,8 +211,8 @@ describe('MyRecipesPage', () => {
     expect(screen.getByLabelText('Add to cookbook')).toBeDefined();
   });
 
-  it('paginates my recipes at five items per page', () => {
-    const recipes = Array.from({ length: 6 }, (_, index) => ({
+  it('paginates my recipes at ten items per page', () => {
+    const recipes = Array.from({ length: 11 }, (_, index) => ({
       ...mockRecipe,
       id: `recipe-${index + 1}`,
       title: `Recipe ${index + 1}`,
@@ -233,13 +233,13 @@ describe('MyRecipesPage', () => {
     render(<MyRecipesPage />);
 
     expect(screen.getByText('Recipe 1')).toBeDefined();
-    expect(screen.getByText('Recipe 5')).toBeDefined();
-    expect(screen.queryByText('Recipe 6')).toBeNull();
+    expect(screen.getByText('Recipe 10')).toBeDefined();
+    expect(screen.queryByText('Recipe 11')).toBeNull();
     expect(screen.getByText('Page 1 of 2')).toBeDefined();
 
     fireEvent.click(screen.getByLabelText('Next page'));
 
-    expect(screen.getByText('Recipe 6')).toBeDefined();
+    expect(screen.getByText('Recipe 11')).toBeDefined();
     expect(screen.queryByText('Recipe 1')).toBeNull();
   });
 

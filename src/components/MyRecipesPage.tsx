@@ -26,7 +26,7 @@ interface ExtendedRecipe extends Recipe {
   isOwner?: boolean;
 }
 
-const RECIPES_PER_PAGE = 5;
+const RECIPES_PER_PAGE = 10;
 
 const parseFormData = (formData: RecipeFormData) => ({
   title: formData.title.trim(),
@@ -283,7 +283,7 @@ export function MyRecipesPage() {
 
           {filteredRecipes.length > 0 ? (
             <>
-              <div className="recipe-grid">
+              <div className="recipe-grid my-recipes-grid">
                 {paginatedRecipes.map(recipe => (
                   <RecipeCard
                     key={recipe.id}
