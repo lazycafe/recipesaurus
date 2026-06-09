@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { CookbookDetailPage } from './CookbookDetailPage';
 import * as ClientContext from '../client/ClientContext';
@@ -58,8 +58,11 @@ describe('CookbookDetailPage', () => {
   };
 
   const getCookbook = vi.fn();
+  const mockUpdateRecipe = vi.fn();
+  const mockDeleteRecipe = vi.fn();
 
   beforeEach(() => {
+    vi.clearAllMocks();
     getCookbook.mockReset();
     getCookbook.mockResolvedValue({
       data: {
@@ -95,8 +98,8 @@ describe('CookbookDetailPage', () => {
       recipes: [],
       isLoading: false,
       addRecipe: vi.fn(),
-      updateRecipe: vi.fn(),
-      deleteRecipe: vi.fn(),
+      updateRecipe: mockUpdateRecipe,
+      deleteRecipe: mockDeleteRecipe,
       getAllTags: vi.fn(() => []),
       refreshRecipes: vi.fn(),
     });
@@ -129,6 +132,61 @@ describe('CookbookDetailPage', () => {
     await waitFor(() => {
       expect(document.body.querySelector('.modal-detail')).toBeNull();
       expect(screen.getByTestId('location').textContent).toBe('/cookbooks/cookbook-1');
+    });
+  });
+
+  it('opens the recipe edit modal from cookbook recipe details', async () => {
+    const ownedCookbook = { ...cookbook, isOwner: true, ownerName: undefined };
+    const recipeWithoutOwnershipFlag = {
+      ...recipe,
+      isOwner: undefined,
+    };
+
+    getCookbook.mockResolvedValueOnce({
+      data: {
+        cookbook: ownedCookbook,
+        recipes: [recipeWithoutOwnershipFlag],
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/cookbooks/cookbook-1']}>
+        <Routes>
+          <Route path="/cookbooks/:id" element={<CookbookDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Pesto Pasta')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Pesto Pasta'));
+    const recipeDetail = document.body.querySelector('.modal-detail') as HTMLElement;
+    fireEvent.click(within(recipeDetail).getByRole('button', { name: 'Edit' }));
+
+    expect(screen.getByRole('heading', { name: 'Edit Recipe' })).toBeDefined();
+
+    fireEvent.change(screen.getByLabelText('Title'), {
+      target: { value: 'Edited Pesto Pasta' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Update Recipe' }));
+
+    await waitFor(() => {
+      expect(mockUpdateRecipe).toHaveBeenCalledWith('recipe-1', {
+        title: 'Edited Pesto Pasta',
+        description: 'A fast pasta dinner',
+        ingredients: ['pasta', 'pesto'],
+        instructions: ['Boil pasta', 'Toss with pesto'],
+        tags: ['dinner'],
+        imageUrl: undefined,
+        prepTime: undefined,
+        cookTime: undefined,
+        servings: undefined,
+        sourceUrl: undefined,
+        isPublic: false,
+      });
+      expect(screen.getByText('Edited Pesto Pasta')).toBeDefined();
     });
   });
 });

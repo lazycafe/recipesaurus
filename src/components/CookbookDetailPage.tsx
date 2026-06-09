@@ -179,6 +179,8 @@ export function CookbookDetailPage() {
     setSelectedTags([]);
   };
 
+  const canEditRecipe = (recipe: CookbookRecipe) => recipe.isOwner !== false;
+
   const clearRecipeParam = () => {
     if (!searchParams.has('recipeId') && !searchParams.has('recipe')) return;
 
@@ -225,11 +227,12 @@ export function CookbookDetailPage() {
   const handleUpdateRecipe = async (formData: RecipeFormData) => {
     if (!editingRecipe) return;
     try {
-      await updateRecipe(editingRecipe.id, parseFormData(formData));
+      const updatedRecipe = parseFormData(formData);
+      await updateRecipe(editingRecipe.id, updatedRecipe);
       // Update the recipe in local state
       setRecipes(prev => prev.map(r =>
         r.id === editingRecipe.id
-          ? { ...r, ...parseFormData(formData) }
+          ? { ...r, ...updatedRecipe }
           : r
       ));
       setEditingRecipe(null);
@@ -439,7 +442,7 @@ export function CookbookDetailPage() {
         <RecipeDetail
           recipe={selectedRecipe}
           onClose={handleCloseRecipeDetail}
-          onEdit={selectedRecipe.isOwner ? () => {
+          onEdit={canEditRecipe(selectedRecipe) ? () => {
             setEditingRecipe(selectedRecipe);
             handleCloseRecipeDetail();
           } : undefined}
