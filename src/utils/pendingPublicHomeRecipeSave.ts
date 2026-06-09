@@ -25,14 +25,12 @@ export function storePendingPublicHomeRecipeSave(recipe: Pick<Recipe, 'id' | 'ti
   }));
 }
 
-export function takePendingPublicHomeRecipeSave(): PendingPublicHomeRecipeSave | null {
+export function readPendingPublicHomeRecipeSave(): PendingPublicHomeRecipeSave | null {
   const storage = getSessionStorage();
   if (!storage) return null;
 
   const rawPendingSave = storage.getItem(PENDING_PUBLIC_HOME_RECIPE_SAVE_KEY);
   if (!rawPendingSave) return null;
-
-  storage.removeItem(PENDING_PUBLIC_HOME_RECIPE_SAVE_KEY);
 
   try {
     const pendingSave = JSON.parse(rawPendingSave) as Partial<PendingPublicHomeRecipeSave>;
@@ -49,4 +47,16 @@ export function takePendingPublicHomeRecipeSave(): PendingPublicHomeRecipeSave |
   } catch {
     return null;
   }
+}
+
+export function clearPendingPublicHomeRecipeSave(recipeId?: string) {
+  const storage = getSessionStorage();
+  if (!storage) return;
+
+  if (recipeId) {
+    const pendingSave = readPendingPublicHomeRecipeSave();
+    if (pendingSave?.recipeId !== recipeId) return;
+  }
+
+  storage.removeItem(PENDING_PUBLIC_HOME_RECIPE_SAVE_KEY);
 }

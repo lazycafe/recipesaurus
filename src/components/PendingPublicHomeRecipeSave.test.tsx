@@ -59,6 +59,35 @@ describe('PendingPublicHomeRecipeSave', () => {
     }));
   });
 
+  it('finishes a pending save even if the first mounted handler cleans up', async () => {
+    storePendingPublicHomeRecipeSave({
+      id: 'public-recipe-1',
+      title: 'Public Pasta',
+    });
+
+    const { unmount } = render(
+      <MemoryRouter>
+        <PendingPublicHomeRecipeSave />
+      </MemoryRouter>
+    );
+
+    unmount();
+
+    render(
+      <MemoryRouter>
+        <PendingPublicHomeRecipeSave />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(mockSaveRecipe).toHaveBeenCalledWith('public-recipe-1');
+    });
+
+    expect(mockSaveRecipe).toHaveBeenCalledTimes(1);
+    expect(mockRefreshRecipes).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem('pendingPublicHomeRecipeSave')).toBeNull();
+  });
+
   it('does nothing when there is no pending public home save', async () => {
     render(
       <MemoryRouter>
@@ -94,5 +123,6 @@ describe('PendingPublicHomeRecipeSave', () => {
     });
 
     expect(mockRefreshRecipes).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('pendingPublicHomeRecipeSave')).toContain('Public Pasta');
   });
 });

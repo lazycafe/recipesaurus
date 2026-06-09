@@ -1,58 +1,62 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useRecipes } from '../context/RecipeContext';
 import { useToast } from '../context/ToastContext';
-import { takePendingPublicHomeRecipeSave } from '../utils/pendingPublicHomeRecipeSave';
+import {
+  clearPendingPublicHomeRecipeSave,
+  readPendingPublicHomeRecipeSave,
+} from '../utils/pendingPublicHomeRecipeSave';
+
+let pendingPublicHomeRecipeSavePromise: Promise<void> | null = null;
 
 export function PendingPublicHomeRecipeSave() {
   const { saveRecipe } = useDiscovery();
   const { refreshRecipes } = useRecipes();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const hasCheckedPendingSave = useRef(false);
 
   useEffect(() => {
-    if (hasCheckedPendingSave.current) return;
-    hasCheckedPendingSave.current = true;
+    if (pendingPublicHomeRecipeSavePromise) return;
 
-    const pendingSave = takePendingPublicHomeRecipeSave();
+    const pendingSave = readPendingPublicHomeRecipeSave();
     if (!pendingSave) return;
 
-    let cancelled = false;
-
     const savePendingRecipe = async () => {
-      const savedRecipeId = await saveRecipe(pendingSave.recipeId);
+      try {
+        const savedRecipeId = await saveRecipe(pendingSave.recipeId);
 
-      if (cancelled) return;
+        if (!savedRecipeId) {
+          showToast({
+            message: `Could not save ${pendingSave.title}. Please try again.`,
+            type: 'error',
+          });
+          return;
+        }
 
-      if (!savedRecipeId) {
+        clearPendingPublicHomeRecipeSave(pendingSave.recipeId);
+        await refreshRecipes();
+
+        showToast({
+          message: `${pendingSave.title} saved to My Recipes`,
+          type: 'success',
+          action: {
+            label: 'View',
+            onClick: () => navigate('/my-recipes'),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to save pending public home recipe:', error);
         showToast({
           message: `Could not save ${pendingSave.title}. Please try again.`,
           type: 'error',
         });
-        return;
+      } finally {
+        pendingPublicHomeRecipeSavePromise = null;
       }
-
-      await refreshRecipes();
-
-      if (cancelled) return;
-
-      showToast({
-        message: `${pendingSave.title} saved to My Recipes`,
-        type: 'success',
-        action: {
-          label: 'View',
-          onClick: () => navigate('/my-recipes'),
-        },
-      });
     };
 
-    savePendingRecipe();
-
-    return () => {
-      cancelled = true;
-    };
+    pendingPublicHomeRecipeSavePromise = savePendingRecipe();
   }, [navigate, refreshRecipes, saveRecipe, showToast]);
 
   return null;
