@@ -185,8 +185,8 @@ describe('Home Page Routing', () => {
       expect(screen.getByText('Save Recipes and Plan Meals Together')).toBeDefined();
 
       // Should not show Discover page elements
-      expect(screen.queryByText('Explore recipes and cookbooks from the community, then save favorites for meal planning')).toBeNull();
-      expect(screen.queryByPlaceholderText('Search recipes and cookbooks...')).toBeNull();
+      expect(screen.queryByText('Public recipes and cookbook collections from the Recipesaurus community.')).toBeNull();
+      expect(screen.queryByPlaceholderText('Search recipes...')).toBeNull();
     });
   });
 
@@ -222,7 +222,7 @@ describe('Home Page Routing', () => {
         </MemoryRouter>
       );
 
-      expect(screen.getByText('Explore recipes and cookbooks from the community, then save favorites for meal planning')).toBeDefined();
+      expect(screen.getByText('Public recipes and cookbook collections from the Recipesaurus community.')).toBeDefined();
     });
 
     it('shows the recipe search input', () => {
@@ -232,7 +232,7 @@ describe('Home Page Routing', () => {
         </MemoryRouter>
       );
 
-      expect(screen.getByPlaceholderText('Search recipes and cookbooks...')).toBeDefined();
+      expect(screen.getByPlaceholderText('Search recipes...')).toBeDefined();
     });
 
     it('shows trending tags', () => {

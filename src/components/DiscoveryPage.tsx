@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp, Compass, Users } from 'lucide-react';
+import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp, Compass } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -186,7 +186,8 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
 
   const { updateRecipe, deleteRecipe, refreshRecipes } = useRecipes();
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
+  const [cookbookSearchQuery, setCookbookSearchQuery] = useState('');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
@@ -374,18 +375,30 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
 
   const uniqueRecipes = uniqueById(recipes);
   const uniqueCookbooks = uniqueById(cookbooks);
+  const normalizedRecipeSearchQuery = recipeSearchQuery.trim().toLowerCase();
+  const normalizedCookbookSearchQuery = cookbookSearchQuery.trim().toLowerCase();
+  const activeSearchQuery = tab === 'recipes' ? recipeSearchQuery : cookbookSearchQuery;
+  const activeSearchPlaceholder = tab === 'recipes' ? 'Search recipes...' : 'Search cookbooks...';
 
-  const filteredRecipes = searchQuery
+  const handleSearchQueryChange = (value: string) => {
+    if (tab === 'recipes') {
+      setRecipeSearchQuery(value);
+    } else {
+      setCookbookSearchQuery(value);
+    }
+  };
+
+  const filteredRecipes = normalizedRecipeSearchQuery
     ? uniqueRecipes.filter(r =>
-        r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.description.toLowerCase().includes(searchQuery.toLowerCase())
+        r.title.toLowerCase().includes(normalizedRecipeSearchQuery) ||
+        r.description.toLowerCase().includes(normalizedRecipeSearchQuery)
       )
     : uniqueRecipes;
 
-  const filteredCookbooks = searchQuery
+  const filteredCookbooks = normalizedCookbookSearchQuery
     ? uniqueCookbooks.filter(c =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        c.name.toLowerCase().includes(normalizedCookbookSearchQuery) ||
+        c.description?.toLowerCase().includes(normalizedCookbookSearchQuery)
       )
     : uniqueCookbooks;
 
@@ -442,19 +455,14 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
       </section>
 
       <div className="discovery-tools" aria-label="Discover filters">
-        <div className="discovery-tools-label">
-          <Users size={16} />
-          <span>Community library</span>
-        </div>
-
         <div className="discovery-search">
           <div className="search-input-wrapper">
             <Search size={20} />
             <input
               type="text"
-              placeholder="Search recipes and cookbooks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={activeSearchPlaceholder}
+              value={activeSearchQuery}
+              onChange={(e) => handleSearchQueryChange(e.target.value)}
             />
           </div>
         </div>
