@@ -82,6 +82,52 @@ describe('AI meal planner API', () => {
     }
   });
 
+  it('uses exact public recipe matches before creating Recipesaurus starter recipes', async () => {
+    const harness = await ReactTestHarness.create();
+    try {
+      const publicClient = harness.createClient();
+      await publicClient.auth.register('chef@example.com', 'Community Chef', 'Password123');
+      const publicRecipe = await publicClient.recipes.create({
+        title: 'Vegetable Stir-Fry',
+        description: 'Crisp vegetables tossed in a savory sauce.',
+        ingredients: ['Mixed vegetables', 'Soy sauce', 'Cooked rice'],
+        instructions: ['Cook vegetables in a hot skillet.', 'Toss with sauce and serve over rice.'],
+        tags: ['dinner', 'healthy', 'asian'],
+        imageUrl: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=800&q=80',
+        prepTime: '10 mins',
+        cookTime: '15 mins',
+        servings: '4',
+        isPublic: true,
+      });
+
+      const client = harness.getClient();
+      await harness.seedUser('public-planner@example.com', 'Password123', 'Public Planner');
+
+      const result = await client.ai.createMealPlan('Plan healthy dinners with a stir fry.');
+      expect(result.error).toBeUndefined();
+      expect(result.data?.suggestion).toContain('From Recipesaurus: Vegetable Stir-Fry');
+      expect(result.data?.suggestion).not.toContain('New idea: Vegetable Stir-Fry');
+      expect(result.data?.mentionedRecipes).toContainEqual({
+        id: publicRecipe.data?.id,
+        title: 'Vegetable Stir-Fry',
+      });
+
+      const recipesAfterPlan = await client.recipes.list();
+      expect(recipesAfterPlan.data?.recipes.find(recipe => recipe.title === 'Vegetable Stir-Fry')).toBeUndefined();
+
+      const discoverRecipes = await client.discover.recipes({ limit: 20 });
+      const matchingPublicRecipes = discoverRecipes.data?.recipes.filter(recipe => recipe.title === 'Vegetable Stir-Fry') || [];
+      expect(matchingPublicRecipes).toHaveLength(1);
+      expect(matchingPublicRecipes[0]).toMatchObject({
+        id: publicRecipe.data?.id,
+        ownerName: 'Community Chef',
+        isPublic: true,
+      });
+    } finally {
+      harness.close();
+    }
+  });
+
   it('rejects empty requests without spending quota', async () => {
     const harness = await ReactTestHarness.create();
     try {
@@ -136,8 +182,11 @@ describe('AI meal planner API', () => {
     const instructions = buildMealPlannerInstructions();
 
     expect(instructions).toContain('Match each recipe to the requested meal slot');
+    expect(instructions).toContain('public Recipesaurus recipes');
+    expect(instructions).toContain('From Recipesaurus');
     expect(instructions).toContain('avoid breakfast, brunch, sweet, and dessert recipes');
     expect(instructions).toContain('fill the gaps with savory new ideas');
+    expect(instructions).toContain('Do not use "New idea" for a recipe title that already appears exactly');
     expect(instructions).toContain('New idea: <specific recipe title>');
   });
 
@@ -166,6 +215,9 @@ describe('AI meal planner API', () => {
       cookTime: '25 minutes',
       servings: '4',
     });
+    expect(drafts[0].ingredients).toContain('1/4 cup soy sauce or tamari');
+    expect(drafts[0].instructions).toContain('Whisk soy sauce, rice vinegar, ginger, and 2 tbsp water in a small bowl.');
+    expect(drafts[0].instructions).toContain('Serve over rice or noodles with scallions, sesame seeds, or chili crisp.');
     expect(drafts[0].description).not.toMatch(/ai meal planner/i);
     expect(drafts[0].instructions.join(' ')).not.toMatch(/ai meal planner/i);
   });

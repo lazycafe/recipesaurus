@@ -1,5 +1,6 @@
 import {
   MEAL_PLAN_MAX_RECIPES,
+  MEAL_PLAN_MAX_PUBLIC_RECIPES,
   MEAL_PLAN_FREE_WEEKLY_LIMIT,
   MEAL_PLAN_PAID_PLAN_NAME,
   MEAL_PLAN_PAID_PRICE_CENTS,
@@ -39,6 +40,7 @@ import {
   MEAL_PLAN_STARTER_RECIPE_OWNER_NAME,
   MEAL_PLAN_UNAUTHORIZED_CODE,
   getMealPlanOpenAIErrorResponseCode,
+  mergeMealPlanRecipeContexts,
   normalizeMealPlanRecipeTitle,
   normalizeMealPlanRequest,
   shouldContinueOpenAIResponse,
@@ -2094,9 +2096,9 @@ async function handleGetMealPlanHistory(request: Request, env: Env): Promise<Res
     return errorResponse('Unauthorized', 401, origin, MEAL_PLAN_UNAUTHORIZED_CODE);
   }
 
-  const [recipes, starterRecipes, historyRows] = await Promise.all([
+  const [recipes, publicRecipes, historyRows] = await Promise.all([
     getMealPlanRecipes(env.DB, user.id),
-    getMealPlanStarterRecipes(env.DB),
+    getMealPlanPublicRecipes(env.DB, user.id),
     env.DB.prepare(`
       SELECT id, user_id, prompt, response, created_at
       FROM ai_meal_plan_requests
@@ -2106,6 +2108,8 @@ async function handleGetMealPlanHistory(request: Request, env: Env): Promise<Res
     `).bind(user.id, MEAL_PLAN_HISTORY_LIMIT).all<AiMealPlanRequest>(),
   ]);
 
+  const recipeContext = mergeMealPlanRecipeContexts(recipes, publicRecipes);
+
   return jsonResponse(
     {
       history: historyRows.results.map(row => buildMealPlanHistoryItem(
@@ -2113,7 +2117,7 @@ async function handleGetMealPlanHistory(request: Request, env: Env): Promise<Res
         row.prompt,
         row.response,
         row.created_at,
-        [...recipes, ...starterRecipes]
+        recipeContext
       )),
     },
     200,
@@ -2139,11 +2143,13 @@ async function getMealPlanRecipes(db: D1Database, userId: string): Promise<MealP
     prepTime: recipe.prep_time,
     cookTime: recipe.cook_time,
     servings: recipe.servings,
+    source: 'user',
   }));
 }
 
 function toMealPlanRecipeContext(
-  recipe: Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>
+  recipe: Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>,
+  source: 'user' | 'public' = 'user'
 ): MealPlanRecipeContext {
   return {
     id: recipe.id,
@@ -2154,7 +2160,20 @@ function toMealPlanRecipeContext(
     prepTime: recipe.prep_time,
     cookTime: recipe.cook_time,
     servings: recipe.servings,
+    source,
   };
+}
+
+async function getMealPlanPublicRecipes(db: D1Database, userId: string): Promise<MealPlanRecipeContext[]> {
+  const recipes = await db.prepare(`
+    SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+    FROM recipes
+    WHERE is_public = 1 AND user_id <> ?
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).bind(userId, MEAL_PLAN_MAX_PUBLIC_RECIPES).all<Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>();
+
+  return recipes.results.map(recipe => toMealPlanRecipeContext(recipe, 'public'));
 }
 
 async function getMealPlanStarterRecipeOwner(db: D1Database): Promise<{ id: string } | null> {
@@ -2190,22 +2209,6 @@ async function getOrCreateMealPlanStarterRecipeOwner(db: D1Database, now: number
   return { id: userId };
 }
 
-async function getMealPlanStarterRecipes(db: D1Database): Promise<MealPlanRecipeContext[]> {
-  const owner = await getMealPlanStarterRecipeOwner(db);
-  if (!owner) {
-    return [];
-  }
-
-  const recipes = await db.prepare(`
-    SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
-    FROM recipes
-    WHERE user_id = ? AND owner_id = ? AND is_public = 1
-    ORDER BY created_at DESC
-  `).bind(owner.id, owner.id).all<Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>();
-
-  return recipes.results.map(recipe => toMealPlanRecipeContext(recipe));
-}
-
 async function insertMealPlanGeneratedRecipe(
   db: D1Database,
   starterOwnerId: string,
@@ -2237,6 +2240,7 @@ async function insertMealPlanGeneratedRecipe(
 
 async function createMealPlanGeneratedRecipes(
   db: D1Database,
+  userId: string,
   request: string,
   suggestion: string,
   recipes: MealPlanRecipeContext[],
@@ -2247,23 +2251,29 @@ async function createMealPlanGeneratedRecipes(
     return [];
   }
 
-  const starterOwner = await getOrCreateMealPlanStarterRecipeOwner(db, now);
   const existingRows = await db.prepare(`
-    SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+    SELECT id, user_id, title, description, ingredients, tags, prep_time, cook_time, servings
     FROM recipes
-    WHERE user_id = ? AND owner_id = ? AND is_public = 1
-    ORDER BY created_at DESC
-  `).bind(starterOwner.id, starterOwner.id).all<Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>();
+    WHERE user_id = ? OR is_public = 1
+    ORDER BY
+      CASE WHEN user_id = ? THEN 0 ELSE 1 END,
+      created_at DESC
+  `).bind(userId, userId).all<Pick<Recipe, 'id' | 'user_id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>();
   const existingRecipesByTitle = new Map<string, MealPlanRecipeContext>();
-
-  existingRows.results.forEach(recipe => {
+  const rememberExistingRecipe = (recipe: MealPlanRecipeContext) => {
     const normalizedTitle = normalizeMealPlanRecipeTitle(recipe.title);
     if (!existingRecipesByTitle.has(normalizedTitle)) {
-      existingRecipesByTitle.set(normalizedTitle, toMealPlanRecipeContext(recipe));
+      existingRecipesByTitle.set(normalizedTitle, recipe);
     }
+  };
+
+  recipes.forEach(recipe => rememberExistingRecipe(recipe));
+  existingRows.results.forEach(recipe => {
+    rememberExistingRecipe(toMealPlanRecipeContext(recipe, recipe.user_id === userId ? 'user' : 'public'));
   });
 
   const generatedRecipes: MealPlanRecipeContext[] = [];
+  let starterOwner: { id: string } | null = null;
 
   for (const draft of drafts) {
     const normalizedTitle = normalizeMealPlanRecipeTitle(draft.title);
@@ -2271,6 +2281,10 @@ async function createMealPlanGeneratedRecipes(
     if (existingRecipe) {
       generatedRecipes.push(existingRecipe);
       continue;
+    }
+
+    if (!starterOwner) {
+      starterOwner = await getOrCreateMealPlanStarterRecipeOwner(db, now);
     }
 
     const recipeId = generateId();
@@ -2284,6 +2298,7 @@ async function createMealPlanGeneratedRecipes(
       prepTime: draft.prepTime,
       cookTime: draft.cookTime,
       servings: draft.servings,
+      source: 'public',
     };
 
     existingRecipesByTitle.set(normalizedTitle, recipeContext);
@@ -2416,11 +2431,15 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
     );
   }
 
-  const recipes = await getMealPlanRecipes(env.DB, user.id);
+  const [recipes, publicRecipes] = await Promise.all([
+    getMealPlanRecipes(env.DB, user.id),
+    getMealPlanPublicRecipes(env.DB, user.id),
+  ]);
+  const recipeContext = mergeMealPlanRecipeContexts(recipes, publicRecipes);
   let suggestion: string;
 
   try {
-    suggestion = await generateMealPlan(env, mealPlanRequest, recipes);
+    suggestion = await generateMealPlan(env, mealPlanRequest, recipeContext);
   } catch (error) {
     console.error('Meal planning generation failed:', error);
     const errorCode = error instanceof MealPlanGenerationError
@@ -2435,8 +2454,8 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
   }
 
   const now = Date.now();
-  const generatedRecipes = await createMealPlanGeneratedRecipes(env.DB, mealPlanRequest, suggestion, recipes, now);
-  const recipesForLinks = [...recipes, ...generatedRecipes];
+  const generatedRecipes = await createMealPlanGeneratedRecipes(env.DB, user.id, mealPlanRequest, suggestion, recipeContext, now);
+  const recipesForLinks = mergeMealPlanRecipeContexts(recipeContext, generatedRecipes);
   const details = buildMealPlanSuggestionDetails(mealPlanRequest, suggestion, recipesForLinks);
   const id = generateId();
 
