@@ -58,6 +58,20 @@ function CurrentProfileRedirect() {
   return <Navigate to={user ? `/profiles/${user.id}` : '/'} replace />;
 }
 
+export function getAuthenticatedDefaultRoute(recipeCount: number): string {
+  return recipeCount > 0 ? '/my-recipes' : '/discover/recipes';
+}
+
+function AuthenticatedDefaultRedirect() {
+  const { recipes, isLoading } = useRecipes();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  return <Navigate to={getAuthenticatedDefaultRoute(recipes.length)} replace />;
+}
+
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -106,7 +120,7 @@ function RecipeApp() {
           <Routes>
             <Route
               path="/"
-              element={<Navigate to="/discover/recipes" replace />}
+              element={<AuthenticatedDefaultRedirect />}
             />
             <Route
               path="/discover"

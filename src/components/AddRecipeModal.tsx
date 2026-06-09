@@ -1,12 +1,12 @@
 import { useState, useRef } from 'react';
-import { X, PenLine, Link, Loader2, Upload, Image, Sparkles } from 'lucide-react';
+import { X, PenLine, Link, Loader2, Upload, Image, Sparkles, Check } from 'lucide-react';
 import { Recipe, RecipeFormData } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
 import { ConfirmModal } from './ConfirmModal';
 import { TagInput } from './TagInput';
 import { VisibilityToggle } from './VisibilityToggle';
-import { fetchAndExtractRecipe } from '../utils/recipeExtractor';
+import { fetchAndExtractRecipe, type ExtractedRecipeImage } from '../utils/recipeExtractor';
 
 interface AddRecipeModalProps {
   recipe?: Recipe;
@@ -23,6 +23,7 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(recipe?.imageUrl || null);
+  const [imageOptions, setImageOptions] = useState<ExtractedRecipeImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<RecipeFormData>({
@@ -70,6 +71,12 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
     setFormError(null);
   };
 
+  const selectImageUrl = (imageUrl: string) => {
+    setImagePreview(imageUrl || null);
+    setFormData(prev => ({ ...prev, imageUrl }));
+    setFormError(null);
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -81,16 +88,14 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
       const reader = new FileReader();
       reader.onloadend = () => {
         const result = reader.result as string;
-        setImagePreview(result);
-        handleInputChange('imageUrl', result);
+        selectImageUrl(result);
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleRemoveImage = () => {
-    setImagePreview(null);
-    handleInputChange('imageUrl', '');
+    selectImageUrl('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -124,18 +129,30 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
     setImportError(null);
     try {
       const extracted = await fetchAndExtractRecipe(url?.trim());
+      const importedImages = [
+        ...(extracted.imageUrl ? [{ url: extracted.imageUrl, source: 'recipe' as const }] : []),
+        ...(extracted.images || []),
+      ].filter((image, index, images) =>
+        image.url && images.findIndex(candidate => candidate.url === image.url) === index
+      );
+      const selectedImageUrl = importedImages[0]?.url || '';
 
       // Pre-fill the form with extracted data (convert arrays to newline-separated strings)
-      // Note: We skip imageUrl as external images often have CORS/hotlinking issues
+      setImageOptions(importedImages);
+      if (selectedImageUrl) {
+        setImagePreview(selectedImageUrl);
+      }
       setFormData(prev => ({
         ...prev,
         title: extracted.title || prev.title,
         description: extracted.description || prev.description,
         ingredients: extracted.ingredients?.join('\n') || prev.ingredients,
         instructions: extracted.instructions?.join('\n') || prev.instructions,
+        tags: extracted.tags?.join(', ') || prev.tags,
         prepTime: extracted.prepTime || prev.prepTime,
         cookTime: extracted.cookTime || prev.cookTime,
         servings: extracted.servings || prev.servings,
+        imageUrl: selectedImageUrl || prev.imageUrl,
         sourceUrl: extracted.sourceUrl || url.trim(),
       }));
 
@@ -300,18 +317,61 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
                 id="image-upload"
               />
 
-              {imagePreview ? (
-                <div className="image-preview">
-                  <img src={imagePreview} alt="Preview" />
-                  <button
-                    type="button"
-                    className="image-remove"
-                    onClick={handleRemoveImage}
-                    aria-label="Remove image"
-                  >
-                    <X size={16} strokeWidth={2} />
-                  </button>
+              {imageOptions.length > 0 && (
+                <div className="image-picker">
+                  <div className="image-picker-header">
+                    <span>Images found on page</span>
+                    <span>{imageOptions.length}</span>
+                  </div>
+                  <div className="image-picker-grid">
+                    {imageOptions.map((image, index) => {
+                      const isSelected = formData.imageUrl === image.url;
+                      return (
+                        <button
+                          key={image.url}
+                          type="button"
+                          className={`image-picker-option ${isSelected ? 'selected' : ''}`}
+                          onClick={() => selectImageUrl(image.url)}
+                          aria-label={`Select image ${index + 1}`}
+                          aria-pressed={isSelected}
+                        >
+                          <img
+                            src={image.url}
+                            alt={image.alt || `Imported option ${index + 1}`}
+                            loading="lazy"
+                          />
+                          {isSelected && (
+                            <span className="image-picker-check" aria-hidden="true">
+                              <Check size={14} strokeWidth={2.5} />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+
+              {imagePreview ? (
+                <>
+                  <div className="image-preview">
+                    <img src={imagePreview} alt="Preview" />
+                    <button
+                      type="button"
+                      className="image-remove"
+                      onClick={handleRemoveImage}
+                      aria-label="Remove image"
+                    >
+                      <X size={16} strokeWidth={2} />
+                    </button>
+                  </div>
+                  <div className="image-preview-actions">
+                    <label htmlFor="image-upload" className="btn-secondary image-upload-secondary">
+                      <Upload size={16} strokeWidth={2} />
+                      <span>Upload different image</span>
+                    </label>
+                  </div>
+                </>
               ) : (
                 <label htmlFor="image-upload" className="image-upload-area">
                   <Upload size={24} strokeWidth={1.5} />

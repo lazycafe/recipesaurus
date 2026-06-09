@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { getSharedRecipePreviewData, getSharedRecipeToken } from './App';
+import { getAuthenticatedDefaultRoute, getSharedRecipePreviewData, getSharedRecipeToken } from './App';
+
+describe('getAuthenticatedDefaultRoute', () => {
+  it('sends users with recipes to My Recipes', () => {
+    expect(getAuthenticatedDefaultRoute(1)).toBe('/my-recipes');
+  });
+
+  it('sends users without recipes to Discover recipes', () => {
+    expect(getAuthenticatedDefaultRoute(0)).toBe('/discover/recipes');
+  });
+});
 
 describe('getSharedRecipePreviewData', () => {
   it('reads encoded recipe data from the public preview route', () => {
