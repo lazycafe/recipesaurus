@@ -4648,8 +4648,11 @@ img {
 .profile-badge-early-adopter {
   border-color: #d49a15;
   background:
+    radial-gradient(circle at 88% 28%, rgba(255, 255, 255, 0.92) 0 2px, transparent 3px),
+    radial-gradient(circle at 77% 76%, rgba(250, 198, 54, 0.72) 0 2px, transparent 3px),
+    radial-gradient(circle at 96% 78%, rgba(45, 90, 48, 0.32) 0 2px, transparent 3px),
     linear-gradient(135deg, #fff2a8 0%, #ffd6c0 34%, #dff7da 68%, #d8f3ff 100%);
-  background-size: 220% 220%;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 220% 220%;
   color: #244a2c;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
   box-shadow:
@@ -4669,21 +4672,6 @@ img {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.82), transparent);
   transform: rotate(18deg);
   opacity: 0.8;
-}
-
-.profile-badge-early-adopter::after {
-  content: '';
-  position: absolute;
-  right: 11px;
-  top: 7px;
-  z-index: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow:
-    -13px 13px 0 rgba(250, 198, 54, 0.75),
-    11px 11px 0 rgba(45, 90, 48, 0.35);
 }
 
 .profile-badge-early-adopter svg {
@@ -4717,10 +4705,10 @@ img {
 @keyframes profileBadgeGradient {
   0%,
   100% {
-    background-position: 0% 50%;
+    background-position: 0 0, 0 0, 0 0, 0% 50%;
   }
   50% {
-    background-position: 100% 50%;
+    background-position: 0 0, 0 0, 0 0, 100% 50%;
   }
 }
 
