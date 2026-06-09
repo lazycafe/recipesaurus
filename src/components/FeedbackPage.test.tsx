@@ -143,7 +143,7 @@ describe('FeedbackPage', () => {
     });
   });
 
-  it('includes the stored auth token when submitting feedback', async () => {
+  it('uses cookie credentials without forwarding stored legacy auth tokens', async () => {
     localStorageMock.setItem('recipesaurus_token', 'test-session-token');
     renderWithRouter();
 
@@ -157,13 +157,16 @@ describe('FeedbackPage', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/feedback'),
         expect.objectContaining({
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: 'Bearer test-session-token',
           },
         })
       );
     });
+
+    const [, options] = mockFetch.mock.calls[0];
+    expect(options.headers).not.toHaveProperty('Authorization');
   });
 
   it('shows return to recipes link after submission', async () => {
