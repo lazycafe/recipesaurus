@@ -11,6 +11,8 @@ export const MEAL_PLAN_OPENAI_MAX_OUTPUT_TOKENS = 4000;
 export const MEAL_PLAN_OPENAI_CONTINUATION_MAX_OUTPUT_TOKENS = 2500;
 export const MEAL_PLAN_OPENAI_MAX_CONTINUATIONS = 2;
 export const MEAL_PLAN_MAX_GENERATED_RECIPES = 8;
+export const MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL = 'recipesaurus@recipesaurus.ai';
+export const MEAL_PLAN_STARTER_RECIPE_OWNER_NAME = 'Recipesaurus';
 export const MEAL_PLAN_UNAUTHORIZED_CODE = 'AI_MEAL_PLAN_UNAUTHORIZED';
 export const MEAL_PLAN_INVALID_REQUEST_CODE = 'AI_MEAL_PLAN_INVALID_REQUEST';
 export const MEAL_PLAN_LIMIT_CODE = 'AI_MEAL_PLAN_LIMIT';
@@ -67,6 +69,7 @@ export interface MealPlanGeneratedRecipeDraft {
   ingredients: string[];
   instructions: string[];
   tags: string[];
+  imageUrl: string;
   prepTime: string;
   cookTime: string;
   servings: string;
@@ -144,7 +147,7 @@ function cleanNewIdeaRecipeTitle(value: string): string | null {
     .replace(/^[\s"'`]+|[\s"'`.!?:;]+$/g, '')
     .trim();
 
-  const separator = title.search(/\s+(?:-|--|because|for|with|that|so)\s+|[,;.(]/i);
+  const separator = title.search(/\s+(?:-|--|because|so)\s+|[,;.(]/i);
   if (separator > 0) {
     title = title.slice(0, separator).trim();
   }
@@ -178,7 +181,7 @@ function cleanNewIdeaRecipeTitle(value: string): string | null {
 
 function inferGeneratedRecipeTags(request: string, title: string): string[] {
   const searchable = `${request} ${title}`.toLowerCase();
-  const tags = ['AI meal planner'];
+  const tags = ['Recipesaurus starter'];
   const tagKeywords = [
     'breakfast',
     'brunch',
@@ -208,10 +211,65 @@ function inferGeneratedRecipeTags(request: string, title: string): string[] {
   return tags.slice(0, 8);
 }
 
+function selectGeneratedRecipeImageUrl(title: string, tags: string[]): string {
+  const searchable = `${title} ${tags.join(' ')}`.toLowerCase();
+  const imageMatches = [
+    {
+      keywords: ['stir fry', 'stir-fry', 'fried rice', 'rice', 'asian'],
+      url: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=800&q=80',
+    },
+    {
+      keywords: ['bowl', 'grain', 'quinoa', 'vegetarian', 'vegan', 'healthy'],
+      url: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=80',
+    },
+    {
+      keywords: ['sheet pan', 'sheet-pan', 'roasted', 'vegetable'],
+      url: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&q=80',
+    },
+    {
+      keywords: ['soup', 'stew'],
+      url: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=800&q=80',
+    },
+    {
+      keywords: ['pasta', 'noodle', 'noodles'],
+      url: 'https://images.unsplash.com/photo-1563379926898-05f4575a45d8?w=800&q=80',
+    },
+    {
+      keywords: ['taco', 'tacos', 'mexican'],
+      url: 'https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=800&q=80',
+    },
+    {
+      keywords: ['curry', 'indian'],
+      url: 'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=800&q=80',
+    },
+    {
+      keywords: ['chicken'],
+      url: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=800&q=80',
+    },
+    {
+      keywords: ['fish', 'salmon', 'seafood', 'shrimp'],
+      url: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800&q=80',
+    },
+    {
+      keywords: ['breakfast', 'pancake', 'pancakes', 'brunch'],
+      url: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80',
+    },
+    {
+      keywords: ['dessert', 'cake', 'chocolate', 'sweet'],
+      url: 'https://images.unsplash.com/photo-1624353365286-3f8d62daad51?w=800&q=80',
+    },
+  ];
+
+  return imageMatches.find(match => match.keywords.some(keyword => searchable.includes(keyword)))?.url
+    || 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=80';
+}
+
 function buildGeneratedRecipeDraft(request: string, title: string): MealPlanGeneratedRecipeDraft {
+  const tags = inferGeneratedRecipeTags(request, title);
+
   return {
     title,
-    description: `Starter recipe created from an AI meal planner suggestion: ${request.slice(0, 180)}`,
+    description: `A flexible Recipesaurus starter recipe for ${title}, ready to adapt with the ingredients and flavors you have on hand.`,
     ingredients: [
       `Primary ingredients for ${title}`,
       'Vegetables, grains, or sides from the meal plan',
@@ -220,12 +278,13 @@ function buildGeneratedRecipeDraft(request: string, title: string): MealPlanGene
       'Sauce, garnish, or dressing to finish',
     ],
     instructions: [
-      `Use the meal planner suggestion as the brief for ${title}.`,
+      `Gather and prep the ingredients for ${title}.`,
       'Prep the primary ingredients and any vegetables, grains, or sides.',
       'Cook each component until tender, seasoned, and safely done.',
       'Assemble, taste, and adjust seasoning before serving.',
     ],
-    tags: inferGeneratedRecipeTags(request, title),
+    tags,
+    imageUrl: selectGeneratedRecipeImageUrl(title, tags),
     prepTime: '15 minutes',
     cookTime: '25 minutes',
     servings: '4',

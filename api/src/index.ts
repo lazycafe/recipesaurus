@@ -35,6 +35,8 @@ import {
   MEAL_PLAN_OPENAI_MAX_OUTPUT_TOKENS,
   MEAL_PLAN_OPENAI_NETWORK_ERROR_CODE,
   MEAL_PLAN_OPENAI_NOT_CONFIGURED_CODE,
+  MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL,
+  MEAL_PLAN_STARTER_RECIPE_OWNER_NAME,
   MEAL_PLAN_UNAUTHORIZED_CODE,
   getMealPlanOpenAIErrorResponseCode,
   normalizeMealPlanRecipeTitle,
@@ -2092,8 +2094,9 @@ async function handleGetMealPlanHistory(request: Request, env: Env): Promise<Res
     return errorResponse('Unauthorized', 401, origin, MEAL_PLAN_UNAUTHORIZED_CODE);
   }
 
-  const [recipes, historyRows] = await Promise.all([
+  const [recipes, starterRecipes, historyRows] = await Promise.all([
     getMealPlanRecipes(env.DB, user.id),
+    getMealPlanStarterRecipes(env.DB),
     env.DB.prepare(`
       SELECT id, user_id, prompt, response, created_at
       FROM ai_meal_plan_requests
@@ -2110,7 +2113,7 @@ async function handleGetMealPlanHistory(request: Request, env: Env): Promise<Res
         row.prompt,
         row.response,
         row.created_at,
-        recipes
+        [...recipes, ...starterRecipes]
       )),
     },
     200,
@@ -2154,9 +2157,58 @@ function toMealPlanRecipeContext(
   };
 }
 
+async function getMealPlanStarterRecipeOwner(db: D1Database): Promise<{ id: string } | null> {
+  return db.prepare('SELECT id FROM users WHERE email = ?')
+    .bind(MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL)
+    .first<{ id: string }>();
+}
+
+async function getOrCreateMealPlanStarterRecipeOwner(db: D1Database, now: number): Promise<{ id: string }> {
+  const existing = await getMealPlanStarterRecipeOwner(db);
+  if (existing) {
+    await db.prepare('UPDATE users SET name = ? WHERE id = ?')
+      .bind(MEAL_PLAN_STARTER_RECIPE_OWNER_NAME, existing.id)
+      .run();
+    return existing;
+  }
+
+  const userId = generateId();
+  await db.prepare(`
+    INSERT INTO users (id, email, name, avatar_url, password_hash, password_salt, email_verified, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    userId,
+    MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL,
+    MEAL_PLAN_STARTER_RECIPE_OWNER_NAME,
+    null,
+    'recipesaurus-system-user',
+    'recipesaurus-system-user',
+    1,
+    now
+  ).run();
+
+  return { id: userId };
+}
+
+async function getMealPlanStarterRecipes(db: D1Database): Promise<MealPlanRecipeContext[]> {
+  const owner = await getMealPlanStarterRecipeOwner(db);
+  if (!owner) {
+    return [];
+  }
+
+  const recipes = await db.prepare(`
+    SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+    FROM recipes
+    WHERE user_id = ? AND owner_id = ? AND is_public = 1
+    ORDER BY created_at DESC
+  `).bind(owner.id, owner.id).all<Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>();
+
+  return recipes.results.map(recipe => toMealPlanRecipeContext(recipe));
+}
+
 async function insertMealPlanGeneratedRecipe(
   db: D1Database,
-  userId: string,
+  starterOwnerId: string,
   recipeId: string,
   draft: MealPlanGeneratedRecipeDraft,
   now: number
@@ -2166,26 +2218,25 @@ async function insertMealPlanGeneratedRecipe(
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     recipeId,
-    userId,
-    userId,
+    starterOwnerId,
+    starterOwnerId,
     draft.title,
     draft.description,
     JSON.stringify(draft.ingredients),
     JSON.stringify(draft.instructions),
     JSON.stringify(draft.tags),
-    null,
+    draft.imageUrl,
     null,
     draft.prepTime,
     draft.cookTime,
     draft.servings,
-    0,
+    1,
     now
   ).run();
 }
 
 async function createMealPlanGeneratedRecipes(
   db: D1Database,
-  userId: string,
   request: string,
   suggestion: string,
   recipes: MealPlanRecipeContext[],
@@ -2196,12 +2247,13 @@ async function createMealPlanGeneratedRecipes(
     return [];
   }
 
+  const starterOwner = await getOrCreateMealPlanStarterRecipeOwner(db, now);
   const existingRows = await db.prepare(`
     SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
     FROM recipes
-    WHERE user_id = ?
+    WHERE user_id = ? AND owner_id = ? AND is_public = 1
     ORDER BY created_at DESC
-  `).bind(userId).all<Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>();
+  `).bind(starterOwner.id, starterOwner.id).all<Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>();
   const existingRecipesByTitle = new Map<string, MealPlanRecipeContext>();
 
   existingRows.results.forEach(recipe => {
@@ -2222,7 +2274,7 @@ async function createMealPlanGeneratedRecipes(
     }
 
     const recipeId = generateId();
-    await insertMealPlanGeneratedRecipe(db, userId, recipeId, draft, now);
+    await insertMealPlanGeneratedRecipe(db, starterOwner.id, recipeId, draft, now);
     const recipeContext: MealPlanRecipeContext = {
       id: recipeId,
       title: draft.title,
@@ -2383,7 +2435,7 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
   }
 
   const now = Date.now();
-  const generatedRecipes = await createMealPlanGeneratedRecipes(env.DB, user.id, mealPlanRequest, suggestion, recipes, now);
+  const generatedRecipes = await createMealPlanGeneratedRecipes(env.DB, mealPlanRequest, suggestion, recipes, now);
   const recipesForLinks = [...recipes, ...generatedRecipes];
   const details = buildMealPlanSuggestionDetails(mealPlanRequest, suggestion, recipesForLinks);
   const id = generateId();
