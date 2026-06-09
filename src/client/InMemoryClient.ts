@@ -66,8 +66,8 @@ export interface ICoreHandlers {
   getSharedCookbook(token: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   getCookbooksForRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ cookbookIds: string[] }>>;
   // Discovery endpoints
-  getDiscoverRecipes(ctx: RequestContext, options?: { limit?: number; offset?: number; tags?: string[] }): Promise<ApiResult<{ recipes: Recipe[]; total: number }>>;
-  getDiscoverCookbooks(ctx: RequestContext, options?: { limit?: number; offset?: number }): Promise<ApiResult<{ cookbooks: Cookbook[]; total: number }>>;
+  getDiscoverRecipes(ctx: RequestContext, options?: { limit?: number; offset?: number; tags?: string[]; query?: string }): Promise<ApiResult<{ recipes: Recipe[]; total: number }>>;
+  getDiscoverCookbooks(ctx: RequestContext, options?: { limit?: number; offset?: number; query?: string }): Promise<ApiResult<{ cookbooks: Cookbook[]; total: number }>>;
   getPublicRecipe(recipeId: string): Promise<ApiResult<{ recipe: Recipe }>>;
   getPublicCookbook(cookbookId: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   saveRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ id: string }>>;
@@ -456,12 +456,12 @@ export class InMemoryClient implements IClient {
 
   // Discovery - public content
   discover = {
-    recipes: async (options?: { limit?: number; offset?: number; tags?: string[] }): Promise<ApiResponse<{ recipes: Recipe[]; total: number }>> => {
+    recipes: async (options?: { limit?: number; offset?: number; tags?: string[]; query?: string }): Promise<ApiResponse<{ recipes: Recipe[]; total: number }>> => {
       const result = await this.handlers.getDiscoverRecipes(this.getContext(), options);
       return toApiResponse(result);
     },
 
-    cookbooks: async (options?: { limit?: number; offset?: number }): Promise<ApiResponse<{ cookbooks: Cookbook[]; total: number }>> => {
+    cookbooks: async (options?: { limit?: number; offset?: number; query?: string }): Promise<ApiResponse<{ cookbooks: Cookbook[]; total: number }>> => {
       const result = await this.handlers.getDiscoverCookbooks(this.getContext(), options);
       return toApiResponse(result);
     },

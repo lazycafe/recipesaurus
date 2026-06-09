@@ -4,15 +4,15 @@ test.describe('Authentication', () => {
   test.describe('Landing Page', () => {
     test('should display landing page for unauthenticated users', async ({ page }) => {
       await page.goto('/');
-      await expect(page.getByRole('heading', { name: 'Recipesaurus' })).toBeVisible();
-      await expect(page.getByText('Your personal recipe collection')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Get Started' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Save Recipes and Plan Meals Together' })).toBeVisible();
+      await expect(page.getByText('Import recipes from any URL')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Get Started', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Sign In', exact: true }).first()).toBeVisible();
     });
 
     test('should show dinosaur mascot on landing page', async ({ page }) => {
       await page.goto('/');
-      await expect(page.locator('.landing-mascot')).toBeVisible();
+      await expect(page.locator('.hero-mascot')).toBeVisible();
     });
   });
 
@@ -25,7 +25,7 @@ test.describe('Authentication', () => {
 
     test('should open registration modal when clicking Get Started', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
       await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
       await expect(page.getByLabel('Name')).toBeVisible();
       await expect(page.getByLabel('Email')).toBeVisible();
@@ -34,7 +34,7 @@ test.describe('Authentication', () => {
 
     test('should successfully register a new user', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
 
       await page.getByLabel('Name').fill(uniqueUser.name);
       await page.getByLabel('Email').fill(uniqueUser.email);
@@ -43,13 +43,13 @@ test.describe('Authentication', () => {
       await page.getByRole('button', { name: 'Create Account' }).click();
 
       // Should be redirected to main app
-      await expect(page.getByText(uniqueUser.name)).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('heading', { name: 'My Recipes' })).toBeVisible({ timeout: 10000 });
       await expect(page.getByRole('button', { name: 'New Recipe' })).toBeVisible();
     });
 
     test('should show error for password less than 8 characters', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
 
       await page.getByLabel('Name').fill('Short Password User');
       await page.getByLabel('Email').fill('short@example.com');
@@ -71,7 +71,7 @@ test.describe('Authentication', () => {
       await helpers.logout();
 
       // Try to register with the same email
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
       await page.getByLabel('Name').fill('Another User');
       await page.getByLabel('Email').fill(duplicateUser.email);
       await page.locator('#password').fill('DifferentPassword123!');
@@ -83,7 +83,7 @@ test.describe('Authentication', () => {
 
     test('should show error for missing required fields', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
 
       // Try to submit empty form - it should show the modal but not submit
       await page.locator('.auth-submit').click();
@@ -94,7 +94,7 @@ test.describe('Authentication', () => {
 
     test('should switch to login mode from registration', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
       await page.locator('.auth-toggle').click();
       await expect(page.getByRole('heading', { name: 'Welcome Back' })).toBeVisible();
     });
@@ -102,28 +102,14 @@ test.describe('Authentication', () => {
 
   test.describe('Login', () => {
     const loginUser = {
-      email: `login-test-${Date.now()}@example.com`,
-      name: 'Login Test User',
-      password: 'LoginPassword123!',
+      email: 'dev@example.com',
+      name: 'Dev User',
+      password: 'DevPassword123',
     };
-
-    test.beforeAll(async ({ browser }) => {
-      // Register the user first
-      const page = await browser.newPage();
-      await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
-      await page.getByLabel('Name').fill(loginUser.name);
-      await page.getByLabel('Email').fill(loginUser.email);
-      await page.locator('#password').fill(loginUser.password);
-      await page.locator('#confirmPassword').fill(loginUser.password);
-      await page.getByRole('button', { name: 'Create Account' }).click();
-      await expect(page.getByText(loginUser.name)).toBeVisible({ timeout: 10000 });
-      await page.close();
-    });
 
     test('should open login modal when clicking Sign In', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).first().click();
+      await page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
       await expect(page.getByRole('heading', { name: 'Welcome Back' })).toBeVisible();
       await expect(page.getByLabel('Email')).toBeVisible();
       await expect(page.locator('#password')).toBeVisible();
@@ -131,19 +117,19 @@ test.describe('Authentication', () => {
 
     test('should successfully log in an existing user', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).first().click();
+      await page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
 
       await page.getByLabel('Email').fill(loginUser.email);
       await page.locator('#password').fill(loginUser.password);
       await page.locator('.auth-submit').click();
 
-      await expect(page.getByText(loginUser.name)).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('heading', { name: 'My Recipes' })).toBeVisible({ timeout: 10000 });
       await expect(page.getByRole('button', { name: 'New Recipe' })).toBeVisible();
     });
 
     test('should show error for invalid credentials', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).first().click();
+      await page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
 
       await page.getByLabel('Email').fill('nonexistent@example.com');
       await page.locator('#password').fill('WrongPassword123!');
@@ -154,7 +140,7 @@ test.describe('Authentication', () => {
 
     test('should show error for wrong password', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).first().click();
+      await page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
 
       await page.getByLabel('Email').fill(loginUser.email);
       await page.locator('#password').fill('WrongPassword123!');
@@ -165,7 +151,7 @@ test.describe('Authentication', () => {
 
     test('should toggle password visibility', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).first().click();
+      await page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
 
       const passwordInput = page.locator('#password');
       await expect(passwordInput).toHaveAttribute('type', 'password');
@@ -179,7 +165,7 @@ test.describe('Authentication', () => {
 
     test('should switch to registration mode from login', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).first().click();
+      await page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
       await page.locator('.auth-toggle').click();
       await expect(page.getByRole('heading', { name: 'Create Account' })).toBeVisible();
     });
@@ -194,12 +180,13 @@ test.describe('Authentication', () => {
       };
 
       await helpers.register(logoutUser);
-      await expect(page.getByText(logoutUser.name)).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'My Recipes' })).toBeVisible();
 
+      await page.getByRole('button', { name: 'User menu' }).click();
       await page.getByRole('button', { name: 'Sign out' }).click();
 
-      await expect(page.getByRole('button', { name: 'Get Started' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Get Started', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Sign In', exact: true }).first()).toBeVisible();
     });
   });
 
@@ -212,11 +199,11 @@ test.describe('Authentication', () => {
       };
 
       await helpers.register(sessionUser);
-      await expect(page.getByText(sessionUser.name)).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'My Recipes' })).toBeVisible();
 
       await page.reload();
 
-      await expect(page.getByText(sessionUser.name)).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('heading', { name: 'My Recipes' })).toBeVisible({ timeout: 10000 });
       await expect(page.getByRole('button', { name: 'New Recipe' })).toBeVisible();
     });
   });
@@ -224,7 +211,7 @@ test.describe('Authentication', () => {
   test.describe('Modal Behavior', () => {
     test('should close modal when clicking X button', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
       await expect(page.getByRole('heading', { name: 'Welcome Back' })).toBeVisible();
 
       await page.locator('.modal-close').click();
@@ -234,7 +221,7 @@ test.describe('Authentication', () => {
 
     test('should close modal when clicking overlay', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
       await expect(page.getByRole('heading', { name: 'Welcome Back' })).toBeVisible();
 
       await page.locator('.modal-overlay').click({ position: { x: 10, y: 10 } });

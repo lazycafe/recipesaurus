@@ -27,6 +27,7 @@ export interface CookbookShareLink {
   token: string;
   isActive: boolean;
   createdAt: number;
+  expiresAt: number;
 }
 
 export interface CookbookFormData {

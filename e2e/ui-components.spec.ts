@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect, testCookbook, testRecipe } from './fixtures';
 
 test.describe('UI Components', () => {
@@ -7,31 +8,58 @@ test.describe('UI Components', () => {
     password: 'UITestPass123!',
   };
 
+  async function createRecipeWithSourceUrl(page: Page, title: string) {
+    await page.evaluate(async ({ title }) => {
+      const { createDevClient } = await import('/src/client/devClient.ts');
+      const client = await createDevClient();
+      const result = await client.recipes.create({
+        title,
+        description: 'A recipe from the web',
+        ingredients: ['ingredient 1'],
+        instructions: ['step 1'],
+        tags: ['source'],
+        sourceUrl: 'https://example.com/original',
+        prepTime: '5 mins',
+        cookTime: '10 mins',
+        servings: '2',
+      });
+
+      if (result.error || !result.data?.id) {
+        throw new Error(result.error ?? 'Could not create sourced recipe');
+      }
+    }, { title });
+
+    await page.reload();
+    await expect(page.getByText(title)).toBeVisible({ timeout: 10000 });
+  }
+
   test.describe('Header Component', () => {
     test.beforeEach(async ({ page, helpers }) => {
       await helpers.register(user);
     });
 
     test('should display Recipesaurus logo', async ({ page }) => {
-      await expect(page.locator('.logo')).toBeVisible();
-      await expect(page.getByText('Recipesaurus')).toBeVisible();
+      const header = page.getByRole('banner');
+      await expect(header.getByLabel('Recipesaurus home')).toBeVisible();
+      await expect(header.getByText('Recipesaurus')).toBeVisible();
     });
 
-    test('should display user name', async ({ page }) => {
-      await expect(page.getByText(user.name)).toBeVisible();
+    test('should display user menu', async ({ page }) => {
+      await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible();
     });
 
-    test('should display sign out button', async ({ page }) => {
+    test('should display sign out button in user menu', async ({ page }) => {
+      await page.getByRole('button', { name: 'User menu' }).click();
       await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
     });
 
-    test('should show recipe count in tab', async ({ page }) => {
+    test('should show seeded recipes', async ({ page }) => {
       // Default 3 sample recipes
-      await expect(page.locator('.tab-count').first()).toContainText('3');
+      await expect(page.locator('.recipe-card')).toHaveCount(3);
     });
 
     test('should highlight active tab', async ({ page }) => {
-      const recipesTab = page.getByRole('button', { name: 'Recipes' });
+      const recipesTab = page.getByRole('link', { name: 'My Recipes' });
       await expect(recipesTab).toHaveClass(/active/);
     });
   });
@@ -39,31 +67,29 @@ test.describe('UI Components', () => {
   test.describe('DinoMascot Component', () => {
     test('should show dinosaur on landing page', async ({ page }) => {
       await page.goto('/');
-      await expect(page.locator('.landing-mascot svg')).toBeVisible();
+      await expect(page.locator('.hero-mascot')).toBeVisible();
     });
 
     test('should show dinosaur in empty recipe state', async ({ page, helpers }) => {
       await helpers.register(user);
 
-      // Delete all recipes
-      page.on('dialog', dialog => dialog.accept());
-      for (let i = 0; i < 3; i++) {
-        const card = page.locator('.recipe-card').first();
-        if (await card.isVisible()) {
-          await card.hover();
-          await card.locator('.card-delete').click();
-          await page.waitForTimeout(500);
-        }
+      for (const title of ['Herb-Crusted Chicken', 'Classic Buttermilk Pancakes', 'Chocolate Fondant']) {
+        const card = page.locator('.recipe-card').filter({ hasText: title });
+        await card.hover();
+        await card.locator('.card-delete').click();
+        await page.locator('.confirm-modal').getByRole('button', { name: 'Delete', exact: true }).click();
+        await expect(card).not.toBeVisible({ timeout: 10000 });
       }
 
-      await expect(page.locator('.empty-state svg')).toBeVisible();
+      await expect(page.locator('.empty-state').getByRole('img')).toBeVisible();
     });
 
-    test('should show dinosaur in empty cookbook state', async ({ page, helpers }) => {
+    test('should show dinosaur on default cookbook cover', async ({ page, helpers }) => {
       await helpers.register(user);
       await helpers.navigateToCookbooks();
 
-      await expect(page.locator('.empty-state svg')).toBeVisible();
+      const defaultCookbook = page.locator('.cookbook-card-link').filter({ hasText: 'My Favorite Recipes' });
+      await expect(defaultCookbook.locator('.cookbook-cover-placeholder svg')).toBeVisible();
     });
   });
 
@@ -72,7 +98,7 @@ test.describe('UI Components', () => {
       // Navigate to page without waiting for session
       await page.goto('/');
       // This is tricky to test as it happens quickly, but we can verify the app eventually loads
-      await expect(page.getByRole('button', { name: 'Get Started' })).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('button', { name: 'Get Started', exact: true })).toBeVisible({ timeout: 10000 });
     });
 
     test('should show loading state in cookbook detail', async ({ page, helpers }) => {
@@ -80,10 +106,10 @@ test.describe('UI Components', () => {
       await helpers.createCookbook(testCookbook);
 
       // Click to open - loading should appear briefly
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
       // Eventually shows content
-      await expect(page.locator('.cookbook-detail')).toBeVisible();
+      await expect(page.locator('.cookbook-detail-page')).toBeVisible();
     });
   });
 
@@ -97,7 +123,7 @@ test.describe('UI Components', () => {
       await card.hover();
 
       await expect(card.locator('.card-delete')).toBeVisible();
-      await expect(card.locator('.card-action')).toBeVisible();
+      await expect(card.getByLabel('Add to cookbook')).toBeVisible();
     });
 
     test('should hide action buttons when not hovering', async ({ page }) => {
@@ -115,7 +141,7 @@ test.describe('UI Components', () => {
 
     test('should display recipe tags on card', async ({ page }) => {
       const card = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await expect(card.locator('.tag')).toBeVisible();
+      await expect(card.locator('.tag').filter({ hasText: 'dinner' })).toBeVisible();
     });
 
     test('should display prep time on card', async ({ page }) => {
@@ -123,8 +149,13 @@ test.describe('UI Components', () => {
       await expect(card.getByText('15 mins')).toBeVisible();
     });
 
-    test('should show placeholder for recipes without image', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
+    test('should show placeholder for recipes without image', async ({ page, helpers }) => {
+      await helpers.createRecipe({
+        ...testRecipe,
+        title: 'No Image UI Recipe',
+      });
+
+      const card = page.locator('.recipe-card').filter({ hasText: 'No Image UI Recipe' });
       await expect(card.locator('.card-image-placeholder')).toBeVisible();
     });
   });
@@ -170,12 +201,12 @@ test.describe('UI Components', () => {
 
     test('should show required field validation for recipe form', async ({ page }) => {
       await page.getByRole('button', { name: 'New Recipe' }).click();
+      await page.getByRole('button', { name: 'Manual' }).click();
 
       // Try to submit empty form
-      await page.getByRole('button', { name: 'Add Recipe' }).click();
+      await page.getByRole('button', { name: 'Save Recipe' }).click();
 
-      // HTML5 validation should focus first required field
-      await expect(page.getByLabel('Recipe Title')).toBeFocused();
+      await expect(page.getByText('Please enter a recipe title')).toBeVisible();
     });
 
     test('should show required field validation for cookbook form', async ({ page, helpers }) => {
@@ -209,16 +240,7 @@ test.describe('UI Components', () => {
     test('should display View Original link when recipe has source URL', async ({ page, helpers }) => {
       await helpers.register(user);
 
-      // Create recipe with source URL
-      await page.getByRole('button', { name: 'New Recipe' }).click();
-      await page.getByLabel('Recipe Title').fill('Recipe with Source');
-      await page.getByLabel('Description').fill('A recipe from the web');
-      await page.getByLabel('Ingredients').fill('ingredient 1');
-      await page.getByLabel('Instructions').fill('step 1');
-      await page.getByLabel('Source URL').fill('https://example.com/original');
-      await page.getByRole('button', { name: 'Add Recipe' }).click();
-
-      await expect(page.getByText('Recipe with Source')).toBeVisible({ timeout: 10000 });
+      await createRecipeWithSourceUrl(page, 'Recipe with Source');
 
       // Open recipe detail
       await page.getByText('Recipe with Source').click();
@@ -228,14 +250,7 @@ test.describe('UI Components', () => {
     test('should open source URL in new tab', async ({ page, helpers }) => {
       await helpers.register(user);
 
-      // Create recipe with source URL
-      await page.getByRole('button', { name: 'New Recipe' }).click();
-      await page.getByLabel('Recipe Title').fill('External Link Recipe');
-      await page.getByLabel('Description').fill('Test');
-      await page.getByLabel('Ingredients').fill('ingredient');
-      await page.getByLabel('Instructions').fill('step');
-      await page.getByLabel('Source URL').fill('https://example.com/original');
-      await page.getByRole('button', { name: 'Add Recipe' }).click();
+      await createRecipeWithSourceUrl(page, 'External Link Recipe');
 
       await page.getByText('External Link Recipe').click();
 
@@ -247,14 +262,14 @@ test.describe('UI Components', () => {
   test.describe('Confirm Password Field', () => {
     test('should show confirm password field during registration', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Get Started' }).click();
+      await page.getByRole('button', { name: 'Get Started', exact: true }).click();
 
       await expect(page.getByLabel('Confirm Password')).toBeVisible();
     });
 
     test('should not show confirm password field during login', async ({ page }) => {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Sign In' }).click();
+      await page.getByRole('navigation').getByRole('button', { name: 'Sign In', exact: true }).click();
 
       await expect(page.getByLabel('Confirm Password')).not.toBeVisible();
     });
@@ -266,12 +281,13 @@ test.describe('UI Components', () => {
       await helpers.createCookbook(testCookbook);
     });
 
-    test('should display book icon', async ({ page }) => {
-      await expect(page.locator('.cookbook-card-icon')).toBeVisible();
+    test('should display book cover', async ({ page }) => {
+      const card = page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name });
+      await expect(card.locator('.cookbook-book')).toBeVisible();
     });
 
     test('should display cookbook name', async ({ page }) => {
-      await expect(page.getByText(testCookbook.name)).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
     test('should display cookbook description', async ({ page }) => {
@@ -282,10 +298,11 @@ test.describe('UI Components', () => {
       await expect(page.getByText('0 recipes')).toBeVisible();
     });
 
-    test('should show delete button on hover', async ({ page }) => {
-      const card = page.locator('.cookbook-card').first();
+    test('should keep cookbook card actionable on hover', async ({ page }) => {
+      const card = page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name });
       await card.hover();
-      await expect(card.locator('.card-delete')).toBeVisible();
+      await expect(card.locator('.cookbook-book')).toBeVisible();
+      await expect(card).toHaveAttribute('href', /\/cookbooks\/.+/);
     });
   });
 });

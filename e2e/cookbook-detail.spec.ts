@@ -18,13 +18,13 @@ test.describe('Cookbook Detail Features', () => {
       const card = page.locator('.recipe-card').filter({ hasText: recipeName });
       await card.hover();
       await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').click();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
       await page.waitForTimeout(500);
       await page.locator('.modal-close').click();
     }
 
     await helpers.navigateToCookbooks();
-    await page.getByText(testCookbook.name).click();
+    await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
   });
 
   test.describe('Search within Cookbook', () => {
@@ -85,21 +85,21 @@ test.describe('Cookbook Detail Features', () => {
     });
 
     test('should filter recipes by tag', async ({ page }) => {
-      await page.locator('.filter-tag').filter({ hasText: 'dinner' }).click();
+      await page.getByRole('button', { name: 'dinner', exact: true }).click();
 
       await expect(page.getByText('Herb-Crusted Chicken')).toBeVisible();
       await expect(page.getByText('Classic Buttermilk Pancakes')).not.toBeVisible();
     });
 
     test('should show checkmark on selected tag', async ({ page }) => {
-      const tag = page.locator('.filter-tag').filter({ hasText: 'dinner' });
+      const tag = page.getByRole('button', { name: 'dinner', exact: true });
       await tag.click();
 
       await expect(tag.locator('svg')).toBeVisible();
     });
 
     test('should deselect tag when clicking again', async ({ page }) => {
-      const tag = page.locator('.filter-tag').filter({ hasText: 'dinner' });
+      const tag = page.getByRole('button', { name: 'dinner', exact: true });
       await tag.click();
       await expect(page.getByText('1 recipe of 3')).toBeVisible();
 
@@ -108,8 +108,8 @@ test.describe('Cookbook Detail Features', () => {
     });
 
     test('should allow multiple tag selection', async ({ page }) => {
-      await page.locator('.filter-tag').filter({ hasText: 'dinner' }).click();
-      await page.locator('.filter-tag').filter({ hasText: 'healthy' }).click();
+      await page.getByRole('button', { name: 'dinner', exact: true }).click();
+      await page.getByRole('button', { name: 'healthy', exact: true }).click();
 
       // Only chicken recipe has both dinner and healthy tags
       await expect(page.getByText('Herb-Crusted Chicken')).toBeVisible();
@@ -119,7 +119,7 @@ test.describe('Cookbook Detail Features', () => {
   test.describe('Combined Search and Tag Filters', () => {
     test('should combine search and tag filters', async ({ page }) => {
       await page.getByPlaceholder('Search in cookbook...').fill('herb');
-      await page.locator('.filter-tag').filter({ hasText: 'dinner' }).click();
+      await page.getByRole('button', { name: 'dinner', exact: true }).click();
 
       await expect(page.getByText('Herb-Crusted Chicken')).toBeVisible();
       await expect(page.getByText('1 recipe of 3')).toBeVisible();
@@ -143,59 +143,60 @@ test.describe('Cookbook Detail Features', () => {
       await expect(page.getByText('Instructions')).toBeVisible();
     });
 
-    test('should show back button in recipe detail', async ({ page }) => {
+    test('should show close button in recipe detail', async ({ page }) => {
       await page.getByText('Herb-Crusted Chicken').click();
 
-      await expect(page.getByText(`Back to ${testCookbook.name}`)).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Close' })).toBeVisible();
     });
 
-    test('should return to cookbook when clicking back', async ({ page }) => {
+    test('should return to cookbook when closing recipe detail', async ({ page }) => {
       await page.getByText('Herb-Crusted Chicken').click();
-      await page.getByText(`Back to ${testCookbook.name}`).click();
+      await page.getByRole('button', { name: 'Close' }).click();
 
       await expect(page.getByText('3 recipes')).toBeVisible();
     });
 
-    test('should close entire cookbook modal when clicking X from recipe detail', async ({ page }) => {
+    test('should close recipe detail when clicking X', async ({ page }) => {
       await page.getByText('Herb-Crusted Chicken').click();
-      await page.locator('.modal-close').click();
+      await page.getByRole('button', { name: 'Close' }).click();
 
-      await expect(page.locator('.cookbook-detail')).not.toBeVisible();
+      await expect(page.getByRole('heading', { name: testCookbook.name })).toBeVisible();
+      await expect(page.locator('.modal-detail')).not.toBeVisible();
     });
   });
 
-  test.describe('In-App Remove Confirmation Modal', () => {
-    test('should show in-app confirmation modal when removing recipe', async ({ page }) => {
-      const recipeCard = page.locator('.cookbook-recipe-card').first();
+  test.describe('In-App Delete Confirmation Modal', () => {
+    test('should show in-app confirmation modal when deleting recipe', async ({ page }) => {
+      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
       await recipeCard.hover();
-      await page.locator('.remove-from-cookbook').click();
+      await recipeCard.locator('.card-delete').click();
 
       await expect(page.locator('.confirm-modal')).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Remove Recipe' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Delete Recipe' })).toBeVisible();
     });
 
     test('should show recipe name in confirmation modal', async ({ page }) => {
-      const recipeCard = page.locator('.cookbook-recipe-card').first();
+      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
       await recipeCard.hover();
-      await page.locator('.remove-from-cookbook').click();
+      await recipeCard.locator('.card-delete').click();
 
-      await expect(page.getByText('Herb-Crusted Chicken')).toBeVisible();
+      await expect(page.locator('.confirm-modal').getByText('Herb-Crusted Chicken')).toBeVisible();
     });
 
-    test('should remove recipe when clicking Remove button', async ({ page }) => {
-      const recipeCard = page.locator('.cookbook-recipe-card').first();
+    test('should delete recipe when clicking Delete button', async ({ page }) => {
+      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
       await recipeCard.hover();
-      await page.locator('.remove-from-cookbook').click();
+      await recipeCard.locator('.card-delete').click();
 
-      await page.getByRole('button', { name: 'Remove' }).click();
+      await page.locator('.confirm-modal').getByRole('button', { name: 'Delete', exact: true }).click();
 
       await expect(page.getByText('2 recipes')).toBeVisible({ timeout: 5000 });
     });
 
-    test('should cancel removal when clicking Cancel button', async ({ page }) => {
-      const recipeCard = page.locator('.cookbook-recipe-card').first();
+    test('should cancel delete when clicking Cancel button', async ({ page }) => {
+      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
       await recipeCard.hover();
-      await page.locator('.remove-from-cookbook').click();
+      await recipeCard.locator('.card-delete').click();
 
       await page.getByRole('button', { name: 'Cancel' }).click();
 
@@ -204,9 +205,9 @@ test.describe('Cookbook Detail Features', () => {
     });
 
     test('should close confirmation modal when clicking overlay', async ({ page }) => {
-      const recipeCard = page.locator('.cookbook-recipe-card').first();
+      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
       await recipeCard.hover();
-      await page.locator('.remove-from-cookbook').click();
+      await recipeCard.locator('.card-delete').click();
 
       await page.locator('.confirm-modal-overlay').click({ position: { x: 10, y: 10 } });
 

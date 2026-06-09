@@ -61,6 +61,7 @@ export interface CookbookShareLink {
   token: string;
   isActive: boolean;
   createdAt: number;
+  expiresAt: number;
 }
 
 export interface RecipeSharePayload {
@@ -250,7 +251,7 @@ export interface IClient {
     addRecipe(cookbookId: string, recipeId: string): Promise<ApiResponse<{ success: boolean }>>;
     removeRecipe(cookbookId: string, recipeId: string): Promise<ApiResponse<{ success: boolean }>>;
     shareWithUser(cookbookId: string, userId: string): Promise<ApiResponse<{ success: boolean; sharedWith?: { id: string; name: string } }>>;
-    shareByEmail(cookbookId: string, email: string): Promise<ApiResponse<{ success: boolean; sharedWith?: { id: string; name: string } }>>;
+    shareByEmail(cookbookId: string, email: string): Promise<ApiResponse<{ success: boolean; message?: string; sharedWith?: { id: string; name: string } }>>;
     removeShare(cookbookId: string, userId: string): Promise<ApiResponse<{ success: boolean }>>;
     getShares(cookbookId: string): Promise<ApiResponse<{ shares: CookbookShare[]; links: CookbookShareLink[] }>>;
     createShareLink(cookbookId: string): Promise<ApiResponse<CookbookShareLink>>;
@@ -285,8 +286,8 @@ export interface IClient {
   };
 
   discover: {
-    recipes(options?: { limit?: number; offset?: number; tags?: string[] }): Promise<ApiResponse<{ recipes: Recipe[]; total: number }>>;
-    cookbooks(options?: { limit?: number; offset?: number }): Promise<ApiResponse<{ cookbooks: Cookbook[]; total: number }>>;
+    recipes(options?: { limit?: number; offset?: number; tags?: string[]; query?: string }): Promise<ApiResponse<{ recipes: Recipe[]; total: number }>>;
+    cookbooks(options?: { limit?: number; offset?: number; query?: string }): Promise<ApiResponse<{ cookbooks: Cookbook[]; total: number }>>;
     getRecipe(id: string): Promise<ApiResponse<{ recipe: Recipe }>>;
     getCookbook(id: string): Promise<ApiResponse<{ cookbook: Cookbook; recipes: Recipe[] }>>;
     saveRecipe(recipeId: string): Promise<ApiResponse<{ id: string }>>;
@@ -298,7 +299,7 @@ export interface IClient {
   profile: {
     get(userId: string): Promise<ApiResponse<{ profile: UserProfile }>>;
     listFriends(userId: string): Promise<ApiResponse<{ friends: ProfileUser[] }>>;
-    addFriend(data: { userId?: string; email?: string }): Promise<ApiResponse<{ friend: ProfileUser }>>;
+    addFriend(data: { userId?: string; email?: string }): Promise<ApiResponse<{ success?: boolean; message?: string; friend?: ProfileUser }>>;
     removeFriend(userId: string): Promise<ApiResponse<{ success: boolean }>>;
     acceptFriendRequest(friendRequestId: string): Promise<ApiResponse<{ success: boolean; friend: ProfileUser }>>;
     declineFriendRequest(friendRequestId: string): Promise<ApiResponse<{ success: boolean }>>;

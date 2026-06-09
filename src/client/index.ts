@@ -24,6 +24,6 @@ export type {
   BillingSession,
 } from './types';
 
-export { HttpClient, HttpTransport, LocalStorageTokenStorage, createHttpClient } from './HttpClient';
+export { HttpClient, HttpTransport, CookieSessionTokenStorage, LocalStorageTokenStorage, createHttpClient } from './HttpClient';
 export { InMemoryClient, InMemoryTokenStorage } from './InMemoryClient';
 export { ClientProvider, useClient, useOptionalClient } from './ClientContext';

@@ -5302,6 +5302,12 @@ img {
   min-width: 0;
 }
 
+.share-link-expiry {
+  color: var(--color-text-light);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
 .share-link-actions {
   display: flex;
   align-items: center;
@@ -7947,6 +7953,11 @@ img {
 .discovery-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-md);
+}
+
+.discovery-card:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 3px;
 }
 
 .discovery-card-image {

@@ -1,9 +1,118 @@
 // Development client using InMemoryClient for local testing
-import type { IClient } from './types';
-import { InMemoryClient, InMemoryTokenStorage, ICoreHandlers } from './InMemoryClient';
+import type { IClient, ITokenStorage } from './types';
+import { InMemoryClient, ICoreHandlers } from './InMemoryClient';
 
 let devClientInstance: IClient | null = null;
 let devClientPromise: Promise<IClient> | null = null;
+
+const DEV_DB_VERSION = '2';
+const DEV_DB_VERSION_KEY = 'recipesaurus_dev_db_version';
+const DEV_DB_STORAGE_KEY = 'recipesaurus_dev_db';
+const DEV_TOKEN_STORAGE_KEY = 'recipesaurus_dev_session_token';
+
+function getBrowserStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(index, index + chunkSize));
+  }
+
+  return window.btoa(binary);
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = window.atob(value);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+}
+
+function clearPersistedDevState(storage: Storage): void {
+  storage.removeItem(DEV_DB_STORAGE_KEY);
+  storage.removeItem(DEV_DB_VERSION_KEY);
+  storage.removeItem(DEV_TOKEN_STORAGE_KEY);
+}
+
+function loadPersistedDatabase(): Uint8Array | undefined {
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return undefined;
+  }
+
+  if (storage.getItem(DEV_DB_VERSION_KEY) !== DEV_DB_VERSION) {
+    clearPersistedDevState(storage);
+    return undefined;
+  }
+
+  const encodedDatabase = storage.getItem(DEV_DB_STORAGE_KEY);
+  if (!encodedDatabase) {
+    return undefined;
+  }
+
+  try {
+    return base64ToBytes(encodedDatabase);
+  } catch {
+    clearPersistedDevState(storage);
+    return undefined;
+  }
+}
+
+function persistDatabase(db: { export(): Uint8Array }): void {
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(DEV_DB_VERSION_KEY, DEV_DB_VERSION);
+    storage.setItem(DEV_DB_STORAGE_KEY, bytesToBase64(db.export()));
+  } catch {
+    clearPersistedDevState(storage);
+  }
+}
+
+class BrowserDevTokenStorage implements ITokenStorage {
+  private fallbackToken: string | null = null;
+
+  getToken(): string | null {
+    return getBrowserStorage()?.getItem(DEV_TOKEN_STORAGE_KEY) || this.fallbackToken;
+  }
+
+  setToken(token: string): void {
+    this.fallbackToken = token;
+    getBrowserStorage()?.setItem(DEV_TOKEN_STORAGE_KEY, token);
+  }
+
+  clearToken(): void {
+    this.fallbackToken = null;
+    getBrowserStorage()?.removeItem(DEV_TOKEN_STORAGE_KEY);
+  }
+}
+
+function logUnexpectedSeedError(label: string, error?: string): void {
+  if (!error || error === 'An account with this email already exists') {
+    return;
+  }
+
+  console.error(`Failed to seed ${label}:`, error);
+}
 
 export async function createDevClient(): Promise<IClient> {
   if (devClientInstance) {
@@ -23,39 +132,36 @@ export async function createDevClient(): Promise<IClient> {
       ]);
 
       // Create in-memory database
-      const db = await sqliteModule.createInMemoryDatabase();
+      const db = await sqliteModule.createInMemoryDatabase(loadPersistedDatabase());
 
       // Create database adapter and handlers
-      const adapter = new sqliteModule.SqliteAdapter(db);
+      const adapter = new sqliteModule.SqliteAdapter(db, () => {
+        persistDatabase(db as unknown as { export(): Uint8Array });
+      });
       const handlers = new handlersModule.CoreHandlers(
         adapter,
         handlersModule.webCryptoProvider
       ) as unknown as ICoreHandlers;
 
       // Create token storage and client
-      const tokenStorage = new InMemoryTokenStorage();
+      const tokenStorage = new BrowserDevTokenStorage();
+      const hadStoredToken = Boolean(tokenStorage.getToken());
       const client = new InMemoryClient(handlers, tokenStorage);
 
-      // Seed a dev user and auto-login
+      // Seed dev users so local and e2e flows have stable accounts available.
       const registerResult = await client.auth.register(
         'dev@example.com',
         'Dev User',
         'DevPassword123'
       );
-
-      if (registerResult.error) {
-        console.error('Failed to seed dev user:', registerResult.error);
-      }
+      logUnexpectedSeedError('dev user', registerResult.error);
 
       const communityResult = await client.auth.register(
         'community@example.com',
         'Community Chef',
         'CommunityPassword123'
       );
-
-      if (communityResult.error) {
-        console.error('Failed to seed community user:', communityResult.error);
-      }
+      logUnexpectedSeedError('community user', communityResult.error);
 
       // Seed sample public recipes with images under another user so local save flows are testable.
       const sampleRecipes = [
@@ -176,7 +282,11 @@ export async function createDevClient(): Promise<IClient> {
         }
       }
 
-      await client.auth.login('dev@example.com', 'DevPassword123');
+      if (import.meta.env.VITE_DEV_AUTO_LOGIN !== 'false') {
+        await client.auth.login('dev@example.com', 'DevPassword123');
+      } else if (!hadStoredToken) {
+        await client.auth.logout();
+      }
 
       devClientInstance = client;
       return client;

@@ -1,5 +1,3 @@
-import { jsPDF } from 'jspdf';
-
 export interface RecipePdfData {
   title: string;
   description?: string | null;
@@ -16,7 +14,8 @@ function getRecipePdfFilename(title: string): string {
   return `${filename || 'Recipe'}_Recipe.pdf`;
 }
 
-export function downloadRecipePdf(recipe: RecipePdfData): void {
+export async function downloadRecipePdf(recipe: RecipePdfData): Promise<void> {
+  const { jsPDF } = await import('jspdf');
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();

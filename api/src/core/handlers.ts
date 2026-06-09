@@ -48,11 +48,23 @@ import {
   normalizeMealPlanRecipeTitle,
   normalizeMealPlanRequest,
 } from './mealPlanner';
+import {
+  COOKBOOK_SHARE_LINK_RATE_LIMIT,
+  SHARE_LINK_DURATION_MS,
+  getShareLinkExpiresAt,
+  getSqlLikePattern,
+  isShareLinkExpired,
+  normalizeDiscoverySearchQuery,
+} from './shared';
 
 // Constants
 const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MAX_LOGIN_ATTEMPTS = 5;
+const MAX_LOGIN_IP_ATTEMPTS = 50;
 const ATTEMPT_WINDOW = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
+const PUBLIC_RECIPE_SHARE_LIMIT = 30;
+const AUTHENTICATED_RECIPE_SHARE_LIMIT = 120;
 
 // Crypto utilities - these need to be provided by the environment
 export interface CryptoProvider {
@@ -452,19 +464,28 @@ export class CoreHandlers {
   }
 
   // Rate limiting
-  private async checkRateLimit(email: string, _ip: string | null): Promise<{ allowed: boolean; remainingAttempts: number }> {
+  private async checkRateLimit(email: string, ip: string | null): Promise<{ allowed: boolean; remainingAttempts: number }> {
     const windowStart = Date.now() - ATTEMPT_WINDOW;
-    const result = await this.db.get<{ count: number }>(
-      'SELECT COUNT(*) as count FROM login_attempts WHERE email = ? AND attempted_at > ? AND success = 0',
-      email.toLowerCase(),
+    const normalizedEmail = email.toLowerCase();
+    const normalizedIp = ip || 'unknown';
+    const emailIpResult = await this.db.get<{ count: number }>(
+      'SELECT COUNT(*) as count FROM login_attempts WHERE email = ? AND ip_address = ? AND attempted_at > ? AND success = 0',
+      normalizedEmail,
+      normalizedIp,
+      windowStart
+    );
+    const ipResult = await this.db.get<{ count: number }>(
+      'SELECT COUNT(*) as count FROM login_attempts WHERE ip_address = ? AND attempted_at > ? AND success = 0',
+      normalizedIp,
       windowStart
     );
 
-    const failedAttempts = result?.count || 0;
-    const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - failedAttempts);
+    const emailIpFailures = emailIpResult?.count || 0;
+    const ipFailures = ipResult?.count || 0;
+    const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - emailIpFailures);
 
     return {
-      allowed: failedAttempts < MAX_LOGIN_ATTEMPTS,
+      allowed: emailIpFailures < MAX_LOGIN_ATTEMPTS && ipFailures < MAX_LOGIN_IP_ATTEMPTS,
       remainingAttempts,
     };
   }
@@ -483,6 +504,58 @@ export class CoreHandlers {
     // Clean up old attempts
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     await this.db.run('DELETE FROM login_attempts WHERE attempted_at < ?', oneDayAgo);
+  }
+
+  private async checkFixedWindowRateLimit(
+    bucket: string,
+    key: string,
+    maxRequests: number,
+    windowMs = RATE_LIMIT_WINDOW
+  ): Promise<boolean> {
+    const now = Date.now();
+    const windowStart = Math.floor(now / windowMs) * windowMs;
+    const existing = await this.db.get<{ count: number }>(
+      'SELECT count FROM rate_limits WHERE bucket = ? AND key = ? AND window_start = ?',
+      bucket,
+      key,
+      windowStart
+    );
+
+    if (existing && existing.count >= maxRequests) {
+      return false;
+    }
+
+    if (existing) {
+      await this.db.run(
+        'UPDATE rate_limits SET count = count + 1 WHERE bucket = ? AND key = ? AND window_start = ?',
+        bucket,
+        key,
+        windowStart
+      );
+    } else {
+      await this.db.run(
+        'INSERT INTO rate_limits (id, bucket, key, window_start, count) VALUES (?, ?, ?, ?, 1)',
+        this.crypto.generateId(),
+        bucket,
+        key,
+        windowStart
+      );
+    }
+
+    await this.db.run('DELETE FROM rate_limits WHERE window_start < ?', now - windowMs * 2);
+    return true;
+  }
+
+  private getClientRateLimitKey(ctx: RequestContext, user: DbUser | null): string {
+    if (user) {
+      return `user:${user.id}`;
+    }
+
+    return `ip:${ctx.ip || 'unknown'}`;
+  }
+
+  private async deleteExpiredRecipeShareLinks(now = Date.now()): Promise<void> {
+    await this.db.run('DELETE FROM recipe_share_links WHERE created_at < ?', now - SHARE_LINK_DURATION_MS);
   }
 
   // Auth handlers
@@ -879,6 +952,8 @@ export class CoreHandlers {
     const publicRecipeVisibility = 'AND r.is_public = 1';
     const publicCookbookVisibility = 'AND c.is_public = 1';
 
+    // Expected behavior: public profiles leak private content counts as aggregate stats,
+    // while the recipe and cookbook item lists below stay limited to public content.
     const recipeCount = await this.db.get<{ count: number }>(
       'SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ?',
       profileUser.id
@@ -952,10 +1027,19 @@ export class CoreHandlers {
     };
   }
 
-  async getFriends(_ctx: RequestContext, userId: string): Promise<ApiResult<{ friends: ProfileUserInfo[] }>> {
+  async getFriends(ctx: RequestContext, userId: string): Promise<ApiResult<{ friends: ProfileUserInfo[] }>> {
+    const currentUser = await this.getSessionUser(ctx);
+    if (!currentUser) {
+      return { error: 'Unauthorized', status: 401 };
+    }
+
     const profileUser = await this.db.get<{ id: string }>('SELECT id FROM users WHERE id = ?', userId);
     if (!profileUser) {
       return { error: 'Profile not found', status: 404 };
+    }
+
+    if (currentUser.id !== profileUser.id && !(await this.areFriends(currentUser.id, profileUser.id))) {
+      return { error: 'Friends are only visible to the profile owner and friends', status: 403 };
     }
 
     const friends = await this.db.all<{ id: string; name: string; avatar_url: string | null }>(
@@ -1711,9 +1795,17 @@ export class CoreHandlers {
   }
 
   async createRecipeShareLink(
-    _ctx: RequestContext,
+    ctx: RequestContext,
     data: RecipeSharePayload
   ): Promise<ApiResult<RecipeShareLinkInfo>> {
+    const user = await this.getSessionUser(ctx);
+    const rateLimitKey = this.getClientRateLimitKey(ctx, user);
+    const maxRequests = user ? AUTHENTICATED_RECIPE_SHARE_LIMIT : PUBLIC_RECIPE_SHARE_LIMIT;
+    const isAllowed = await this.checkFixedWindowRateLimit('recipe-share-link', rateLimitKey, maxRequests);
+    if (!isAllowed) {
+      return { error: 'Too many share links created. Please try again later.', status: 429 };
+    }
+
     const recipe = normalizeRecipeSharePayload(data);
     if (!recipe) {
       return { error: 'Recipe must have a title, ingredients, and instructions', status: 400 };
@@ -1727,6 +1819,8 @@ export class CoreHandlers {
     const id = this.crypto.generateId();
     const token = this.crypto.generateId();
     const createdAt = Date.now();
+
+    await this.deleteExpiredRecipeShareLinks(createdAt);
 
     await this.db.run(
       'INSERT INTO recipe_share_links (id, token, recipe_data, created_at) VALUES (?, ?, ?, ?)',
@@ -1785,6 +1879,17 @@ export class CoreHandlers {
     const notificationId = this.crypto.generateId();
     const createdAt = Date.now();
 
+    const isAllowed = await this.checkFixedWindowRateLimit(
+      'recipe-share-link',
+      `user:${user.id}`,
+      AUTHENTICATED_RECIPE_SHARE_LIMIT
+    );
+    if (!isAllowed) {
+      return { error: 'Too many share links created. Please try again later.', status: 429 };
+    }
+
+    await this.deleteExpiredRecipeShareLinks(createdAt);
+
     await this.db.run(
       'INSERT INTO recipe_share_links (id, token, recipe_data, created_at) VALUES (?, ?, ?, ?)',
       id,
@@ -1825,8 +1930,8 @@ export class CoreHandlers {
       token
     );
 
-    if (!link) {
-      return { error: 'Share link not found', status: 404 };
+    if (!link || isShareLinkExpired(link.created_at)) {
+      return { error: 'Share link not found or expired', status: 404 };
     }
 
     return { data: { recipe: JSON.parse(link.recipe_data) }, status: 200 };
@@ -1894,8 +1999,8 @@ export class CoreHandlers {
       'SELECT * FROM recipe_share_links WHERE token = ?',
       shareToken
     );
-    if (!link) {
-      return { error: 'Shared recipe not found', status: 404 };
+    if (!link || isShareLinkExpired(link.created_at)) {
+      return { error: 'Shared recipe not found or expired', status: 404 };
     }
 
     const recipe = normalizeRecipeSharePayload(JSON.parse(link.recipe_data) as RecipeSharePayload);
@@ -2493,8 +2598,11 @@ export class CoreHandlers {
       cookbookId
     );
 
-    const links = await this.db.all<{ id: string; token: string; is_active: number; created_at: number }>(
-      'SELECT id, token, is_active, created_at FROM cookbook_share_links WHERE cookbook_id = ?',
+    const now = Date.now();
+    await this.db.run('DELETE FROM cookbook_share_links WHERE expires_at <= ?', now);
+
+    const links = await this.db.all<{ id: string; token: string; is_active: number; created_at: number; expires_at: number }>(
+      'SELECT id, token, is_active, created_at, expires_at FROM cookbook_share_links WHERE cookbook_id = ?',
       cookbookId
     );
 
@@ -2512,6 +2620,7 @@ export class CoreHandlers {
           token: l.token,
           isActive: l.is_active === 1,
           createdAt: l.created_at,
+          expiresAt: l.expires_at,
         })),
       },
       status: 200,
@@ -2533,14 +2642,29 @@ export class CoreHandlers {
       return { error: 'Cookbook not found', status: 404 };
     }
 
+    const isAllowed = await this.checkFixedWindowRateLimit(
+      'cookbook-share-link',
+      `user:${user.id}`,
+      COOKBOOK_SHARE_LINK_RATE_LIMIT
+    );
+    if (!isAllowed) {
+      return { error: 'Too many cookbook share links created. Please try again later.', status: 429 };
+    }
+
     const linkId = this.crypto.generateId();
     const token = this.crypto.generateId();
+    const createdAt = Date.now();
+    const expiresAt = getShareLinkExpiresAt(createdAt);
+
+    await this.db.run('DELETE FROM cookbook_share_links WHERE expires_at <= ?', createdAt);
+
     await this.db.run(
-      'INSERT INTO cookbook_share_links (id, cookbook_id, token, is_active, created_at) VALUES (?, ?, ?, 1, ?)',
+      'INSERT INTO cookbook_share_links (id, cookbook_id, token, is_active, created_at, expires_at) VALUES (?, ?, ?, 1, ?, ?)',
       linkId,
       cookbookId,
       token,
-      Date.now()
+      createdAt,
+      expiresAt
     );
 
     return {
@@ -2548,7 +2672,8 @@ export class CoreHandlers {
         id: linkId,
         token,
         isActive: true,
-        createdAt: Date.now(),
+        createdAt,
+        expiresAt,
       },
       status: 201,
     };
@@ -2583,12 +2708,12 @@ export class CoreHandlers {
   }
 
   async getSharedCookbook(token: string): Promise<ApiResult<{ cookbook: CookbookInfo; recipes: RecipeInfo[] }>> {
-    const link = await this.db.get<{ cookbook_id: string; is_active: number }>(
-      'SELECT cookbook_id, is_active FROM cookbook_share_links WHERE token = ?',
+    const link = await this.db.get<{ cookbook_id: string; is_active: number; created_at: number; expires_at: number }>(
+      'SELECT cookbook_id, is_active, created_at, expires_at FROM cookbook_share_links WHERE token = ?',
       token
     );
 
-    if (!link || link.is_active !== 1) {
+    if (!link || link.is_active !== 1 || isShareLinkExpired(link.created_at) || link.expires_at <= Date.now()) {
       return { error: 'Share link not found or expired', status: 404 };
     }
 
@@ -2971,11 +3096,12 @@ export class CoreHandlers {
   // Discovery endpoints for public content
   async getDiscoverRecipes(
     ctx: RequestContext,
-    options?: { limit?: number; offset?: number; tags?: string[] }
+    options?: { limit?: number; offset?: number; tags?: string[]; query?: string }
   ): Promise<ApiResult<{ recipes: RecipeInfo[]; total: number }>> {
     const user = await this.getSessionUser(ctx);
     const limit = options?.limit || 20;
     const offset = options?.offset || 0;
+    const searchQuery = normalizeDiscoverySearchQuery(options?.query);
 
     let query = `
       SELECT r.*, u.name as owner_name
@@ -2993,6 +3119,12 @@ export class CoreHandlers {
       }
     }
 
+    if (searchQuery) {
+      query += ` AND (r.title LIKE ? ESCAPE '\\' OR r.description LIKE ? ESCAPE '\\' OR r.tags LIKE ? ESCAPE '\\')`;
+      const pattern = getSqlLikePattern(searchQuery);
+      params.push(pattern, pattern, pattern);
+    }
+
     let countQuery = `SELECT COUNT(*) as count FROM recipes r WHERE r.is_public = 1`;
     const countParams: unknown[] = [];
     if (options?.tags && options.tags.length > 0) {
@@ -3000,6 +3132,11 @@ export class CoreHandlers {
         countQuery += ` AND r.tags LIKE ?`;
         countParams.push(`%"${tag}"%`);
       }
+    }
+    if (searchQuery) {
+      countQuery += ` AND (r.title LIKE ? ESCAPE '\\' OR r.description LIKE ? ESCAPE '\\' OR r.tags LIKE ? ESCAPE '\\')`;
+      const pattern = getSqlLikePattern(searchQuery);
+      countParams.push(pattern, pattern, pattern);
     }
 
     // Get total count
@@ -3031,32 +3168,44 @@ export class CoreHandlers {
 
   async getDiscoverCookbooks(
     ctx: RequestContext,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number; query?: string }
   ): Promise<ApiResult<{ cookbooks: CookbookInfo[]; total: number }>> {
     const user = await this.getSessionUser(ctx);
     const limit = options?.limit || 20;
     const offset = options?.offset || 0;
+    const searchQuery = normalizeDiscoverySearchQuery(options?.query);
+    const searchPattern = searchQuery ? getSqlLikePattern(searchQuery) : null;
+
+    let whereClause = 'WHERE c.is_public = 1 AND c.is_system = 0';
+    const whereParams: unknown[] = [];
+    if (searchPattern) {
+      whereClause += ` AND (c.name LIKE ? ESCAPE '\\' OR c.description LIKE ? ESCAPE '\\')`;
+      whereParams.push(searchPattern, searchPattern);
+    }
 
     const countResult = await this.db.get<{ count: number }>(
-      'SELECT COUNT(*) as count FROM cookbooks WHERE is_public = 1 AND is_system = 0'
+      `SELECT COUNT(*) as count FROM cookbooks c ${whereClause}`,
+      ...whereParams
     );
 
     const result = await this.db.all<DbCookbook & { recipe_count: number; owner_name: string }>(
-      `SELECT c.*, COUNT(cr.recipe_id) as recipe_count, u.name as owner_name
+      `SELECT c.*, COUNT(CASE WHEN r.is_public = 1 THEN cr.recipe_id END) as recipe_count, u.name as owner_name
        FROM cookbooks c
        LEFT JOIN cookbook_recipes cr ON c.id = cr.cookbook_id
+       LEFT JOIN recipes r ON r.id = cr.recipe_id
        JOIN users u ON c.user_id = u.id
-       WHERE c.is_public = 1 AND c.is_system = 0
+       ${whereClause}
        GROUP BY c.id
        ORDER BY c.updated_at DESC
        LIMIT ? OFFSET ?`,
+      ...whereParams,
       limit,
       offset
     );
 
     const cookbooks = await Promise.all(result.results.map(async c => {
       const savedCopyId = user
-        ? await this.findExistingSavedCookbookId(user.id, c, false)
+        ? await this.findExistingSavedCookbookId(user.id, c, false, true)
         : null;
 
       return {
@@ -3168,11 +3317,11 @@ export class CoreHandlers {
     await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, collectionId);
   }
 
-  private async getCookbookRecipeRows(cookbookId: string): Promise<DbRecipe[]> {
+  private async getCookbookRecipeRows(cookbookId: string, publicOnly = false): Promise<DbRecipe[]> {
     const recipes = await this.db.all<DbRecipe>(
       `SELECT r.* FROM recipes r
        JOIN cookbook_recipes cr ON r.id = cr.recipe_id
-       WHERE cr.cookbook_id = ?
+       WHERE cr.cookbook_id = ?${publicOnly ? ' AND r.is_public = 1' : ''}
        ORDER BY cr.added_at ASC, r.id ASC`,
       cookbookId
     );
@@ -3180,12 +3329,16 @@ export class CoreHandlers {
     return recipes.results;
   }
 
-  private async isUneditedCookbookCopy(candidate: DbCookbook, source: DbCookbook): Promise<boolean> {
+  private async isUneditedCookbookCopy(
+    candidate: DbCookbook,
+    source: DbCookbook,
+    sourcePublicOnly = false
+  ): Promise<boolean> {
     if (candidate.source_cookbook_id !== source.id || !cookbooksHaveSameSavedContent(candidate, source)) {
       return false;
     }
 
-    const sourceRecipes = await this.getCookbookRecipeRows(source.id);
+    const sourceRecipes = await this.getCookbookRecipeRows(source.id, sourcePublicOnly);
     const candidateRecipes = await this.getCookbookRecipeRows(candidate.id);
     if (sourceRecipes.length !== candidateRecipes.length) {
       return false;
@@ -3210,7 +3363,8 @@ export class CoreHandlers {
   private async findExistingSavedCookbookId(
     userId: string,
     cookbook: DbCookbook,
-    includeOriginal = true
+    includeOriginal = true,
+    sourcePublicOnly = false
   ): Promise<string | null> {
     const candidates = await this.db.all<DbCookbook>(
       `SELECT * FROM cookbooks
@@ -3236,7 +3390,7 @@ export class CoreHandlers {
         return candidate.id;
       }
 
-      if (await this.isUneditedCookbookCopy(candidate, cookbook)) {
+      if (await this.isUneditedCookbookCopy(candidate, cookbook, sourcePublicOnly)) {
         return candidate.id;
       }
     }
@@ -3326,16 +3480,16 @@ export class CoreHandlers {
       return { error: 'Cookbook not found or not public', status: 404 };
     }
 
-    const existingCookbookId = await this.findExistingSavedCookbookId(user.id, cookbook);
+    const existingCookbookId = await this.findExistingSavedCookbookId(user.id, cookbook, true, true);
     if (existingCookbookId) {
       return { data: { id: existingCookbookId }, status: 200 };
     }
 
-    // Get all recipes in the cookbook
+    // Get public recipes in the cookbook
     const cookbookRecipes = await this.db.all<DbRecipe>(
       `SELECT r.* FROM recipes r
        JOIN cookbook_recipes cr ON r.id = cr.recipe_id
-       WHERE cr.cookbook_id = ?`,
+       WHERE cr.cookbook_id = ? AND r.is_public = 1`,
       cookbookId
     );
 
@@ -3458,7 +3612,7 @@ export class CoreHandlers {
       return { error: 'Cookbook not found or not public', status: 404 };
     }
 
-    const savedCopyId = await this.findExistingSavedCookbookId(user.id, cookbook, false);
+    const savedCopyId = await this.findExistingSavedCookbookId(user.id, cookbook, false, true);
     if (!savedCopyId) {
       return { data: { success: true, id: null }, status: 200 };
     }
@@ -3574,7 +3728,7 @@ export class CoreHandlers {
        FROM recipes r
        JOIN cookbook_recipes cr ON r.id = cr.recipe_id
        JOIN users u ON r.owner_id = u.id
-       WHERE cr.cookbook_id = ?
+       WHERE cr.cookbook_id = ? AND r.is_public = 1
        ORDER BY cr.added_at DESC`,
       cookbookId
     );

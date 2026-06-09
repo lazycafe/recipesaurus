@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useState, type KeyboardEvent } from 'react';
+import { NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp, Compass } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
@@ -23,8 +23,23 @@ interface RecipeCardCompactProps {
 }
 
 function RecipeCardCompact({ recipe, onToggleSave, onClick, onAuthorClick, isSaving }: RecipeCardCompactProps) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick();
+    }
+  };
+
   return (
-    <article className="discovery-card" onClick={onClick}>
+    <article
+      className="discovery-card"
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`View ${recipe.title}`}
+    >
       <div className="discovery-card-image">
         {recipe.imageUrl ? (
           <img src={recipe.imageUrl} alt={recipe.title} loading="lazy" />
@@ -90,8 +105,23 @@ interface CookbookCardCompactProps {
 }
 
 function CookbookCardCompact({ cookbook, onClick, onToggleSave, onAuthorClick, isSaving }: CookbookCardCompactProps) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick();
+    }
+  };
+
   return (
-    <article className="discovery-card cookbook-card" onClick={onClick}>
+    <article
+      className="discovery-card cookbook-card"
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label={`View ${cookbook.name}`}
+    >
       <div className="discovery-card-image">
         {cookbook.coverImage ? (
           <img src={cookbook.coverImage} alt={cookbook.name} loading="lazy" />
@@ -164,6 +194,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { refreshCookbooks } = useCookbooks();
   const {
     recipes,
@@ -186,8 +217,8 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
 
   const { updateRecipe, deleteRecipe, refreshRecipes } = useRecipes();
 
-  const [recipeSearchQuery, setRecipeSearchQuery] = useState('');
-  const [cookbookSearchQuery, setCookbookSearchQuery] = useState('');
+  const [recipeSearchQuery, setRecipeSearchQuery] = useState(() => tab === 'recipes' ? searchParams.get('q') || '' : '');
+  const [cookbookSearchQuery, setCookbookSearchQuery] = useState(() => tab === 'cookbooks' ? searchParams.get('q') || '' : '');
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [recipeToDelete, setRecipeToDelete] = useState<Recipe | null>(null);
@@ -195,9 +226,35 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   const [savingCookbookId, setSavingCookbookId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadRecipes();
-    loadCookbooks();
-  }, [loadRecipes, loadCookbooks]);
+    const tagParams = searchParams.get('tags');
+    if (tagParams) {
+      setSelectedTags(tagParams.split(',').map(tag => tag.trim().toLowerCase()).filter(Boolean));
+    }
+    // URL params only seed initial state; later changes are handled by event handlers below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    loadRecipes({ tags: selectedTags, query: recipeSearchQuery });
+    loadCookbooks({ query: cookbookSearchQuery });
+  }, [loadRecipes, loadCookbooks, selectedTags, recipeSearchQuery, cookbookSearchQuery]);
+
+  const updateUrlParams = (query: string, tags: string[]) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (query.trim()) {
+      nextParams.set('q', query.trim());
+    } else {
+      nextParams.delete('q');
+    }
+
+    if (tags.length > 0) {
+      nextParams.set('tags', tags.join(','));
+    } else {
+      nextParams.delete('tags');
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  };
 
   const handleSaveRecipe = async (recipe: Recipe) => {
     if (!user) {
@@ -346,7 +403,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
       await updateRecipe(editingRecipe.id, parseFormData(formData));
       setEditingRecipe(null);
       // Refresh the discovery page data
-      loadRecipes();
+      loadRecipes({ tags: selectedTags, query: recipeSearchQuery });
     } catch (error) {
       console.error('Failed to update recipe:', error);
     }
@@ -359,18 +416,31 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
       setRecipeToDelete(null);
       setSelectedRecipe(null);
       // Refresh the discovery page data
-      loadRecipes();
+      loadRecipes({ tags: selectedTags, query: recipeSearchQuery });
     } catch (error) {
       console.error('Failed to delete recipe:', error);
     }
   };
 
   const handleTagClick = (tag: string) => {
-    if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter(t => t !== tag));
-    } else {
-      setSelectedTags([...selectedTags, tag]);
-    }
+    const nextTags = selectedTags.includes(tag)
+      ? selectedTags.filter(t => t !== tag)
+      : [...selectedTags, tag];
+    setSelectedTags(nextTags);
+    updateUrlParams(activeSearchQuery, nextTags);
+  };
+
+  const handleClearTags = () => {
+    setSelectedTags([]);
+    updateUrlParams(activeSearchQuery, []);
+  };
+
+  const handleLoadMoreRecipes = async () => {
+    await loadMoreRecipes({ query: recipeSearchQuery });
+  };
+
+  const handleLoadMoreCookbooks = async () => {
+    await loadMoreCookbooks({ query: cookbookSearchQuery });
   };
 
   const uniqueRecipes = uniqueById(recipes);
@@ -386,12 +456,14 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     } else {
       setCookbookSearchQuery(value);
     }
+    updateUrlParams(value, selectedTags);
   };
 
   const filteredRecipes = normalizedRecipeSearchQuery
     ? uniqueRecipes.filter(r =>
         r.title.toLowerCase().includes(normalizedRecipeSearchQuery) ||
-        r.description.toLowerCase().includes(normalizedRecipeSearchQuery)
+        r.description.toLowerCase().includes(normalizedRecipeSearchQuery) ||
+        r.tags.some(tag => tag.toLowerCase().includes(normalizedRecipeSearchQuery))
       )
     : uniqueRecipes;
 
@@ -410,13 +482,13 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     : 'Public cookbook collections curated by the community.';
 
   const { loadMoreRef: recipesLoadMoreRef } = useInfiniteScroll({
-    onLoadMore: loadMoreRecipes,
+    onLoadMore: handleLoadMoreRecipes,
     hasMore: hasMoreRecipes,
     isLoading: isLoadingRecipes,
   });
 
   const { loadMoreRef: cookbooksLoadMoreRef } = useInfiniteScroll({
-    onLoadMore: loadMoreCookbooks,
+    onLoadMore: handleLoadMoreCookbooks,
     hasMore: hasMoreCookbooks,
     isLoading: isLoadingCookbooks,
   });
@@ -479,7 +551,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
             </button>
           ))}
           {selectedTags.length > 0 && (
-            <button className="tag-clear" onClick={() => setSelectedTags([])}>
+            <button className="tag-clear" onClick={handleClearTags}>
               Clear
             </button>
           )}

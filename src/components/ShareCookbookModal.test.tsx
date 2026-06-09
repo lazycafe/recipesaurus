@@ -59,6 +59,7 @@ describe('ShareCookbookModal', () => {
         token: 'abcdef1234567890',
         isActive: true,
         createdAt: 2,
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
       },
     });
     mockShareWithUser.mockResolvedValue({ data: { success: true, sharedWith: { id: 'friend-1', name: 'Bob Baker' } } });
@@ -162,6 +163,7 @@ describe('ShareCookbookModal', () => {
             token: 'abcdef1234567890',
             isActive: true,
             createdAt: 2,
+            expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
           },
         ],
       },
@@ -179,6 +181,31 @@ describe('ShareCookbookModal', () => {
 
     await waitFor(() => {
       expect(mockWriteText).toHaveBeenCalledWith(`${window.location.origin}/shared/abcdef1234567890`);
+    });
+  });
+
+  it('does not show expired active links', async () => {
+    mockGetShares.mockResolvedValue({
+      data: {
+        shares: [],
+        links: [
+          {
+            id: 'link-expired',
+            token: 'expiredtoken',
+            isActive: true,
+            createdAt: 2,
+            expiresAt: Date.now() - 1000,
+          },
+        ],
+      },
+    });
+
+    render(<ShareCookbookModal cookbook={cookbook} onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share Link' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(`${window.location.origin}/shared/expiredtoken`)).toBeNull();
     });
   });
 });

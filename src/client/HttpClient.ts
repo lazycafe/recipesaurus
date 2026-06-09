@@ -24,33 +24,30 @@ import type {
   UserProfile,
 } from './types';
 
-// Default localStorage-based token storage
-export class LocalStorageTokenStorage implements ITokenStorage {
-  private readonly key: string;
-
-  constructor(key = 'recipesaurus_token') {
-    this.key = key;
-  }
-
+// Cookie-only sessions do not expose bearer tokens to browser JavaScript.
+export class CookieSessionTokenStorage implements ITokenStorage {
   getToken(): string | null {
-    return localStorage.getItem(this.key);
+    return null;
   }
 
-  setToken(token: string): void {
-    localStorage.setItem(this.key, token);
+  setToken(_token: string): void {
+    // Intentionally empty: the API stores sessions in HttpOnly cookies.
   }
 
   clearToken(): void {
-    localStorage.removeItem(this.key);
+    // The API clears the HttpOnly cookie on logout.
+  }
+}
+
+export class LocalStorageTokenStorage extends CookieSessionTokenStorage {
+  constructor(_key = 'recipesaurus_token') {
+    super();
   }
 }
 
 // HTTP transport implementation
 export class HttpTransport implements ITransport {
-  constructor(
-    private readonly baseUrl: string,
-    private readonly tokenStorage: ITokenStorage
-  ) {}
+  constructor(private readonly baseUrl: string, _tokenStorage?: ITokenStorage) {}
 
   async request<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
@@ -58,14 +55,9 @@ export class HttpTransport implements ITransport {
     body?: unknown
   ): Promise<ApiResponse<T>> {
     try {
-      const token = this.tokenStorage.getToken();
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method,
@@ -122,9 +114,6 @@ export class HttpClient implements IClient {
         email,
         password,
       });
-      if (result.data?.token) {
-        this.tokenStorage.setToken(result.data.token);
-      }
       return result;
     },
 
@@ -138,9 +127,6 @@ export class HttpClient implements IClient {
         name,
         password,
       });
-      if (result.data?.token) {
-        this.tokenStorage.setToken(result.data.token);
-      }
       return result;
     },
 
@@ -156,9 +142,6 @@ export class HttpClient implements IClient {
 
     verifyEmail: async (token: string): Promise<ApiResponse<{ user: User; token?: string; verified?: boolean }>> => {
       const result = await this.transport.request<{ user: User; token?: string; verified?: boolean }>('POST', '/api/auth/verify-email', { token });
-      if (result.data?.token) {
-        this.tokenStorage.setToken(result.data.token);
-      }
       return result;
     },
 
@@ -273,7 +256,7 @@ export class HttpClient implements IClient {
     shareByEmail: (
       cookbookId: string,
       email: string
-    ): Promise<ApiResponse<{ success: boolean; sharedWith?: { id: string; name: string } }>> => {
+    ): Promise<ApiResponse<{ success: boolean; message?: string; sharedWith?: { id: string; name: string } }>> => {
       return this.transport.request('POST', `/api/cookbooks/${cookbookId}/share`, { email });
     },
 
@@ -365,19 +348,21 @@ export class HttpClient implements IClient {
   };
 
   discover = {
-    recipes: (options?: { limit?: number; offset?: number; tags?: string[] }): Promise<ApiResponse<{ recipes: Recipe[]; total: number }>> => {
+    recipes: (options?: { limit?: number; offset?: number; tags?: string[]; query?: string }): Promise<ApiResponse<{ recipes: Recipe[]; total: number }>> => {
       const params = new URLSearchParams();
       if (options?.limit) params.set('limit', String(options.limit));
       if (options?.offset) params.set('offset', String(options.offset));
       if (options?.tags) params.set('tags', options.tags.join(','));
+      if (options?.query?.trim()) params.set('q', options.query.trim());
       const query = params.toString();
       return this.transport.request('GET', `/api/discover/recipes${query ? `?${query}` : ''}`);
     },
 
-    cookbooks: (options?: { limit?: number; offset?: number }): Promise<ApiResponse<{ cookbooks: Cookbook[]; total: number }>> => {
+    cookbooks: (options?: { limit?: number; offset?: number; query?: string }): Promise<ApiResponse<{ cookbooks: Cookbook[]; total: number }>> => {
       const params = new URLSearchParams();
       if (options?.limit) params.set('limit', String(options.limit));
       if (options?.offset) params.set('offset', String(options.offset));
+      if (options?.query?.trim()) params.set('q', options.query.trim());
       const query = params.toString();
       return this.transport.request('GET', `/api/discover/cookbooks${query ? `?${query}` : ''}`);
     },
@@ -416,7 +401,7 @@ export class HttpClient implements IClient {
       return this.transport.request('GET', `/api/profiles/${userId}/friends`);
     },
 
-    addFriend: (data: { userId?: string; email?: string }): Promise<ApiResponse<{ friend: ProfileUser }>> => {
+    addFriend: (data: { userId?: string; email?: string }): Promise<ApiResponse<{ success?: boolean; message?: string; friend?: ProfileUser }>> => {
       return this.transport.request('POST', '/api/friends', data);
     },
 
@@ -437,7 +422,7 @@ export class HttpClient implements IClient {
 // Factory function to create HTTP client with default configuration
 export function createHttpClient(
   baseUrl: string = import.meta.env.VITE_API_URL || 'https://recipesaurus-api.andreay226.workers.dev',
-  tokenStorage: ITokenStorage = new LocalStorageTokenStorage()
+  tokenStorage: ITokenStorage = new CookieSessionTokenStorage()
 ): IClient {
   const transport = new HttpTransport(baseUrl, tokenStorage);
   return new HttpClient(transport, tokenStorage);

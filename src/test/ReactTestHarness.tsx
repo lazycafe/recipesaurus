@@ -219,6 +219,7 @@ export class ReactTestHarness {
     this.db.run('DELETE FROM profile_badges');
     this.db.run('DELETE FROM sessions');
     this.db.run('DELETE FROM login_attempts');
+    this.db.run('DELETE FROM rate_limits');
     this.db.run('DELETE FROM friend_requests');
     this.db.run('DELETE FROM friendships');
     this.db.run('DELETE FROM users');

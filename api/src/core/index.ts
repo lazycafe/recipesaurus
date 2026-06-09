@@ -27,6 +27,15 @@ export type {
 
 export { CoreHandlers, webCryptoProvider } from './handlers';
 export type { CryptoProvider } from './handlers';
+export {
+  COOKBOOK_SHARE_LINK_RATE_LIMIT,
+  DISCOVERY_SEARCH_MAX_LENGTH,
+  SHARE_LINK_DURATION_MS,
+  getShareLinkExpiresAt,
+  getSqlLikePattern,
+  isShareLinkExpired,
+  normalizeDiscoverySearchQuery,
+} from './shared';
 export { D1Adapter } from './D1Adapter';
 export { SqliteAdapter, createInMemoryDatabase } from './SqliteAdapter';
 export type { SqlJsDatabase } from './SqliteAdapter';

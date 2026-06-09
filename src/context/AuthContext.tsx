@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useClient } from '../client/ClientContext';
-import { setStoredToken, clearStoredToken } from '../utils/api';
+import { clearStoredToken } from '../utils/api';
 
 interface User {
   id: string;
@@ -37,25 +37,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const useDevClient = import.meta.env.DEV && import.meta.env.VITE_USE_DEV_CLIENT === 'true';
 
   useEffect(() => {
+    clearStoredToken();
     checkSession();
   }, []);
 
   async function checkSession() {
-    // Keep the legacy dev-token shortcut for API-backed local dev only.
-    if (import.meta.env.DEV && !useDevClient) {
-      const storedToken = localStorage.getItem('recipesaurus_token');
-      if (storedToken === 'dev-token') {
-        setUser({
-          id: 'dev-user-id',
-          email: 'dev@example.com',
-          name: 'Dev User',
-          avatarUrl: null,
-        });
-        setIsLoading(false);
-        return;
-      }
-    }
-
     try {
       const { data } = await client.auth.getSession();
       if (data?.user) {
@@ -80,9 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (data?.user) {
-      if (data.token) {
-        setStoredToken(data.token);
-      }
       setUser(data.user);
       return { success: true };
     }
@@ -120,9 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (data?.user) {
-      if (data.token) {
-        setStoredToken(data.token);
-      }
       setUser(data.user);
       return { success: true };
     }
@@ -138,9 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (data?.user) {
-      if (data.token) {
-        setStoredToken(data.token);
-      }
       setUser(data.user);
       return { success: true };
     }
@@ -190,9 +167,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Dev login failed:', error ?? 'No user returned');
         return;
       }
-      if (data.token) {
-        setStoredToken(data.token);
-      }
       setUser(data.user);
       return;
     }
@@ -203,7 +177,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: 'Dev User',
       avatarUrl: null,
     };
-    setStoredToken('dev-token');
     setUser(devUser);
   };
 

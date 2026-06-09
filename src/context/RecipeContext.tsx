@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { Recipe } from '../types/Recipe';
 import { useClient } from '../client/ClientContext';
 import { useAuth } from './AuthContext';
+import { useOptionalToast } from './ToastContext';
 import type { Recipe as ClientRecipe } from '../client/types';
 import { dedupeRecipes } from '../utils/recipeDedupe';
 
@@ -46,6 +47,8 @@ function mapRecipeResponse(r: ClientRecipe): ExtendedRecipe {
 export function RecipeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const client = useClient();
+  const toast = useOptionalToast();
+  const showToast = toast?.showToast;
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -63,11 +66,12 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
         setRecipes(dedupeRecipes(data.recipes.map(mapRecipeResponse)));
       } else if (error) {
         console.error('Failed to fetch recipes:', error);
+        showToast?.({ message: error, type: 'error' });
       }
     } finally {
       setIsLoading(false);
     }
-  }, [user, client]);
+  }, [user, client, showToast]);
 
   useEffect(() => {
     refreshRecipes();
@@ -98,6 +102,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
       setRecipes(prev => dedupeRecipes([newRecipe, ...prev]));
     } else if (error) {
       console.error('Failed to create recipe:', error);
+      showToast?.({ message: error, type: 'error' });
       throw new Error(error);
     }
   };
@@ -122,6 +127,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
 
     if (error) {
       console.error('Failed to update recipe:', error);
+      showToast?.({ message: error, type: 'error' });
       await refreshRecipes();
       throw new Error(error);
     }
@@ -134,6 +140,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
     const { error } = await client.recipes.delete(id);
     if (error) {
       console.error('Failed to delete recipe:', error);
+      showToast?.({ message: error, type: 'error' });
       // Refresh to restore state on error
       await refreshRecipes();
     }

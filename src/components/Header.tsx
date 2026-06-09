@@ -15,6 +15,8 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
   const location = useLocation();
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
+  const createButtonId = 'header-create-button';
+  const createMenuId = 'header-create-menu';
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -26,6 +28,19 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!showCreateMenu) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setShowCreateMenu(false);
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showCreateMenu]);
 
   // Check if on discover page (for nav highlighting)
   const isDiscoverPage = location.pathname.startsWith('/discover') || location.pathname === '/';
@@ -78,18 +93,28 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
             {user && onCreateRecipe && onCreateCookbook && (
               <div className="create-menu-container" ref={createMenuRef}>
                 <button
-                  className="btn-create"
-                  onClick={() => setShowCreateMenu(!showCreateMenu)}
-                  aria-label="Create new"
-                >
+	                  className="btn-create"
+	                  onClick={() => setShowCreateMenu(!showCreateMenu)}
+	                  aria-label="Create new"
+	                  aria-haspopup="menu"
+	                  aria-expanded={showCreateMenu}
+	                  aria-controls={createMenuId}
+	                  id={createButtonId}
+	                >
                   <Plus size={18} />
                   <span className="desktop-only">Create</span>
                 </button>
                 {showCreateMenu && (
-                  <div className="create-menu">
-                    <button
-                      className="create-menu-item"
-                      onClick={() => {
+	                  <div
+	                    className="create-menu"
+	                    role="menu"
+	                    id={createMenuId}
+	                    aria-labelledby={createButtonId}
+	                  >
+	                    <button
+	                      className="create-menu-item"
+	                      role="menuitem"
+	                      onClick={() => {
                         setShowCreateMenu(false);
                         onCreateRecipe();
                       }}
@@ -97,9 +122,10 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
                       <ChefHat size={16} />
                       New Recipe
                     </button>
-                    <button
-                      className="create-menu-item"
-                      onClick={() => {
+	                    <button
+	                      className="create-menu-item"
+	                      role="menuitem"
+	                      onClick={() => {
                         setShowCreateMenu(false);
                         onCreateCookbook();
                       }}

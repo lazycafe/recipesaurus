@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { Cookbook } from '../types/Cookbook';
 import { useClient } from '../client/ClientContext';
 import { useAuth } from './AuthContext';
+import { useOptionalToast } from './ToastContext';
 import type { Cookbook as ClientCookbook } from '../client/types';
 
 interface CookbookContextType {
@@ -40,6 +41,8 @@ function mapCookbookResponse(c: ClientCookbook): Cookbook {
 export function CookbookProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const client = useClient();
+  const toast = useOptionalToast();
+  const showToast = toast?.showToast;
   const [ownedCookbooks, setOwnedCookbooks] = useState<Cookbook[]>([]);
   const [sharedCookbooks, setSharedCookbooks] = useState<Cookbook[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,17 +57,21 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true);
     try {
-      const { data } = await client.cookbooks.list();
+      const { data, error } = await client.cookbooks.list();
       if (data) {
         setOwnedCookbooks(data.owned.map(mapCookbookResponse));
         setSharedCookbooks(data.shared.map(mapCookbookResponse));
+      } else if (error) {
+        console.error('Failed to fetch cookbooks:', error);
+        showToast?.({ message: error, type: 'error' });
       }
     } catch (error) {
       console.error('Failed to fetch cookbooks:', error);
+      showToast?.({ message: 'Failed to fetch cookbooks', type: 'error' });
     } finally {
       setIsLoading(false);
     }
-  }, [user, client]);
+  }, [user, client, showToast]);
 
   useEffect(() => {
     refreshCookbooks();
@@ -74,21 +81,23 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
     const { data, error } = await client.cookbooks.create(cookbookData);
     if (error || !data) {
       console.error('Failed to create cookbook:', error);
+      showToast?.({ message: error || 'Failed to create cookbook', type: 'error' });
       return null;
     }
     await refreshCookbooks();
     return data.id;
-  }, [client, refreshCookbooks]);
+  }, [client, refreshCookbooks, showToast]);
 
   const updateCookbook = useCallback(async (id: string, data: { name?: string; description?: string; coverImage?: string | null; isPublic?: boolean }): Promise<boolean> => {
     const { error } = await client.cookbooks.update(id, data);
     if (error) {
       console.error('Failed to update cookbook:', error);
+      showToast?.({ message: error, type: 'error' });
       return false;
     }
     await refreshCookbooks();
     return true;
-  }, [client, refreshCookbooks]);
+  }, [client, refreshCookbooks, showToast]);
 
   const deleteCookbook = useCallback(async (id: string): Promise<boolean> => {
     // Optimistic update
@@ -97,11 +106,12 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
     const { error } = await client.cookbooks.delete(id);
     if (error) {
       console.error('Failed to delete cookbook:', error);
+      showToast?.({ message: error, type: 'error' });
       await refreshCookbooks();
       return false;
     }
     return true;
-  }, [client, refreshCookbooks]);
+  }, [client, refreshCookbooks, showToast]);
 
   const leaveCookbook = useCallback(async (id: string): Promise<boolean> => {
     if (!user) return false;
@@ -112,31 +122,34 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
     const { error } = await client.cookbooks.removeShare(id, user.id);
     if (error) {
       console.error('Failed to leave cookbook:', error);
+      showToast?.({ message: error, type: 'error' });
       await refreshCookbooks();
       return false;
     }
     return true;
-  }, [client, user, refreshCookbooks]);
+  }, [client, user, refreshCookbooks, showToast]);
 
   const addRecipeToCookbook = useCallback(async (cookbookId: string, recipeId: string): Promise<boolean> => {
     const { error } = await client.cookbooks.addRecipe(cookbookId, recipeId);
     if (error) {
       console.error('Failed to add recipe to cookbook:', error);
+      showToast?.({ message: error, type: 'error' });
       return false;
     }
     await refreshCookbooks();
     return true;
-  }, [client, refreshCookbooks]);
+  }, [client, refreshCookbooks, showToast]);
 
   const removeRecipeFromCookbook = useCallback(async (cookbookId: string, recipeId: string): Promise<boolean> => {
     const { error } = await client.cookbooks.removeRecipe(cookbookId, recipeId);
     if (error) {
       console.error('Failed to remove recipe from cookbook:', error);
+      showToast?.({ message: error, type: 'error' });
       return false;
     }
     await refreshCookbooks();
     return true;
-  }, [client, refreshCookbooks]);
+  }, [client, refreshCookbooks, showToast]);
 
   return (
     <CookbookContext.Provider value={{

@@ -213,6 +213,12 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
         type: 'success',
         message: `Friend request sent to ${data.friend.name}`,
       });
+    } else if (data?.success) {
+      setFriendEmail('');
+      setFriendsModalFeedback({
+        type: 'success',
+        message: data.message || 'If that account exists, a friend request will be sent.',
+      });
     } else {
       setFriendsModalFeedback({
         type: 'error',

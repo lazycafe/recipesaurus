@@ -406,7 +406,9 @@ describe('UserMenu', () => {
     fireEvent.click(screen.getByText('Friend added "Pasta" to "Dinner"'));
 
     await waitFor(() => expect(markAsRead).toHaveBeenCalledWith('1'));
-    expect(screen.getByTestId('location').textContent).toBe('/cookbooks/cookbook-1?recipeId=recipe-1');
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe('/cookbooks/cookbook-1?recipeId=recipe-1');
+    });
   });
 
   it('accepts recipe share notifications and refreshes recipes', async () => {

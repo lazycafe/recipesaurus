@@ -71,6 +71,7 @@ export interface DbCookbookShareLink {
   token: string;
   is_active: number;
   created_at: number;
+  expires_at: number;
 }
 
 export interface DbRecipeShareLink {
@@ -220,6 +221,7 @@ export interface CookbookShareLinkInfo {
   token: string;
   isActive: boolean;
   createdAt: number;
+  expiresAt: number;
 }
 
 export interface RecipeSharePayload {

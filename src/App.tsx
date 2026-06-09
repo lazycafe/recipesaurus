@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { ClientProvider } from './client/ClientContext';
 import { defaultClient, getClient, isDevClientEnabled } from './client/defaultClient';
@@ -11,28 +11,29 @@ import { NotificationProvider } from './context/NotificationContext';
 import { DiscoveryProvider } from './context/DiscoveryContext';
 import { ToastProvider } from './context/ToastContext';
 import { Header } from './components/Header';
-import { AuthModal } from './components/AuthModal';
-import { ForgotPasswordModal } from './components/ForgotPasswordModal';
-import { ResetPasswordPage } from './components/ResetPasswordPage';
-import { VerifyEmailPage } from './components/VerifyEmailPage';
-import { CookbookList } from './components/CookbookList';
-import { CookbookModal } from './components/CookbookModal';
-import { AddRecipeModal } from './components/AddRecipeModal';
-import { CookbookDetailPage } from './components/CookbookDetailPage';
-import { SharedCookbookView } from './components/SharedCookbookView';
-import { SharedRecipePreview } from './components/SharedRecipePreview';
-import { SettingsPage } from './components/SettingsPage';
-import { TermsPage } from './components/TermsPage';
-import { FeedbackPage } from './components/FeedbackPage';
-import { DiscoveryPage } from './components/DiscoveryPage';
-import { PublicHomePage } from './components/PublicHomePage';
-import { PublicCookbookDetailPage } from './components/PublicCookbookDetailPage';
-import { MyRecipesPage } from './components/MyRecipesPage';
-import { MealPlannerPage } from './components/MealPlannerPage';
-import { ProfilePage } from './components/ProfilePage';
 import { PendingPublicHomeRecipeSave } from './components/PendingPublicHomeRecipeSave';
 import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
+
+const AuthModal = lazy(() => import('./components/AuthModal').then(module => ({ default: module.AuthModal })));
+const ForgotPasswordModal = lazy(() => import('./components/ForgotPasswordModal').then(module => ({ default: module.ForgotPasswordModal })));
+const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage').then(module => ({ default: module.ResetPasswordPage })));
+const VerifyEmailPage = lazy(() => import('./components/VerifyEmailPage').then(module => ({ default: module.VerifyEmailPage })));
+const CookbookList = lazy(() => import('./components/CookbookList').then(module => ({ default: module.CookbookList })));
+const CookbookModal = lazy(() => import('./components/CookbookModal').then(module => ({ default: module.CookbookModal })));
+const AddRecipeModal = lazy(() => import('./components/AddRecipeModal').then(module => ({ default: module.AddRecipeModal })));
+const CookbookDetailPage = lazy(() => import('./components/CookbookDetailPage').then(module => ({ default: module.CookbookDetailPage })));
+const SharedCookbookView = lazy(() => import('./components/SharedCookbookView').then(module => ({ default: module.SharedCookbookView })));
+const SharedRecipePreview = lazy(() => import('./components/SharedRecipePreview').then(module => ({ default: module.SharedRecipePreview })));
+const SettingsPage = lazy(() => import('./components/SettingsPage').then(module => ({ default: module.SettingsPage })));
+const TermsPage = lazy(() => import('./components/TermsPage').then(module => ({ default: module.TermsPage })));
+const FeedbackPage = lazy(() => import('./components/FeedbackPage').then(module => ({ default: module.FeedbackPage })));
+const DiscoveryPage = lazy(() => import('./components/DiscoveryPage').then(module => ({ default: module.DiscoveryPage })));
+const PublicHomePage = lazy(() => import('./components/PublicHomePage').then(module => ({ default: module.PublicHomePage })));
+const PublicCookbookDetailPage = lazy(() => import('./components/PublicCookbookDetailPage').then(module => ({ default: module.PublicCookbookDetailPage })));
+const MyRecipesPage = lazy(() => import('./components/MyRecipesPage').then(module => ({ default: module.MyRecipesPage })));
+const MealPlannerPage = lazy(() => import('./components/MealPlannerPage').then(module => ({ default: module.MealPlannerPage })));
+const ProfilePage = lazy(() => import('./components/ProfilePage').then(module => ({ default: module.ProfilePage })));
 
 function LoadingScreen() {
   return (
@@ -273,17 +274,17 @@ function AppContent() {
   }
 
   return (
-    <RecipeProvider>
-      <CookbookProvider>
-        <NotificationProvider>
-          <DiscoveryProvider>
-            <ToastProvider>
+    <ToastProvider>
+      <RecipeProvider>
+        <CookbookProvider>
+          <NotificationProvider>
+            <DiscoveryProvider>
               <RecipeApp />
-            </ToastProvider>
-          </DiscoveryProvider>
-        </NotificationProvider>
-      </CookbookProvider>
-    </RecipeProvider>
+            </DiscoveryProvider>
+          </NotificationProvider>
+        </CookbookProvider>
+      </RecipeProvider>
+    </ToastProvider>
   );
 }
 
@@ -420,17 +421,19 @@ function AppWithClient({ client }: { client: IClient }) {
     <ClientProvider client={client}>
       <AuthProvider>
         <div className="app">
-          {isResetPasswordRoute ? (
-            <ResetPasswordRoute />
-          ) : isVerifyEmailRoute ? (
-            <VerifyEmailRoute />
-          ) : isSharedRoute ? (
-            <SharedCookbookRoute />
-          ) : isPreviewRoute ? (
-            <SharedRecipePreviewRoute />
-          ) : (
-            <AppContent />
-          )}
+          <Suspense fallback={<LoadingScreen />}>
+            {isResetPasswordRoute ? (
+              <ResetPasswordRoute />
+            ) : isVerifyEmailRoute ? (
+              <VerifyEmailRoute />
+            ) : isSharedRoute ? (
+              <SharedCookbookRoute />
+            ) : isPreviewRoute ? (
+              <SharedRecipePreviewRoute />
+            ) : (
+              <AppContent />
+            )}
+          </Suspense>
         </div>
       </AuthProvider>
     </ClientProvider>
