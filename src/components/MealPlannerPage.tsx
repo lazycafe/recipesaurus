@@ -19,7 +19,7 @@ import { useClient } from '../client/ClientContext';
 import { useRecipes } from '../context/RecipeContext';
 import { useCookbooks } from '../context/CookbookContext';
 import { RecipeDetail } from './RecipeDetail';
-import type { MealPlanHistoryItem, MealPlanResult, MealPlanUsage } from '../client/types';
+import type { MealPlanHistoryItem, MealPlanMentionedRecipe, MealPlanResult, MealPlanUsage, Recipe as ClientRecipe } from '../client/types';
 import type { Recipe } from '../types/Recipe';
 import type { FormEvent, ReactNode } from 'react';
 
@@ -134,7 +134,9 @@ export function MealPlannerPage() {
   const [isCreatingCookbook, setIsCreatingCookbook] = useState(false);
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | ClientRecipe | null>(null);
+  const [selectedRecipeIsPublicView, setSelectedRecipeIsPublicView] = useState(false);
+  const [isSavingSelectedRecipe, setIsSavingSelectedRecipe] = useState(false);
   const [highlightedMealPlanId, setHighlightedMealPlanId] = useState<string | null>(null);
   const isSubmittingRef = useRef(false);
 
@@ -170,12 +172,11 @@ export function MealPlannerPage() {
   const renderSuggestion = (plan: MealPlanHistoryItem | MealPlanResult): ReactNode[] => {
     if (!plan) return [];
 
-    const linkableRecipes = plan.mentionedRecipes.filter(recipe => recipeById.has(recipe.id));
-    if (linkableRecipes.length === 0) {
+    if (plan.mentionedRecipes.length === 0) {
       return [plan.suggestion];
     }
 
-    const sortedRecipes = [...linkableRecipes].sort((a, b) => b.title.length - a.title.length);
+    const sortedRecipes = [...plan.mentionedRecipes].sort((a, b) => b.title.length - a.title.length);
     const recipeLookup = new Map(sortedRecipes.map(recipe => [recipe.title.toLowerCase(), recipe]));
     const pattern = new RegExp(`(${sortedRecipes.map(recipe => escapeRegExp(recipe.title)).join('|')})`, 'gi');
 
@@ -188,10 +189,7 @@ export function MealPlannerPage() {
           key={`${recipe.id}-${index}`}
           type="button"
           className="meal-planner-recipe-link"
-          onClick={() => {
-            const detail = recipeById.get(recipe.id);
-            if (detail) setSelectedRecipe(detail);
-          }}
+          onClick={() => void handleSelectMentionedRecipe(recipe)}
         >
           {part}
         </button>
@@ -278,7 +276,6 @@ export function MealPlannerPage() {
 
       if (result.data) {
         const createdMealPlan = result.data;
-        await refreshRecipes();
         setMealPlan(createdMealPlan);
         setHighlightedMealPlanId(createdMealPlan.id);
         setUsage(createdMealPlan.usage);
@@ -362,6 +359,54 @@ export function MealPlannerPage() {
     }
 
     setError(result.error || 'Unable to open billing right now.');
+  };
+
+  const handleSelectMentionedRecipe = async (recipe: MealPlanMentionedRecipe) => {
+    setError('');
+
+    const savedRecipe = recipeById.get(recipe.id);
+    if (savedRecipe) {
+      setSelectedRecipe(savedRecipe);
+      setSelectedRecipeIsPublicView(false);
+      return;
+    }
+
+    const result = await client.discover.getRecipe(recipe.id);
+    if (result.data?.recipe) {
+      setSelectedRecipe(result.data.recipe);
+      setSelectedRecipeIsPublicView(true);
+      return;
+    }
+
+    setError(result.error || 'Unable to open this recipe right now.');
+  };
+
+  const handleSaveSelectedRecipe = async () => {
+    if (!selectedRecipe) return;
+
+    setIsSavingSelectedRecipe(true);
+    setError('');
+
+    const result = await client.discover.saveRecipe(selectedRecipe.id);
+    if (result.data?.id) {
+      const savedCopyId = result.data.id;
+      setSelectedRecipe(recipe => (
+        recipe
+          ? { ...recipe, isSaved: true, savedCopyId } as ClientRecipe
+          : recipe
+      ));
+      await refreshRecipes();
+    } else if (result.error) {
+      setError(result.error);
+    }
+
+    setIsSavingSelectedRecipe(false);
+  };
+
+  const handleCloseRecipeDetail = () => {
+    setSelectedRecipe(null);
+    setSelectedRecipeIsPublicView(false);
+    setIsSavingSelectedRecipe(false);
   };
 
   return (
@@ -604,8 +649,13 @@ export function MealPlannerPage() {
       {selectedRecipe && (
         <RecipeDetail
           recipe={selectedRecipe}
-          onClose={() => setSelectedRecipe(null)}
-          readOnly
+          onClose={handleCloseRecipeDetail}
+          onSave={selectedRecipeIsPublicView ? handleSaveSelectedRecipe : undefined}
+          isSaving={isSavingSelectedRecipe}
+          isSaved={selectedRecipeIsPublicView && 'isSaved' in selectedRecipe ? Boolean(selectedRecipe.isSaved) : false}
+          saveLabel="Save Recipe"
+          readOnly={!selectedRecipeIsPublicView}
+          isPublicView={selectedRecipeIsPublicView}
         />
       )}
     </div>

@@ -42,6 +42,8 @@ describe('MealPlannerPage', () => {
   const mockAddRecipe = vi.fn();
   const mockRefreshRecipes = vi.fn();
   const mockRefreshCookbooks = vi.fn();
+  const mockGetDiscoverRecipe = vi.fn();
+  const mockSaveDiscoverRecipe = vi.fn();
   const mockCreateCheckoutSession = vi.fn();
   const mockCreatePortalSession = vi.fn();
   const mockOpen = vi.fn();
@@ -75,6 +77,29 @@ describe('MealPlannerPage', () => {
     mockCreateCookbook.mockResolvedValue('cookbook-1');
     mockAddRecipe.mockResolvedValue({ data: { success: true } });
     mockRefreshCookbooks.mockResolvedValue(undefined);
+    mockGetDiscoverRecipe.mockResolvedValue({
+      data: {
+        recipe: {
+          id: 'starter-1',
+          title: 'Vegetable Stir-Fry',
+          description: 'A flexible Recipesaurus starter recipe for Vegetable Stir-Fry.',
+          ingredients: ['Vegetables', 'Rice'],
+          instructions: ['Cook vegetables.', 'Serve over rice.'],
+          tags: ['Recipesaurus starter', 'Dinner'],
+          imageUrl: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=800&q=80',
+          prepTime: '15 minutes',
+          cookTime: '25 minutes',
+          servings: '4',
+          isPublic: true,
+          ownerId: 'recipesaurus-user',
+          ownerName: 'Recipesaurus',
+          isOwner: false,
+          isSaved: false,
+          createdAt: Date.now(),
+        },
+      },
+    });
+    mockSaveDiscoverRecipe.mockResolvedValue({ data: { id: 'saved-starter-1' } });
     mockCreateCheckoutSession.mockResolvedValue({ data: { url: 'https://checkout.stripe.test/session' } });
     mockCreatePortalSession.mockResolvedValue({ data: { url: 'https://billing.stripe.test/session' } });
     Object.defineProperty(window, 'open', {
@@ -95,6 +120,10 @@ describe('MealPlannerPage', () => {
       },
       cookbooks: {
         addRecipe: mockAddRecipe,
+      },
+      discover: {
+        getRecipe: mockGetDiscoverRecipe,
+        saveRecipe: mockSaveDiscoverRecipe,
       },
     } as unknown as IClient);
 
@@ -151,13 +180,48 @@ describe('MealPlannerPage', () => {
 
     await waitFor(() => {
       expect(mockCreateMealPlan).toHaveBeenCalledWith(samplePrompt);
-      expect(mockRefreshRecipes).toHaveBeenCalled();
       expect(screen.getAllByText(/Herb-Crusted Chicken/i).length).toBeGreaterThan(0);
     });
     expect(screen.getByRole('heading', { name: 'Suggestions' }).closest('section')?.className).toContain('is-highlighted');
     expect(screen.getAllByRole('button', { name: 'Herb-Crusted Chicken' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Create Cookbook/i })).toBeDefined();
     expect(screen.queryByText('AI meal plan draft')).toBeNull();
+  });
+
+  it('opens public starter recipes from suggestion links without refreshing user recipes', async () => {
+    mockCreateMealPlan.mockResolvedValue({
+      data: {
+        id: 'meal-plan-1',
+        prompt: samplePrompt,
+        suggestion: 'Monday: New idea: Vegetable Stir-Fry - flexible vegetables over rice',
+        mentionedRecipes: [{ id: 'starter-1', title: 'Vegetable Stir-Fry' }],
+        cookbookName: 'Healthy Dinner Meal Plan',
+        createdAt: Date.now(),
+        usage: usage(1),
+        recipeCount: 2,
+      },
+    });
+
+    renderMealPlanner();
+
+    await waitFor(() => {
+      expect(screen.getByText(/2 requests remaining this week/)).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Get Suggestions/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Vegetable Stir-Fry' })).toBeDefined();
+    });
+    expect(mockRefreshRecipes).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Vegetable Stir-Fry' }));
+
+    await waitFor(() => {
+      expect(mockGetDiscoverRecipe).toHaveBeenCalledWith('starter-1');
+      expect(screen.getByText('A flexible Recipesaurus starter recipe for Vegetable Stir-Fry.')).toBeDefined();
+    });
+    expect(screen.getByText(/by Recipesaurus/i)).toBeDefined();
   });
 
   it('keeps previous meal planning responses collapsed until opened', async () => {

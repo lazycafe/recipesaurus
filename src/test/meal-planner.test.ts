@@ -47,11 +47,19 @@ describe('AI meal planner API', () => {
       expect(first.data?.usage.remainingRequests).toBe(1);
 
       const recipesAfterPlan = await client.recipes.list();
-      const generatedRecipe = recipesAfterPlan.data?.recipes.find(recipe => recipe.title === 'Vegetable Stir-Fry');
-      expect(generatedRecipe).toBeDefined();
-      expect(generatedRecipe?.description).toContain('Starter recipe created from an AI meal planner suggestion');
-      expect(generatedRecipe?.tags).toContain('AI meal planner');
-      expect(generatedRecipe?.isPublic).toBe(false);
+      expect(recipesAfterPlan.data?.recipes.find(recipe => recipe.title === 'Vegetable Stir-Fry')).toBeUndefined();
+
+      const generatedMention = first.data?.mentionedRecipes.find(recipe => recipe.title === 'Vegetable Stir-Fry');
+      const generatedRecipe = await client.discover.getRecipe(generatedMention?.id || '');
+      expect(generatedRecipe.data?.recipe).toMatchObject({
+        title: 'Vegetable Stir-Fry',
+        ownerName: 'Recipesaurus',
+        isPublic: true,
+        imageUrl: expect.stringContaining('images.unsplash.com'),
+      });
+      expect(generatedRecipe.data?.recipe.description).not.toMatch(/ai meal planner/i);
+      expect(generatedRecipe.data?.recipe.instructions.join(' ')).not.toMatch(/ai meal planner/i);
+      expect(generatedRecipe.data?.recipe.tags.join(' ')).not.toMatch(/ai meal planner/i);
 
       const second = await client.ai.createMealPlan('Plan two quick lunches.');
       expect(second.error).toBeUndefined();
@@ -153,10 +161,13 @@ describe('AI meal planner API', () => {
     expect(drafts).toHaveLength(1);
     expect(drafts[0]).toMatchObject({
       title: 'Vegetable Stir-Fry',
+      imageUrl: expect.stringContaining('images.unsplash.com'),
       prepTime: '15 minutes',
       cookTime: '25 minutes',
       servings: '4',
     });
+    expect(drafts[0].description).not.toMatch(/ai meal planner/i);
+    expect(drafts[0].instructions.join(' ')).not.toMatch(/ai meal planner/i);
   });
 
   it('detects OpenAI responses that need continuation', () => {

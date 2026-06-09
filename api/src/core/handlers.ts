@@ -32,6 +32,8 @@ import {
   MEAL_PLAN_WEEK_MS,
   MEAL_PLAN_INVALID_REQUEST_CODE,
   MEAL_PLAN_LIMIT_CODE,
+  MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL,
+  MEAL_PLAN_STARTER_RECIPE_OWNER_NAME,
   MEAL_PLAN_UNAUTHORIZED_CODE,
   type MealPlanRecipeContext,
   type MealPlanGeneratedRecipeDraft,
@@ -1291,8 +1293,9 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401, code: MEAL_PLAN_UNAUTHORIZED_CODE };
     }
 
-    const [recipes, requests] = await Promise.all([
+    const [recipes, starterRecipes, requests] = await Promise.all([
       this.getMealPlanRecipes(user.id),
+      this.getMealPlanStarterRecipes(),
       this.db.all<DbAiMealPlanRequest>(
         `SELECT id, user_id, prompt, response, created_at
          FROM ai_meal_plan_requests
@@ -1311,7 +1314,7 @@ export class CoreHandlers {
           row.prompt,
           row.response,
           row.created_at,
-          recipes
+          [...recipes, ...starterRecipes]
         )),
       },
       status: 200,
@@ -1341,6 +1344,57 @@ export class CoreHandlers {
     }));
   }
 
+  private async getMealPlanStarterRecipeOwner(): Promise<{ id: string } | null> {
+    return this.db.get<{ id: string }>(
+      'SELECT id FROM users WHERE email = ?',
+      MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL
+    );
+  }
+
+  private async getOrCreateMealPlanStarterRecipeOwner(now: number): Promise<{ id: string }> {
+    const existing = await this.getMealPlanStarterRecipeOwner();
+    if (existing) {
+      await this.db.run(
+        'UPDATE users SET name = ? WHERE id = ?',
+        MEAL_PLAN_STARTER_RECIPE_OWNER_NAME,
+        existing.id
+      );
+      return existing;
+    }
+
+    const userId = this.crypto.generateId();
+    await this.db.run(
+      'INSERT INTO users (id, email, name, avatar_url, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      userId,
+      MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL,
+      MEAL_PLAN_STARTER_RECIPE_OWNER_NAME,
+      null,
+      'recipesaurus-system-user',
+      'recipesaurus-system-user',
+      now
+    );
+
+    return { id: userId };
+  }
+
+  private async getMealPlanStarterRecipes(): Promise<MealPlanRecipeContext[]> {
+    const owner = await this.getMealPlanStarterRecipeOwner();
+    if (!owner) {
+      return [];
+    }
+
+    const recipes = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
+      `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+       FROM recipes
+       WHERE user_id = ? AND owner_id = ? AND is_public = 1
+       ORDER BY created_at DESC`,
+      owner.id,
+      owner.id
+    );
+
+    return recipes.results.map(recipe => this.toMealPlanRecipeContext(recipe));
+  }
+
   private toMealPlanRecipeContext(
     recipe: Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>
   ): MealPlanRecipeContext {
@@ -1357,7 +1411,6 @@ export class CoreHandlers {
   }
 
   private async createMealPlanGeneratedRecipes(
-    userId: string,
     request: string,
     suggestion: string,
     recipes: MealPlanRecipeContext[],
@@ -1368,12 +1421,14 @@ export class CoreHandlers {
       return [];
     }
 
+    const starterOwner = await this.getOrCreateMealPlanStarterRecipeOwner(now);
     const existingRows = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
       `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
        FROM recipes
-       WHERE user_id = ?
+       WHERE user_id = ? AND owner_id = ? AND is_public = 1
        ORDER BY created_at DESC`,
-      userId
+      starterOwner.id,
+      starterOwner.id
     );
     const existingRecipesByTitle = new Map<string, MealPlanRecipeContext>();
 
@@ -1395,7 +1450,7 @@ export class CoreHandlers {
       }
 
       const recipeId = this.crypto.generateId();
-      await this.insertMealPlanGeneratedRecipe(userId, recipeId, draft, now);
+      await this.insertMealPlanGeneratedRecipe(starterOwner.id, recipeId, draft, now);
       const recipeContext: MealPlanRecipeContext = {
         id: recipeId,
         title: draft.title,
@@ -1415,7 +1470,7 @@ export class CoreHandlers {
   }
 
   private async insertMealPlanGeneratedRecipe(
-    userId: string,
+    starterOwnerId: string,
     recipeId: string,
     draft: MealPlanGeneratedRecipeDraft,
     now: number
@@ -1424,19 +1479,19 @@ export class CoreHandlers {
       `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       recipeId,
-      userId,
-      userId,
+      starterOwnerId,
+      starterOwnerId,
       draft.title,
       draft.description,
       JSON.stringify(draft.ingredients),
       JSON.stringify(draft.instructions),
       JSON.stringify(draft.tags),
-      null,
+      draft.imageUrl,
       null,
       draft.prepTime,
       draft.cookTime,
       draft.servings,
-      0,
+      1,
       now
     );
   }
@@ -1467,7 +1522,7 @@ export class CoreHandlers {
     const recipes = await this.getMealPlanRecipes(user.id);
     const suggestion = buildFallbackMealPlan(request, recipes);
     const now = Date.now();
-    const generatedRecipes = await this.createMealPlanGeneratedRecipes(user.id, request, suggestion, recipes, now);
+    const generatedRecipes = await this.createMealPlanGeneratedRecipes(request, suggestion, recipes, now);
     const recipesForLinks = [...recipes, ...generatedRecipes];
     const details = buildMealPlanSuggestionDetails(request, suggestion, recipesForLinks);
     const id = this.crypto.generateId();
