@@ -218,7 +218,7 @@ export const cookbooksApi = {
     });
   },
 
-  async update(id: string, data: { name?: string; description?: string; coverImage?: string }): Promise<ApiResponse<{ success: boolean }>> {
+  async update(id: string, data: { name?: string; description?: string; coverImage?: string | null }): Promise<ApiResponse<{ success: boolean }>> {
     return request(`/api/cookbooks/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),

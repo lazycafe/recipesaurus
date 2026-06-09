@@ -193,10 +193,17 @@ export function CookbookDetailPage() {
     clearRecipeParam();
   };
 
-  const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => {
+  const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string | null; isPublic?: boolean }) => {
     if (cookbook) {
-      await updateCookbook(cookbook.id, data);
-      setCookbook({ ...cookbook, ...data });
+      const success = await updateCookbook(cookbook.id, data);
+      if (!success) {
+        throw new Error('Failed to save cookbook. Please try again.');
+      }
+      setCookbook({
+        ...cookbook,
+        ...data,
+        coverImage: data.coverImage ?? undefined,
+      });
       setShowEditModal(false);
     }
   };
@@ -501,7 +508,13 @@ export function CookbookDetailPage() {
         <CookbookModal
           onClose={() => setShowCreateCookbookModal(false)}
           onSubmit={async (data) => {
-            await createCookbook(data);
+            const cookbookId = await createCookbook({
+              ...data,
+              coverImage: data.coverImage ?? undefined,
+            });
+            if (!cookbookId) {
+              throw new Error('Failed to save cookbook. Please try again.');
+            }
             setShowCreateCookbookModal(false);
           }}
         />

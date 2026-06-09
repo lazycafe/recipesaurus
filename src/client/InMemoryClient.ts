@@ -53,7 +53,7 @@ export interface ICoreHandlers {
   getCookbooks(ctx: RequestContext): Promise<ApiResult<{ owned: Cookbook[]; shared: Cookbook[] }>>;
   getCookbook(ctx: RequestContext, id: string): Promise<ApiResult<{ cookbook: Cookbook; recipes: Recipe[] }>>;
   createCookbook(ctx: RequestContext, data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }): Promise<ApiResult<{ id: string }>>;
-  updateCookbook(ctx: RequestContext, id: string, data: { name?: string; description?: string; coverImage?: string; isPublic?: boolean }): Promise<ApiResult<{ success: boolean }>>;
+  updateCookbook(ctx: RequestContext, id: string, data: { name?: string; description?: string; coverImage?: string | null; isPublic?: boolean }): Promise<ApiResult<{ success: boolean }>>;
   deleteCookbook(ctx: RequestContext, id: string): Promise<ApiResult<{ success: boolean }>>;
   addRecipeToCookbook(ctx: RequestContext, cookbookId: string, recipeId: string): Promise<ApiResult<{ success: boolean }>>;
   removeRecipeFromCookbook(ctx: RequestContext, cookbookId: string, recipeId: string): Promise<ApiResult<{ success: boolean }>>;

@@ -125,7 +125,7 @@ export interface CreateCookbookData {
 export interface UpdateCookbookData {
   name?: string;
   description?: string;
-  coverImage?: string;
+  coverImage?: string | null;
   isPublic?: boolean;
 }
 

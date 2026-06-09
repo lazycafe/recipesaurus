@@ -86,8 +86,14 @@ function RecipeApp() {
   const [showCookbookModal, setShowCookbookModal] = useState(false);
   const [showRecipeModal, setShowRecipeModal] = useState(false);
 
-  const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => {
-    await createCookbook(data);
+  const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string | null; isPublic?: boolean }) => {
+    const cookbookId = await createCookbook({
+      ...data,
+      coverImage: data.coverImage ?? undefined,
+    });
+    if (!cookbookId) {
+      throw new Error('Failed to save cookbook. Please try again.');
+    }
   };
 
   const handleAddRecipe = async (formData: RecipeFormData) => {
