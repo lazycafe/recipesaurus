@@ -9,7 +9,7 @@ interface CookbookContextType {
   sharedCookbooks: Cookbook[];
   isLoading: boolean;
   createCookbook: (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => Promise<string | null>;
-  updateCookbook: (id: string, data: { name?: string; description?: string; coverImage?: string; isPublic?: boolean }) => Promise<boolean>;
+  updateCookbook: (id: string, data: { name?: string; description?: string; coverImage?: string | null; isPublic?: boolean }) => Promise<boolean>;
   deleteCookbook: (id: string) => Promise<boolean>;
   leaveCookbook: (id: string) => Promise<boolean>;
   addRecipeToCookbook: (cookbookId: string, recipeId: string) => Promise<boolean>;
@@ -80,7 +80,7 @@ export function CookbookProvider({ children }: { children: ReactNode }) {
     return data.id;
   }, [client, refreshCookbooks]);
 
-  const updateCookbook = useCallback(async (id: string, data: { name?: string; description?: string; coverImage?: string; isPublic?: boolean }): Promise<boolean> => {
+  const updateCookbook = useCallback(async (id: string, data: { name?: string; description?: string; coverImage?: string | null; isPublic?: boolean }): Promise<boolean> => {
     const { error } = await client.cookbooks.update(id, data);
     if (error) {
       console.error('Failed to update cookbook:', error);

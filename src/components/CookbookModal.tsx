@@ -5,11 +5,12 @@ import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
 import { ConfirmModal } from './ConfirmModal';
 import { VisibilityToggle } from './VisibilityToggle';
+import { COOKBOOK_COVER_IMAGE_OPTIONS, fileToCompressedDataUrl } from '../utils/imageUpload';
 
 interface CookbookModalProps {
   cookbook?: Cookbook;
   onClose: () => void;
-  onSubmit: (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => Promise<void>;
+  onSubmit: (data: { name: string; description?: string; coverImage?: string | null; isPublic?: boolean }) => Promise<void>;
   onDelete?: () => void;
 }
 
@@ -19,6 +20,7 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
   const [coverImage, setCoverImage] = useState(cookbook?.coverImage || '');
   const [isPublic, setIsPublic] = useState(cookbook?.isPublic || false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -39,19 +41,23 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Image must be less than 5MB');
-        return;
-      }
+      setIsProcessingImage(true);
+      setError('');
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCoverImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const dataUrl = await fileToCompressedDataUrl(file, COOKBOOK_COVER_IMAGE_OPTIONS);
+        setCoverImage(dataUrl);
+      } catch (uploadError) {
+        setError(uploadError instanceof Error ? uploadError.message : 'Failed to prepare image.');
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } finally {
+        setIsProcessingImage(false);
+      }
     }
   };
 
@@ -72,19 +78,22 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
       return;
     }
 
+    if (isProcessingImage) return;
+
     setIsLoading(true);
     setError('');
 
     try {
+      const trimmedCoverImage = coverImage.trim();
       await onSubmit({
         name: name.trim(),
         description: description.trim() || undefined,
-        coverImage: coverImage.trim() || undefined,
+        coverImage: trimmedCoverImage || (isEditing ? null : undefined),
         isPublic,
       });
       onClose();
-    } catch {
-      setError('Failed to save cookbook. Please try again.');
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save cookbook. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -156,7 +165,7 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
               onChange={handleImageUpload}
               className="file-input-hidden"
               id="cookbook-cover-upload"
-              disabled={isLoading}
+              disabled={isLoading || isProcessingImage}
             />
 
             {coverImage ? (
@@ -167,6 +176,7 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
                   className="image-remove"
                   onClick={handleRemoveImage}
                   aria-label="Remove image"
+                  disabled={isLoading || isProcessingImage}
                 >
                   <X size={16} strokeWidth={2} />
                 </button>
@@ -196,11 +206,11 @@ export function CookbookModal({ cookbook, onClose, onSubmit, onDelete }: Cookboo
             </div>
           </div>
 
-          <button type="submit" className="btn-submit" disabled={isLoading}>
-            {isLoading ? (
+          <button type="submit" className="btn-submit" disabled={isLoading || isProcessingImage}>
+            {isLoading || isProcessingImage ? (
               <>
                 <Loader2 size={18} className="spin" />
-                Saving...
+                {isProcessingImage ? 'Preparing image...' : 'Saving...'}
               </>
             ) : (
               isEditing ? 'Save Changes' : 'Create Cookbook'

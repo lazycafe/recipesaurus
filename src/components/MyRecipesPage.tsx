@@ -351,7 +351,13 @@ export function MyRecipesPage() {
         <CookbookModal
           onClose={() => setShowCreateCookbookModal(false)}
           onSubmit={async (data) => {
-            await createCookbook(data);
+            const cookbookId = await createCookbook({
+              ...data,
+              coverImage: data.coverImage ?? undefined,
+            });
+            if (!cookbookId) {
+              throw new Error('Failed to save cookbook. Please try again.');
+            }
             setShowCreateCookbookModal(false);
           }}
         />

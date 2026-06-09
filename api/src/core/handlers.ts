@@ -1254,7 +1254,7 @@ export class CoreHandlers {
   async updateCookbook(
     ctx: RequestContext,
     cookbookId: string,
-    data: { name?: string; description?: string; coverImage?: string; isPublic?: boolean }
+    data: { name?: string; description?: string; coverImage?: string | null; isPublic?: boolean }
   ): Promise<ApiResult<{ success: boolean }>> {
     const user = await this.getSessionUser(ctx);
     if (!user) {

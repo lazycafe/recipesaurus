@@ -141,6 +141,39 @@ describe('Cookbooks with React components', () => {
       expect(result.data!.recipes[0].title).toBe('Test Recipe');
     });
 
+    it('should persist cookbook cover images through create and update', async () => {
+      await harness.seedUser('test@example.com', 'Password123', 'Test User');
+      const client = harness.getClient();
+      const firstCover = 'data:image/jpeg;base64,first-cover';
+      const secondCover = 'data:image/jpeg;base64,second-cover';
+
+      const createResult = await client.cookbooks.create({
+        name: 'Covered Cookbook',
+        coverImage: firstCover,
+      });
+      const cookbookId = createResult.data!.id;
+
+      const listResult = await client.cookbooks.list();
+      expect(listResult.data!.owned.find(cookbook => cookbook.id === cookbookId)?.coverImage).toBe(firstCover);
+
+      let getResult = await client.cookbooks.get(cookbookId);
+      expect(getResult.data!.cookbook.coverImage).toBe(firstCover);
+
+      const updateResult = await client.cookbooks.update(cookbookId, {
+        coverImage: secondCover,
+      });
+      expect(updateResult.data!.success).toBe(true);
+
+      getResult = await client.cookbooks.get(cookbookId);
+      expect(getResult.data!.cookbook.coverImage).toBe(secondCover);
+
+      await client.cookbooks.update(cookbookId, {
+        coverImage: null,
+      });
+      getResult = await client.cookbooks.get(cookbookId);
+      expect(getResult.data!.cookbook.coverImage).toBeNull();
+    });
+
     it('should get cookbooks containing a recipe', async () => {
       await harness.seedUser('test@example.com', 'Password123', 'Test User');
       const recipeId = await harness.seedRecipe({ title: 'Test Recipe' });
