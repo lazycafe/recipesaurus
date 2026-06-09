@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { CookbookDetailPage } from './CookbookDetailPage';
 import * as ClientContext from '../client/ClientContext';
 import * as CookbookContext from '../context/CookbookContext';
 import * as RecipeContext from '../context/RecipeContext';
-import type { IClient, Cookbook, Recipe } from '../client/types';
+import type { IClient, Cookbook as ClientCookbook, Recipe as ClientRecipe } from '../client/types';
+import type { Cookbook as ViewCookbook } from '../types/Cookbook';
 
 vi.mock('../client/ClientContext', () => ({
   useClient: vi.fn(),
@@ -19,59 +20,67 @@ vi.mock('../context/RecipeContext', () => ({
   useRecipes: vi.fn(),
 }));
 
+function LocationDisplay() {
+  const location = useLocation();
+  return <div data-testid="location">{location.pathname}{location.search}</div>;
+}
+
 describe('CookbookDetailPage', () => {
-  const mockCookbook: Cookbook = {
+  const cookbook: ClientCookbook = {
     id: 'cookbook-1',
-    ownerId: 'user-1',
-    name: 'Dinner',
-    description: 'Weeknight dinners',
+    ownerId: 'owner-1',
+    name: 'Weeknight Dinners',
+    description: 'Fast meals',
     recipeCount: 1,
     isSystem: false,
+    systemType: null,
     isPublic: false,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    isOwner: true,
-    ownerName: 'Test User',
+    createdAt: 1,
+    updatedAt: 2,
+    isOwner: false,
+    ownerName: 'Alex',
   };
 
-  const mockRecipe: Recipe = {
+  const recipe: ClientRecipe = {
     id: 'recipe-1',
-    title: 'Pasta',
-    description: 'A cozy pasta dinner',
-    ingredients: ['noodles', 'tomato sauce'],
-    instructions: ['Boil pasta', 'Add sauce'],
+    title: 'Pesto Pasta',
+    description: 'A fast pasta dinner',
+    ingredients: ['pasta', 'pesto'],
+    instructions: ['Boil pasta', 'Toss with pesto'],
     tags: ['dinner'],
-    imageUrl: null,
-    sourceUrl: null,
-    prepTime: null,
-    cookTime: null,
-    servings: null,
-    isPublic: false,
-    ownerId: 'user-1',
-    ownerName: 'Test User',
-    isOwner: true,
-    createdAt: Date.now(),
-    addedByUserId: 'user-1',
-    addedByUserName: 'Test User',
+    createdAt: 3,
+    isOwner: false,
   };
+
+  const viewCookbook: ViewCookbook = {
+    ...cookbook,
+    description: cookbook.description ?? undefined,
+  };
+
+  const getCookbook = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    getCookbook.mockReset();
+    getCookbook.mockResolvedValue({
+      data: {
+        cookbook,
+        recipes: [recipe],
+      },
+    });
 
     vi.mocked(ClientContext.useClient).mockReturnValue({
       cookbooks: {
-        get: vi.fn().mockResolvedValue({
-          data: {
-            cookbook: mockCookbook,
-            recipes: [mockRecipe],
-          },
-        }),
+        get: getCookbook,
+        addRecipe: vi.fn(),
+      },
+      recipes: {
+        create: vi.fn(),
       },
     } as unknown as IClient);
 
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
       ownedCookbooks: [],
-      sharedCookbooks: [],
+      sharedCookbooks: [viewCookbook],
       isLoading: false,
       createCookbook: vi.fn(),
       updateCookbook: vi.fn(),
@@ -93,16 +102,33 @@ describe('CookbookDetailPage', () => {
     });
   });
 
-  it('opens a recipe detail from the recipeId URL param', async () => {
+  it('opens recipe details from the recipeId query param', async () => {
     render(
       <MemoryRouter initialEntries={['/cookbooks/cookbook-1?recipeId=recipe-1']}>
         <Routes>
-          <Route path="/cookbooks/:id" element={<CookbookDetailPage />} />
+          <Route
+            path="/cookbooks/:id"
+            element={
+              <>
+                <CookbookDetailPage />
+                <LocationDisplay />
+              </>
+            }
+          />
         </Routes>
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('noodles')).toBeDefined();
-    expect(screen.getByText('Ingredients')).toBeDefined();
+    await waitFor(() => {
+      expect(getCookbook).toHaveBeenCalledWith('cookbook-1');
+      expect(document.body.querySelector('.modal-detail .detail-title')?.textContent).toBe('Pesto Pasta');
+    });
+
+    fireEvent.click(screen.getByLabelText('Close'));
+
+    await waitFor(() => {
+      expect(document.body.querySelector('.modal-detail')).toBeNull();
+      expect(screen.getByTestId('location').textContent).toBe('/cookbooks/cookbook-1');
+    });
   });
 });

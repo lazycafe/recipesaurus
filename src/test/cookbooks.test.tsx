@@ -305,6 +305,39 @@ describe('Cookbooks with React components', () => {
       expect(afterAccept.data!.shared[0].name).toBe('My Cookbook');
     });
 
+    it('should notify cookbook collaborators when a recipe is added', async () => {
+      const ownerClient = harness.createClient();
+      await ownerClient.auth.register('owner@example.com', 'Owner', 'Password123');
+      const cookbookResult = await ownerClient.cookbooks.create({ name: 'Shared Dinners' });
+      const cookbookId = cookbookResult.data!.id;
+
+      const sharedClient = harness.createClient();
+      await sharedClient.auth.register('shared@example.com', 'Shared User', 'Password123');
+      const recipeResult = await sharedClient.recipes.create({
+        title: 'Pesto Pasta',
+        description: 'A fast pasta dinner',
+        ingredients: ['pasta', 'pesto'],
+        instructions: ['Boil pasta', 'Toss with pesto'],
+        tags: ['dinner'],
+      });
+      const recipeId = recipeResult.data!.id;
+
+      await ownerClient.cookbooks.shareByEmail(cookbookId, 'shared@example.com');
+      const inviteNotifications = await sharedClient.notifications.list();
+      const inviteId = inviteNotifications.data!.notifications[0].data?.inviteId!;
+      await sharedClient.invites.accept(inviteId);
+
+      await sharedClient.cookbooks.addRecipe(cookbookId, recipeId);
+
+      const ownerNotifications = await ownerClient.notifications.list();
+      const recipeNotification = ownerNotifications.data!.notifications.find(n => n.type === 'recipe_added');
+
+      expect(recipeNotification).toBeDefined();
+      expect(recipeNotification?.message).toContain('Pesto Pasta');
+      expect(recipeNotification?.data?.cookbookId).toBe(cookbookId);
+      expect(recipeNotification?.data?.recipeId).toBe(recipeId);
+    });
+
     it('should allow recipient to decline invite', async () => {
       // Create owner
       const ownerClient = harness.createClient();

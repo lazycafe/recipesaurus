@@ -131,25 +131,16 @@ export function CookbookDetailPage() {
     fetchCookbook();
   }, [id, client]);
 
-  useEffect(() => {
-    const recipeId = searchParams.get('recipeId');
-    if (!recipeId || recipes.length === 0) return;
+  const requestedRecipeId = searchParams.get('recipeId') ?? searchParams.get('recipe');
 
-    const recipe = recipes.find(item => item.id === recipeId);
+  useEffect(() => {
+    if (!requestedRecipeId || recipes.length === 0) return;
+
+    const recipe = recipes.find(item => item.id === requestedRecipeId);
     if (recipe) {
       setSelectedRecipe(current => (current?.id === recipe.id ? current : recipe));
     }
-  }, [recipes, searchParams]);
-
-  const handleCloseSelectedRecipe = () => {
-    setSelectedRecipe(null);
-
-    if (searchParams.has('recipeId')) {
-      const nextParams = new URLSearchParams(searchParams);
-      nextParams.delete('recipeId');
-      setSearchParams(nextParams, { replace: true });
-    }
-  };
+  }, [recipes, requestedRecipeId]);
 
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -186,6 +177,20 @@ export function CookbookDetailPage() {
   const handleClearFilters = () => {
     setSearchQuery('');
     setSelectedTags([]);
+  };
+
+  const clearRecipeParam = () => {
+    if (!searchParams.has('recipeId') && !searchParams.has('recipe')) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('recipeId');
+    nextParams.delete('recipe');
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const handleCloseRecipeDetail = () => {
+    setSelectedRecipe(null);
+    clearRecipeParam();
   };
 
   const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => {
@@ -234,6 +239,7 @@ export function CookbookDetailPage() {
       setRecipes(prev => prev.filter(r => r.id !== recipeToDelete.id));
       setRecipeToDelete(null);
       setSelectedRecipe(null);
+      clearRecipeParam();
     } catch (error) {
       console.error('Failed to delete recipe:', error);
     }
@@ -425,10 +431,10 @@ export function CookbookDetailPage() {
       {selectedRecipe && (
         <RecipeDetail
           recipe={selectedRecipe}
-          onClose={handleCloseSelectedRecipe}
+          onClose={handleCloseRecipeDetail}
           onEdit={selectedRecipe.isOwner ? () => {
             setEditingRecipe(selectedRecipe);
-            setSelectedRecipe(null);
+            handleCloseRecipeDetail();
           } : undefined}
           onDelete={selectedRecipe.isOwner ? () => {
             setRecipeToDelete(selectedRecipe);
