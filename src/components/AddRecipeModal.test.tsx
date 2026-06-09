@@ -83,12 +83,12 @@ describe('AddRecipeModal', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       title: 'Imported Soup',
-      tags: 'soup, dinner',
+      tags: '',
       imageUrl: 'https://example.com/noodles.jpg',
     }));
   });
 
-  it('only preselects suggested tags when importing from a URL', async () => {
+  it('does not preselect extracted tags when importing from a URL', async () => {
     const onSubmit = vi.fn();
     vi.spyOn(recipeExtractor, 'fetchAndExtractRecipe').mockResolvedValue({
       title: 'Imported Chicken Bowl',
@@ -113,11 +113,11 @@ describe('AddRecipeModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Recipe' }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      tags: 'lunch, healthy',
+      tags: '',
     }));
   });
 
-  it('infers matching suggested tags when importing from a URL', async () => {
+  it('does not infer suggested tags when importing from a URL', async () => {
     const onSubmit = vi.fn();
     vi.spyOn(recipeExtractor, 'fetchAndExtractRecipe').mockResolvedValue({
       title: 'Easy Vegan Chocolate Cake',
@@ -141,7 +141,7 @@ describe('AddRecipeModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Recipe' }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
-      tags: 'dessert, vegetarian, vegan, gluten-free, quick',
+      tags: '',
     }));
   });
 });

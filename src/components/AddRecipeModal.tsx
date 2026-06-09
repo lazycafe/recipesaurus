@@ -7,7 +7,6 @@ import { ConfirmModal } from './ConfirmModal';
 import { TagInput } from './TagInput';
 import { VisibilityToggle } from './VisibilityToggle';
 import { fetchAndExtractRecipe, type ExtractedRecipeImage } from '../utils/recipeExtractor';
-import { inferSuggestedRecipeTags } from '../utils/tagInference';
 
 interface AddRecipeModalProps {
   recipe?: Recipe;
@@ -150,14 +149,12 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
       if (selectedImageUrl) {
         setImagePreview(selectedImageUrl);
       }
-      const importedSuggestedTags = inferSuggestedRecipeTags(extracted, suggestedTags);
       setFormData(prev => ({
         ...prev,
         title: extracted.title || prev.title,
         description: extracted.description || prev.description,
         ingredients: extracted.ingredients?.join('\n') || prev.ingredients,
         instructions: extracted.instructions?.join('\n') || prev.instructions,
-        tags: importedSuggestedTags.length > 0 ? importedSuggestedTags.join(', ') : prev.tags,
         prepTime: extracted.prepTime || prev.prepTime,
         cookTime: extracted.cookTime || prev.cookTime,
         servings: extracted.servings || prev.servings,
