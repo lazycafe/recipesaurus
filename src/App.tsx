@@ -30,6 +30,7 @@ import { PublicCookbookDetailPage } from './components/PublicCookbookDetailPage'
 import { MyRecipesPage } from './components/MyRecipesPage';
 import { MealPlannerPage } from './components/MealPlannerPage';
 import { ProfilePage } from './components/ProfilePage';
+import { PendingPublicHomeRecipeSave } from './components/PendingPublicHomeRecipeSave';
 import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
 
@@ -116,6 +117,7 @@ function RecipeApp() {
   return (
     <>
       <ScrollToTop />
+      <PendingPublicHomeRecipeSave />
       <Header
         onCreateRecipe={() => setShowRecipeModal(true)}
         onCreateCookbook={() => setShowCookbookModal(true)}

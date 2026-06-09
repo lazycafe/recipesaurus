@@ -32,6 +32,7 @@ describe('PublicHomePage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionStorage.clear();
     // Mock fetch for recipe extraction
     vi.spyOn(window, 'fetch').mockResolvedValue({
       ok: true,
@@ -98,6 +99,10 @@ describe('PublicHomePage', () => {
     fireEvent.click(screen.getByText('Save Recipe'));
 
     expect(mockOnSignUp).toHaveBeenCalledTimes(1);
+    expect(sessionStorage.getItem('pendingPublicHomeRecipeSave')).toBe(JSON.stringify({
+      recipeId: 'sample-1',
+      title: 'Creamy Tuscan Chicken',
+    }));
   });
 
   it('renders Get Started Free buttons', () => {

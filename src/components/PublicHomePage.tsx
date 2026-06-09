@@ -9,6 +9,7 @@ import { useOptionalClient } from '../client/ClientContext';
 import { defaultClient } from '../client/defaultClient';
 import type { Recipe } from '../client/types';
 import { SAMPLE_RECIPES } from '../data/sampleRecipes';
+import { storePendingPublicHomeRecipeSave } from '../utils/pendingPublicHomeRecipeSave';
 
 interface ExtractedRecipe {
   title: string;
@@ -140,6 +141,9 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
   };
 
   const handleSaveDiscoverRecipe = () => {
+    if (selectedDiscoverRecipe) {
+      storePendingPublicHomeRecipeSave(selectedDiscoverRecipe);
+    }
     setSelectedDiscoverRecipe(null);
     onSignUp();
   };
