@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp } from 'lucide-react';
+import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp, Compass, Users } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -391,6 +391,10 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
 
   const hasMoreRecipes = uniqueRecipes.length < recipesTotal;
   const hasMoreCookbooks = uniqueCookbooks.length < cookbooksTotal;
+  const activeCollectionLabel = tab === 'recipes' ? 'Community recipes' : 'Shared cookbooks';
+  const activeCollectionDescription = tab === 'recipes'
+    ? 'Fresh public recipes from cooks across Recipesaurus.'
+    : 'Public cookbook collections curated by the community.';
 
   const { loadMoreRef: recipesLoadMoreRef } = useInfiniteScroll({
     onLoadMore: loadMoreRecipes,
@@ -406,65 +410,103 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
 
   return (
     <div className="discovery-page">
-      <div className="discovery-header">
-        <h1>
-          <TrendingUp size={28} />
-          Discover
-        </h1>
-        <p>Explore recipes and cookbooks from the community, then save favorites for meal planning</p>
-      </div>
-
-      <div className="discovery-search">
-        <div className="search-input-wrapper">
-          <Search size={20} />
-          <input
-            type="text"
-            placeholder="Search recipes and cookbooks..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      <section className="discovery-header discovery-hero" aria-labelledby="discover-heading">
+        <div className="discovery-hero-copy">
+          <span className="discovery-eyebrow">
+            <Compass size={16} />
+            Community Discover
+          </span>
+          <h1 id="discover-heading">
+            <TrendingUp size={30} />
+            Discover
+          </h1>
+          <p>Public recipes and cookbook collections from the Recipesaurus community.</p>
         </div>
-      </div>
 
-      <div className="discovery-tags">
-        <span className="tags-label">Trending:</span>
-        {TRENDING_TAGS.map(tag => (
-          <button
-            key={tag}
-            className={`tag-btn ${selectedTags.includes(tag) ? 'active' : ''}`}
-            onClick={() => handleTagClick(tag)}
+        <div className="discovery-hero-stats" aria-label="Discover totals">
+          <span className="discovery-stat">
+            <ChefHat size={20} />
+            <span>
+              <strong>{recipesTotal.toLocaleString()}</strong>
+              public recipes
+            </span>
+          </span>
+          <span className="discovery-stat">
+            <BookOpen size={20} />
+            <span>
+              <strong>{cookbooksTotal.toLocaleString()}</strong>
+              shared cookbooks
+            </span>
+          </span>
+        </div>
+      </section>
+
+      <div className="discovery-tools" aria-label="Discover filters">
+        <div className="discovery-tools-label">
+          <Users size={16} />
+          <span>Community library</span>
+        </div>
+
+        <div className="discovery-search">
+          <div className="search-input-wrapper">
+            <Search size={20} />
+            <input
+              type="text"
+              placeholder="Search recipes and cookbooks..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="discovery-tags">
+          <span className="tags-label">Trending:</span>
+          {TRENDING_TAGS.map(tag => (
+            <button
+              key={tag}
+              className={`tag-btn ${selectedTags.includes(tag) ? 'active' : ''}`}
+              onClick={() => handleTagClick(tag)}
+            >
+              {tag}
+            </button>
+          ))}
+          {selectedTags.length > 0 && (
+            <button className="tag-clear" onClick={() => setSelectedTags([])}>
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div className="discovery-tabs">
+          <NavLink
+            to="/discover/recipes"
+            className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
           >
-            {tag}
-          </button>
-        ))}
-        {selectedTags.length > 0 && (
-          <button className="tag-clear" onClick={() => setSelectedTags([])}>
-            Clear
-          </button>
-        )}
-      </div>
-
-      <div className="discovery-tabs">
-        <NavLink
-          to="/discover/recipes"
-          className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
-        >
-          <ChefHat size={18} />
-          Recipes
-          {recipesTotal > 0 && <span className="count">({recipesTotal})</span>}
-        </NavLink>
-        <NavLink
-          to="/discover/cookbooks"
-          className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
-        >
-          <BookOpen size={18} />
-          Cookbooks
-          {cookbooksTotal > 0 && <span className="count">({cookbooksTotal})</span>}
-        </NavLink>
+            <ChefHat size={18} />
+            Recipes
+            {recipesTotal > 0 && <span className="count">({recipesTotal})</span>}
+          </NavLink>
+          <NavLink
+            to="/discover/cookbooks"
+            className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
+          >
+            <BookOpen size={18} />
+            Cookbooks
+            {cookbooksTotal > 0 && <span className="count">({cookbooksTotal})</span>}
+          </NavLink>
+        </div>
       </div>
 
       {tab === 'recipes' && (
         <div className="discovery-content">
+          <div className="discovery-section-heading">
+            <div>
+              <span className="discovery-section-kicker">Discover feed</span>
+              <h2>{activeCollectionLabel}</h2>
+            </div>
+            <p>{activeCollectionDescription}</p>
+          </div>
+
           {isLoadingRecipes && recipes.length === 0 ? (
             <div className="discovery-loading">
               <Loader2 size={32} className="spin" />
@@ -506,6 +548,14 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
 
       {tab === 'cookbooks' && (
         <div className="discovery-content">
+          <div className="discovery-section-heading">
+            <div>
+              <span className="discovery-section-kicker">Discover feed</span>
+              <h2>{activeCollectionLabel}</h2>
+            </div>
+            <p>{activeCollectionDescription}</p>
+          </div>
+
           {isLoadingCookbooks && cookbooks.length === 0 ? (
             <div className="discovery-loading">
               <Loader2 size={32} className="spin" />
