@@ -119,7 +119,7 @@ function MealPlanHistoryCard({ item, renderSuggestion }: MealPlanHistoryCardProp
 export function MealPlannerPage() {
   const client = useClient();
   const navigate = useNavigate();
-  const { recipes, isLoading: recipesLoading } = useRecipes();
+  const { recipes, isLoading: recipesLoading, refreshRecipes } = useRecipes();
   const { createCookbook, refreshCookbooks } = useCookbooks();
   const [request, setRequest] = useState(SAMPLE_REQUESTS[0]);
   const [mealPlan, setMealPlan] = useState<MealPlanResult | null>(null);
@@ -135,6 +135,7 @@ export function MealPlannerPage() {
   const [isStartingCheckout, setIsStartingCheckout] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [highlightedMealPlanId, setHighlightedMealPlanId] = useState<string | null>(null);
   const isSubmittingRef = useRef(false);
 
   const charactersRemaining = MAX_REQUEST_LENGTH - request.length;
@@ -239,6 +240,18 @@ export function MealPlannerPage() {
     setHistoryPage(prev => Math.min(prev, historyPageCount));
   }, [historyPageCount]);
 
+  useEffect(() => {
+    if (!highlightedMealPlanId) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setHighlightedMealPlanId(currentId => (
+        currentId === highlightedMealPlanId ? null : currentId
+      ));
+    }, 3200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [highlightedMealPlanId]);
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (isSubmittingRef.current) return;
@@ -265,7 +278,9 @@ export function MealPlannerPage() {
 
       if (result.data) {
         const createdMealPlan = result.data;
+        await refreshRecipes();
         setMealPlan(createdMealPlan);
+        setHighlightedMealPlanId(createdMealPlan.id);
         setUsage(createdMealPlan.usage);
         setHistory(previous => [
           createdMealPlan,
@@ -462,7 +477,7 @@ export function MealPlannerPage() {
       )}
 
       {mealPlan && (
-        <section className="meal-planner-result">
+        <section className={`meal-planner-result ${highlightedMealPlanId === mealPlan.id ? 'is-highlighted' : ''}`}>
           <div className="meal-planner-result-header">
             <CalendarDays size={22} />
             <h2>Suggestions</h2>

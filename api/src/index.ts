@@ -5,9 +5,11 @@ import {
   MEAL_PLAN_PAID_PRICE_CENTS,
   MEAL_PLAN_PAID_WEEKLY_LIMIT,
   MEAL_PLAN_WEEK_MS,
+  type MealPlanGeneratedRecipeDraft,
   type MealPlanRecipeContext,
   type MealPlanUsageInfo,
   buildFallbackMealPlan,
+  buildMealPlanGeneratedRecipeDrafts,
   buildMealPlanHistoryItem,
   buildMealPlannerContinuationInput,
   buildMealPlanSuggestionDetails,
@@ -35,6 +37,7 @@ import {
   MEAL_PLAN_OPENAI_NOT_CONFIGURED_CODE,
   MEAL_PLAN_UNAUTHORIZED_CODE,
   getMealPlanOpenAIErrorResponseCode,
+  normalizeMealPlanRecipeTitle,
   normalizeMealPlanRequest,
   shouldContinueOpenAIResponse,
 } from './core/mealPlanner';
@@ -2136,6 +2139,108 @@ async function getMealPlanRecipes(db: D1Database, userId: string): Promise<MealP
   }));
 }
 
+function toMealPlanRecipeContext(
+  recipe: Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>
+): MealPlanRecipeContext {
+  return {
+    id: recipe.id,
+    title: recipe.title,
+    description: recipe.description,
+    ingredients: parseJsonList(recipe.ingredients),
+    tags: parseJsonList(recipe.tags),
+    prepTime: recipe.prep_time,
+    cookTime: recipe.cook_time,
+    servings: recipe.servings,
+  };
+}
+
+async function insertMealPlanGeneratedRecipe(
+  db: D1Database,
+  userId: string,
+  recipeId: string,
+  draft: MealPlanGeneratedRecipeDraft,
+  now: number
+): Promise<void> {
+  await db.prepare(`
+    INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    recipeId,
+    userId,
+    userId,
+    draft.title,
+    draft.description,
+    JSON.stringify(draft.ingredients),
+    JSON.stringify(draft.instructions),
+    JSON.stringify(draft.tags),
+    null,
+    null,
+    draft.prepTime,
+    draft.cookTime,
+    draft.servings,
+    0,
+    now
+  ).run();
+}
+
+async function createMealPlanGeneratedRecipes(
+  db: D1Database,
+  userId: string,
+  request: string,
+  suggestion: string,
+  recipes: MealPlanRecipeContext[],
+  now: number
+): Promise<MealPlanRecipeContext[]> {
+  const drafts = buildMealPlanGeneratedRecipeDrafts(request, suggestion, recipes);
+  if (drafts.length === 0) {
+    return [];
+  }
+
+  const existingRows = await db.prepare(`
+    SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+    FROM recipes
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+  `).bind(userId).all<Pick<Recipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>();
+  const existingRecipesByTitle = new Map<string, MealPlanRecipeContext>();
+
+  existingRows.results.forEach(recipe => {
+    const normalizedTitle = normalizeMealPlanRecipeTitle(recipe.title);
+    if (!existingRecipesByTitle.has(normalizedTitle)) {
+      existingRecipesByTitle.set(normalizedTitle, toMealPlanRecipeContext(recipe));
+    }
+  });
+
+  const generatedRecipes: MealPlanRecipeContext[] = [];
+
+  for (const draft of drafts) {
+    const normalizedTitle = normalizeMealPlanRecipeTitle(draft.title);
+    const existingRecipe = existingRecipesByTitle.get(normalizedTitle);
+    if (existingRecipe) {
+      generatedRecipes.push(existingRecipe);
+      continue;
+    }
+
+    const recipeId = generateId();
+    await insertMealPlanGeneratedRecipe(db, userId, recipeId, draft, now);
+    const recipeContext: MealPlanRecipeContext = {
+      id: recipeId,
+      title: draft.title,
+      description: draft.description,
+      ingredients: draft.ingredients,
+      tags: draft.tags,
+      prepTime: draft.prepTime,
+      cookTime: draft.cookTime,
+      servings: draft.servings,
+    };
+
+    existingRecipesByTitle.set(normalizedTitle, recipeContext);
+    generatedRecipes.push(recipeContext);
+  }
+
+  return generatedRecipes;
+}
+
 async function createOpenAIMealPlanResponse(
   env: Env,
   body: Record<string, unknown>
@@ -2278,7 +2383,9 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
   }
 
   const now = Date.now();
-  const details = buildMealPlanSuggestionDetails(mealPlanRequest, suggestion, recipes);
+  const generatedRecipes = await createMealPlanGeneratedRecipes(env.DB, user.id, mealPlanRequest, suggestion, recipes, now);
+  const recipesForLinks = [...recipes, ...generatedRecipes];
+  const details = buildMealPlanSuggestionDetails(mealPlanRequest, suggestion, recipesForLinks);
   const id = generateId();
 
   await env.DB.prepare(`
@@ -2293,7 +2400,7 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
       createdAt: now,
       ...details,
       usage: await getMealPlanUsage(env.DB, user.id, now),
-      recipeCount: recipes.length,
+      recipeCount: recipesForLinks.length,
     },
     200,
     corsHeaders(origin)

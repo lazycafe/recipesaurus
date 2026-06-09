@@ -6303,6 +6303,11 @@ img {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.meal-planner-result.is-highlighted {
+  animation: mealPlannerResultHighlight 3.2s ease-out;
 }
 
 .meal-planner-result-header {
@@ -6368,6 +6373,31 @@ img {
 .meal-planner-mentioned svg {
   color: var(--color-terracotta);
   flex-shrink: 0;
+}
+
+@keyframes mealPlannerResultHighlight {
+  0%,
+  100% {
+    background: var(--color-background);
+    border-color: var(--color-border);
+    box-shadow: var(--shadow-md);
+  }
+
+  12%,
+  58% {
+    background: var(--color-mustard-light);
+    border-color: var(--color-mustard);
+    box-shadow: 0 0 0 4px rgba(212, 166, 90, 0.22), var(--shadow-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meal-planner-result.is-highlighted {
+    animation: none;
+    background: var(--color-mustard-light);
+    border-color: var(--color-mustard);
+    box-shadow: 0 0 0 4px rgba(212, 166, 90, 0.22), var(--shadow-md);
+  }
 }
 
 .meal-planner-history {

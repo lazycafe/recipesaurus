@@ -34,11 +34,14 @@ import {
   MEAL_PLAN_LIMIT_CODE,
   MEAL_PLAN_UNAUTHORIZED_CODE,
   type MealPlanRecipeContext,
+  type MealPlanGeneratedRecipeDraft,
   type MealPlanHistoryItem,
   type MealPlanUsageInfo,
+  buildMealPlanGeneratedRecipeDrafts,
   buildMealPlanHistoryItem,
   buildMealPlanSuggestionDetails,
   buildFallbackMealPlan,
+  normalizeMealPlanRecipeTitle,
   normalizeMealPlanRequest,
 } from './mealPlanner';
 
@@ -1338,6 +1341,106 @@ export class CoreHandlers {
     }));
   }
 
+  private toMealPlanRecipeContext(
+    recipe: Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>
+  ): MealPlanRecipeContext {
+    return {
+      id: recipe.id,
+      title: recipe.title,
+      description: recipe.description,
+      ingredients: parseJsonList(recipe.ingredients),
+      tags: parseJsonList(recipe.tags),
+      prepTime: recipe.prep_time,
+      cookTime: recipe.cook_time,
+      servings: recipe.servings,
+    };
+  }
+
+  private async createMealPlanGeneratedRecipes(
+    userId: string,
+    request: string,
+    suggestion: string,
+    recipes: MealPlanRecipeContext[],
+    now: number
+  ): Promise<MealPlanRecipeContext[]> {
+    const drafts = buildMealPlanGeneratedRecipeDrafts(request, suggestion, recipes);
+    if (drafts.length === 0) {
+      return [];
+    }
+
+    const existingRows = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
+      `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+       FROM recipes
+       WHERE user_id = ?
+       ORDER BY created_at DESC`,
+      userId
+    );
+    const existingRecipesByTitle = new Map<string, MealPlanRecipeContext>();
+
+    existingRows.results.forEach(recipe => {
+      const normalizedTitle = normalizeMealPlanRecipeTitle(recipe.title);
+      if (!existingRecipesByTitle.has(normalizedTitle)) {
+        existingRecipesByTitle.set(normalizedTitle, this.toMealPlanRecipeContext(recipe));
+      }
+    });
+
+    const generatedRecipes: MealPlanRecipeContext[] = [];
+
+    for (const draft of drafts) {
+      const normalizedTitle = normalizeMealPlanRecipeTitle(draft.title);
+      const existingRecipe = existingRecipesByTitle.get(normalizedTitle);
+      if (existingRecipe) {
+        generatedRecipes.push(existingRecipe);
+        continue;
+      }
+
+      const recipeId = this.crypto.generateId();
+      await this.insertMealPlanGeneratedRecipe(userId, recipeId, draft, now);
+      const recipeContext: MealPlanRecipeContext = {
+        id: recipeId,
+        title: draft.title,
+        description: draft.description,
+        ingredients: draft.ingredients,
+        tags: draft.tags,
+        prepTime: draft.prepTime,
+        cookTime: draft.cookTime,
+        servings: draft.servings,
+      };
+
+      existingRecipesByTitle.set(normalizedTitle, recipeContext);
+      generatedRecipes.push(recipeContext);
+    }
+
+    return generatedRecipes;
+  }
+
+  private async insertMealPlanGeneratedRecipe(
+    userId: string,
+    recipeId: string,
+    draft: MealPlanGeneratedRecipeDraft,
+    now: number
+  ): Promise<void> {
+    await this.db.run(
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      recipeId,
+      userId,
+      userId,
+      draft.title,
+      draft.description,
+      JSON.stringify(draft.ingredients),
+      JSON.stringify(draft.instructions),
+      JSON.stringify(draft.tags),
+      null,
+      null,
+      draft.prepTime,
+      draft.cookTime,
+      draft.servings,
+      0,
+      now
+    );
+  }
+
   async createMealPlan(
     ctx: RequestContext,
     requestText: string
@@ -1363,8 +1466,10 @@ export class CoreHandlers {
 
     const recipes = await this.getMealPlanRecipes(user.id);
     const suggestion = buildFallbackMealPlan(request, recipes);
-    const details = buildMealPlanSuggestionDetails(request, suggestion, recipes);
     const now = Date.now();
+    const generatedRecipes = await this.createMealPlanGeneratedRecipes(user.id, request, suggestion, recipes, now);
+    const recipesForLinks = [...recipes, ...generatedRecipes];
+    const details = buildMealPlanSuggestionDetails(request, suggestion, recipesForLinks);
     const id = this.crypto.generateId();
 
     await this.db.run(
@@ -1384,7 +1489,7 @@ export class CoreHandlers {
         createdAt: now,
         ...details,
         usage: await this.getMealPlanUsageForUser(user.id, now),
-        recipeCount: recipes.length,
+        recipeCount: recipesForLinks.length,
       },
       status: 200,
     };

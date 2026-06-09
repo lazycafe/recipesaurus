@@ -10,6 +10,7 @@ import {
   MEAL_PLAN_OPENAI_PERMISSION_DENIED_CODE,
   MEAL_PLAN_OPENAI_RATE_LIMITED_CODE,
   MEAL_PLAN_OPENAI_SERVER_ERROR_CODE,
+  buildMealPlanGeneratedRecipeDrafts,
   buildFallbackMealPlan,
   buildMealPlannerContinuationInput,
   buildMealPlannerInstructions,
@@ -38,8 +39,19 @@ describe('AI meal planner API', () => {
         id: expect.any(String),
         title: 'Herb-Crusted Chicken',
       });
+      expect(first.data?.mentionedRecipes).toContainEqual({
+        id: expect.any(String),
+        title: 'Vegetable Stir-Fry',
+      });
       expect(first.data?.cookbookName).toBe('Healthy Dinner Meal Plan');
       expect(first.data?.usage.remainingRequests).toBe(1);
+
+      const recipesAfterPlan = await client.recipes.list();
+      const generatedRecipe = recipesAfterPlan.data?.recipes.find(recipe => recipe.title === 'Vegetable Stir-Fry');
+      expect(generatedRecipe).toBeDefined();
+      expect(generatedRecipe?.description).toContain('Starter recipe created from an AI meal planner suggestion');
+      expect(generatedRecipe?.tags).toContain('AI meal planner');
+      expect(generatedRecipe?.isPublic).toBe(false);
 
       const second = await client.ai.createMealPlan('Plan two quick lunches.');
       expect(second.error).toBeUndefined();
@@ -118,6 +130,33 @@ describe('AI meal planner API', () => {
     expect(instructions).toContain('Match each recipe to the requested meal slot');
     expect(instructions).toContain('avoid breakfast, brunch, sweet, and dessert recipes');
     expect(instructions).toContain('fill the gaps with savory new ideas');
+    expect(instructions).toContain('New idea: <specific recipe title>');
+  });
+
+  it('builds starter recipe drafts for new meal ideas only', () => {
+    const drafts = buildMealPlanGeneratedRecipeDrafts(
+      'Plan easy dinners.',
+      [
+        '1. From your recipes: Tofu Rice Bowl',
+        '2. New idea: Vegetable Stir-Fry - fast vegetables and rice',
+        '3. New idea: Tofu Rice Bowl - already saved',
+      ].join('\n'),
+      [{
+        id: 'bowl',
+        title: 'Tofu Rice Bowl',
+        description: 'Saved bowl',
+        ingredients: ['tofu', 'rice'],
+        tags: ['dinner'],
+      }]
+    );
+
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]).toMatchObject({
+      title: 'Vegetable Stir-Fry',
+      prepTime: '15 minutes',
+      cookTime: '25 minutes',
+      servings: '4',
+    });
   });
 
   it('detects OpenAI responses that need continuation', () => {

@@ -40,6 +40,7 @@ describe('MealPlannerPage', () => {
   const mockCreateMealPlan = vi.fn();
   const mockCreateCookbook = vi.fn();
   const mockAddRecipe = vi.fn();
+  const mockRefreshRecipes = vi.fn();
   const mockRefreshCookbooks = vi.fn();
   const mockCreateCheckoutSession = vi.fn();
   const mockCreatePortalSession = vi.fn();
@@ -114,7 +115,7 @@ describe('MealPlannerPage', () => {
       updateRecipe: vi.fn(),
       deleteRecipe: vi.fn(),
       getAllTags: vi.fn(),
-      refreshRecipes: vi.fn(),
+      refreshRecipes: mockRefreshRecipes,
     });
 
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
@@ -150,8 +151,10 @@ describe('MealPlannerPage', () => {
 
     await waitFor(() => {
       expect(mockCreateMealPlan).toHaveBeenCalledWith(samplePrompt);
+      expect(mockRefreshRecipes).toHaveBeenCalled();
       expect(screen.getAllByText(/Herb-Crusted Chicken/i).length).toBeGreaterThan(0);
     });
+    expect(screen.getByRole('heading', { name: 'Suggestions' }).closest('section')?.className).toContain('is-highlighted');
     expect(screen.getAllByRole('button', { name: 'Herb-Crusted Chicken' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /Create Cookbook/i })).toBeDefined();
     expect(screen.queryByText('AI meal plan draft')).toBeNull();

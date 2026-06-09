@@ -10,6 +10,7 @@ export const MEAL_PLAN_HISTORY_LIMIT = 50;
 export const MEAL_PLAN_OPENAI_MAX_OUTPUT_TOKENS = 4000;
 export const MEAL_PLAN_OPENAI_CONTINUATION_MAX_OUTPUT_TOKENS = 2500;
 export const MEAL_PLAN_OPENAI_MAX_CONTINUATIONS = 2;
+export const MEAL_PLAN_MAX_GENERATED_RECIPES = 8;
 export const MEAL_PLAN_UNAUTHORIZED_CODE = 'AI_MEAL_PLAN_UNAUTHORIZED';
 export const MEAL_PLAN_INVALID_REQUEST_CODE = 'AI_MEAL_PLAN_INVALID_REQUEST';
 export const MEAL_PLAN_LIMIT_CODE = 'AI_MEAL_PLAN_LIMIT';
@@ -60,6 +61,17 @@ export interface MealPlanMentionedRecipe {
   title: string;
 }
 
+export interface MealPlanGeneratedRecipeDraft {
+  title: string;
+  description: string;
+  ingredients: string[];
+  instructions: string[];
+  tags: string[];
+  prepTime: string;
+  cookTime: string;
+  servings: string;
+}
+
 export interface MealPlanSuggestionDetails {
   suggestion: string;
   mentionedRecipes: MealPlanMentionedRecipe[];
@@ -90,6 +102,15 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export function normalizeMealPlanRecipeTitle(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 export function sanitizeMealPlanSuggestion(suggestion: string): string {
   return suggestion
     .replace(/^\s*(?:#+\s*)?AI meal plan draft\s*[:.-]?\s*/i, '')
@@ -115,6 +136,129 @@ export function findMentionedRecipes(
 
 function toTitleCase(value: string): string {
   return value.replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function cleanNewIdeaRecipeTitle(value: string): string | null {
+  let title = value
+    .replace(/\*\*/g, '')
+    .replace(/^[\s"'`]+|[\s"'`.!?:;]+$/g, '')
+    .trim();
+
+  const separator = title.search(/\s+(?:-|--|because|for|with|that|so)\s+|[,;.(]/i);
+  if (separator > 0) {
+    title = title.slice(0, separator).trim();
+  }
+
+  title = title
+    .replace(/^(?:try|make|add|serve|prep|prepare|build|cook)\s+(?:a|an|one|the)?\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s"'`]+|[\s"'`.!?:;]+$/g, '')
+    .trim();
+
+  const normalizedTitle = normalizeMealPlanRecipeTitle(title);
+  if (
+    normalizedTitle.length < 3 ||
+    title.length > 80 ||
+    title.split(/\s+/).length > 10 ||
+    [
+      'meal',
+      'recipe',
+      'idea',
+      'new idea',
+      'flexible meal',
+      'easy flexible meal',
+      'starting point',
+    ].includes(normalizedTitle)
+  ) {
+    return null;
+  }
+
+  return toTitleCase(title);
+}
+
+function inferGeneratedRecipeTags(request: string, title: string): string[] {
+  const searchable = `${request} ${title}`.toLowerCase();
+  const tags = ['AI meal planner'];
+  const tagKeywords = [
+    'breakfast',
+    'brunch',
+    'lunch',
+    'dinner',
+    'snack',
+    'dessert',
+    'meal prep',
+    'healthy',
+    'vegetarian',
+    'vegan',
+    'high protein',
+    'quick',
+    'easy',
+    'asian',
+    'mediterranean',
+    'italian',
+    'mexican',
+  ];
+
+  tagKeywords.forEach(keyword => {
+    if (searchable.includes(keyword)) {
+      tags.push(toTitleCase(keyword));
+    }
+  });
+
+  return tags.slice(0, 8);
+}
+
+function buildGeneratedRecipeDraft(request: string, title: string): MealPlanGeneratedRecipeDraft {
+  return {
+    title,
+    description: `Starter recipe created from an AI meal planner suggestion: ${request.slice(0, 180)}`,
+    ingredients: [
+      `Primary ingredients for ${title}`,
+      'Vegetables, grains, or sides from the meal plan',
+      'Olive oil or preferred cooking oil',
+      'Salt, pepper, and seasonings to taste',
+      'Sauce, garnish, or dressing to finish',
+    ],
+    instructions: [
+      `Use the meal planner suggestion as the brief for ${title}.`,
+      'Prep the primary ingredients and any vegetables, grains, or sides.',
+      'Cook each component until tender, seasoned, and safely done.',
+      'Assemble, taste, and adjust seasoning before serving.',
+    ],
+    tags: inferGeneratedRecipeTags(request, title),
+    prepTime: '15 minutes',
+    cookTime: '25 minutes',
+    servings: '4',
+  };
+}
+
+export function buildMealPlanGeneratedRecipeDrafts(
+  request: string,
+  suggestion: string,
+  recipes: MealPlanRecipeContext[]
+): MealPlanGeneratedRecipeDraft[] {
+  const existingTitles = new Set(recipes.map(recipe => normalizeMealPlanRecipeTitle(recipe.title)));
+  const selectedTitles = new Map<string, string>();
+  const cleanSuggestion = sanitizeMealPlanSuggestion(suggestion);
+
+  cleanSuggestion.split(/\r?\n/).forEach(line => {
+    const match = line.match(/\b(?:new idea|new recipe|recipe idea)\s*:\s*(.+)$/i);
+    if (!match) return;
+
+    const title = cleanNewIdeaRecipeTitle(match[1]);
+    if (!title) return;
+
+    const normalizedTitle = normalizeMealPlanRecipeTitle(title);
+    if (existingTitles.has(normalizedTitle) || selectedTitles.has(normalizedTitle)) {
+      return;
+    }
+
+    selectedTitles.set(normalizedTitle, title);
+  });
+
+  return Array.from(selectedTitles.values())
+    .slice(0, MEAL_PLAN_MAX_GENERATED_RECIPES)
+    .map(title => buildGeneratedRecipeDraft(request, title));
 }
 
 export function suggestMealPlanCookbookName(request: string): string {
@@ -201,6 +345,7 @@ export function buildMealPlannerInstructions(): string {
     'If the saved collection does not contain enough appropriate lunch or dinner recipes, fill the gaps with savory new ideas instead of forcing mismatched saved recipes into the plan.',
     'For breakfast, brunch, snack, or dessert requests, use those categories only in the slots where they make sense.',
     'When the request needs recipes outside the collection, suggest easy new recipe ideas and mark them as "New idea".',
+    'Write each new recipe idea as "New idea: <specific recipe title> - <brief reason it fits>" so the title can be saved as a recipe.',
     'Respect dietary, cuisine, schedule, prep-time, and budget constraints from the user. If important constraints are missing, make reasonable assumptions instead of asking follow-up questions.',
     'Return concise, scan-friendly plain text with meal names, days or meals when useful, why each fits, and a short shopping/prep note when relevant.',
     'Do not title the answer "AI meal plan draft".',
@@ -266,7 +411,8 @@ export function buildFallbackMealPlan(request: string, recipes: MealPlanRecipeCo
     return [
       `Request: ${request}`,
       '',
-      'New idea: Build a simple weekly plan around one grain bowl, one sheet-pan dinner, one soup or curry, and one big salad that can stretch across lunches.',
+      'New idea: Flexible Grain Bowl - Build a simple weekly plan around a grain bowl that can stretch across lunches.',
+      'New idea: Sheet-Pan Vegetable Dinner - Add a low-effort dinner that can share produce and sauce with the grain bowl.',
       '',
       'Prep note: Pick two sauces, wash and chop vegetables once, and batch-cook a grain so lunches come together quickly.',
     ].join('\n');
@@ -285,7 +431,7 @@ export function buildFallbackMealPlan(request: string, recipes: MealPlanRecipeCo
     'Suggested starting point:',
     ...recipeLines,
     '',
-    'New idea: Add one easy flexible meal, such as a vegetable stir-fry, lentil soup, or rotisserie-chicken grain bowl, to fill any gaps in the week.',
+    'New idea: Vegetable Stir-Fry - Add one easy flexible meal to fill any gaps in the week.',
     '',
     'Prep note: Batch one protein, one grain, and one crunchy vegetable so lunches and dinners can share ingredients without feeling repetitive.',
   ].join('\n');
