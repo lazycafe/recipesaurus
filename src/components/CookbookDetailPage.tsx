@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Share2, Pencil, Loader2, User, Search, ArrowLeft, Check, LogOut, X, Plus } from 'lucide-react';
 import { Cookbook } from '../types/Cookbook';
 import { Recipe, RecipeFormData } from '../types/Recipe';
@@ -89,6 +89,7 @@ const parseFormData = (formData: RecipeFormData) => ({
 export function CookbookDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const client = useClient();
   const { createCookbook, updateCookbook, deleteCookbook, leaveCookbook } = useCookbooks();
   const { updateRecipe, deleteRecipe } = useRecipes();
@@ -130,6 +131,17 @@ export function CookbookDetailPage() {
     fetchCookbook();
   }, [id, client]);
 
+  const requestedRecipeId = searchParams.get('recipe');
+
+  useEffect(() => {
+    if (!requestedRecipeId) return;
+
+    const recipe = recipes.find(recipe => recipe.id === requestedRecipeId);
+    if (recipe) {
+      setSelectedRecipe(recipe);
+    }
+  }, [requestedRecipeId, recipes]);
+
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
     recipes.forEach(recipe => {
@@ -165,6 +177,19 @@ export function CookbookDetailPage() {
   const handleClearFilters = () => {
     setSearchQuery('');
     setSelectedTags([]);
+  };
+
+  const clearRecipeParam = () => {
+    if (!searchParams.has('recipe')) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('recipe');
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const handleCloseRecipeDetail = () => {
+    setSelectedRecipe(null);
+    clearRecipeParam();
   };
 
   const handleSaveCookbook = async (data: { name: string; description?: string; coverImage?: string; isPublic?: boolean }) => {
@@ -213,6 +238,7 @@ export function CookbookDetailPage() {
       setRecipes(prev => prev.filter(r => r.id !== recipeToDelete.id));
       setRecipeToDelete(null);
       setSelectedRecipe(null);
+      clearRecipeParam();
     } catch (error) {
       console.error('Failed to delete recipe:', error);
     }
@@ -404,10 +430,10 @@ export function CookbookDetailPage() {
       {selectedRecipe && (
         <RecipeDetail
           recipe={selectedRecipe}
-          onClose={() => setSelectedRecipe(null)}
+          onClose={handleCloseRecipeDetail}
           onEdit={selectedRecipe.isOwner ? () => {
             setEditingRecipe(selectedRecipe);
-            setSelectedRecipe(null);
+            handleCloseRecipeDetail();
           } : undefined}
           onDelete={selectedRecipe.isOwner ? () => {
             setRecipeToDelete(selectedRecipe);

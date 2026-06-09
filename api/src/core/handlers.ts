@@ -1352,7 +1352,7 @@ export class CoreHandlers {
     }
 
     // Verify recipe exists
-    const recipe = await this.db.get<{ id: string }>('SELECT id FROM recipes WHERE id = ?', recipeId);
+    const recipe = await this.db.get<{ id: string; title: string }>('SELECT id, title FROM recipes WHERE id = ?', recipeId);
     if (!recipe) {
       return { error: 'Recipe not found', status: 404 };
     }
@@ -1367,15 +1367,49 @@ export class CoreHandlers {
       return { data: { success: true }, status: 200 };
     }
 
+    const now = Date.now();
+
     await this.db.run(
       'INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
       cookbookId,
       recipeId,
       user.id,
-      Date.now()
+      now
     );
 
-    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', Date.now(), cookbookId);
+    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, cookbookId);
+
+    const usersToNotify = new Set<string>();
+    if (cookbook.user_id !== user.id) {
+      usersToNotify.add(cookbook.user_id);
+    }
+
+    const sharedUsers = await this.db.all<{ shared_with_user_id: string }>(
+      'SELECT shared_with_user_id FROM cookbook_shares WHERE cookbook_id = ? AND shared_with_user_id != ?',
+      cookbookId,
+      user.id
+    );
+
+    sharedUsers.results.forEach(share => usersToNotify.add(share.shared_with_user_id));
+
+    for (const userId of usersToNotify) {
+      await this.db.run(
+        'INSERT INTO notifications (id, user_id, type, title, message, data, is_read, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        this.crypto.generateId(),
+        userId,
+        'recipe_added',
+        'New Recipe Added',
+        `${user.name} added "${recipe.title || 'a recipe'}" to "${cookbook.name}"`,
+        JSON.stringify({
+          cookbookId,
+          cookbookName: cookbook.name,
+          recipeId,
+          addedBy: user.name,
+        }),
+        0,
+        now
+      );
+    }
 
     return { data: { success: true }, status: 200 };
   }

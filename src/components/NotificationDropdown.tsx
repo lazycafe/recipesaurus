@@ -60,6 +60,16 @@ export function NotificationDropdown() {
     if (!notification.isRead) {
       await markAsRead(notification.id);
     }
+
+    if (notification.type === 'recipe_added' && notification.data?.cookbookId) {
+      const cookbookPath = `/cookbooks/${encodeURIComponent(notification.data.cookbookId)}`;
+      const recipeQuery = notification.data.recipeId
+        ? `?recipe=${encodeURIComponent(notification.data.recipeId)}`
+        : '';
+
+      setIsOpen(false);
+      navigate(`${cookbookPath}${recipeQuery}`);
+    }
   };
 
   const formatTime = (timestamp: number) => {
