@@ -1,6 +1,9 @@
+import { useState } from 'react';
+import type { MouseEvent } from 'react';
 import { Clock, BookPlus, X } from 'lucide-react';
 import { Recipe } from '../client/types';
 import { DinoMascot } from './DinoMascot';
+import { useSwipeActions } from '../hooks/useSwipeActions';
 
 interface RecipeCardCompactProps {
   recipe: Recipe;
@@ -17,13 +20,41 @@ export function RecipeCardCompact({
   onAddToCookbook,
   showActions = true,
 }: RecipeCardCompactProps) {
-  const handleAction = (e: React.MouseEvent, action: () => void) => {
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const hasActions = showActions && Boolean(onAddToCookbook || onDelete);
+  const { swipeHandlers, shouldIgnoreSwipeClick } = useSwipeActions<HTMLElement>({
+    enabled: hasActions,
+    onSwipeLeft: () => setIsActionsOpen(true),
+    onSwipeRight: () => setIsActionsOpen(false),
+  });
+
+  const handleAction = (e: MouseEvent, action: () => void) => {
     e.stopPropagation();
+    setIsActionsOpen(false);
     action();
   };
 
+  const handleClick = (e: MouseEvent<HTMLElement>) => {
+    if (shouldIgnoreSwipeClick()) {
+      e.stopPropagation();
+      return;
+    }
+
+    if (isActionsOpen) {
+      setIsActionsOpen(false);
+      e.stopPropagation();
+      return;
+    }
+
+    onClick();
+  };
+
   return (
-    <article className="recipe-card-compact" onClick={onClick}>
+    <article
+      className={`recipe-card-compact ${isActionsOpen ? 'swipe-actions-open' : ''}`.trim()}
+      onClick={handleClick}
+      {...swipeHandlers}
+    >
       <div className="compact-card-image">
         {recipe.imageUrl ? (
           <img src={recipe.imageUrl} alt={recipe.title} loading="lazy" />
@@ -32,7 +63,7 @@ export function RecipeCardCompact({
             <DinoMascot size={32} />
           </div>
         )}
-        {showActions && (onAddToCookbook || onDelete) && (
+        {hasActions && (
           <div className="compact-card-actions">
             {onAddToCookbook && (
               <button

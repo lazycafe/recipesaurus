@@ -149,4 +149,44 @@ describe('RecipeCard', () => {
 
     expect(container.querySelector('.card-actions')).toBeNull();
   });
+
+  it('reveals actions on left swipe without opening the card', () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <RecipeCard
+        recipe={mockRecipe}
+        onClick={onClick}
+        onDelete={() => {}}
+        onAddToCookbook={() => {}}
+      />
+    );
+
+    const card = container.querySelector('.recipe-card')!;
+    fireEvent.pointerDown(card, { clientX: 140, clientY: 20, pointerId: 1, pointerType: 'touch' });
+    fireEvent.pointerUp(card, { clientX: 60, clientY: 24, pointerId: 1, pointerType: 'touch' });
+    fireEvent.click(card);
+
+    expect(card.classList.contains('swipe-actions-open')).toBe(true);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('closes revealed actions on right swipe', () => {
+    const { container } = render(
+      <RecipeCard
+        recipe={mockRecipe}
+        onClick={() => {}}
+        onDelete={() => {}}
+      />
+    );
+
+    const card = container.querySelector('.recipe-card')!;
+    fireEvent.pointerDown(card, { clientX: 140, clientY: 20, pointerId: 1, pointerType: 'touch' });
+    fireEvent.pointerUp(card, { clientX: 60, clientY: 24, pointerId: 1, pointerType: 'touch' });
+    expect(card.classList.contains('swipe-actions-open')).toBe(true);
+
+    fireEvent.pointerDown(card, { clientX: 60, clientY: 20, pointerId: 2, pointerType: 'touch' });
+    fireEvent.pointerUp(card, { clientX: 140, clientY: 24, pointerId: 2, pointerType: 'touch' });
+
+    expect(card.classList.contains('swipe-actions-open')).toBe(false);
+  });
 });

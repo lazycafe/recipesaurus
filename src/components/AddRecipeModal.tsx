@@ -7,6 +7,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { TagInput } from './TagInput';
 import { VisibilityToggle } from './VisibilityToggle';
 import { fetchAndExtractRecipe, type ExtractedRecipeImage } from '../utils/recipeExtractor';
+import { useSwipeActions } from '../hooks/useSwipeActions';
 
 interface AddRecipeModalProps {
   recipe?: Recipe;
@@ -180,6 +181,12 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
   const handleTagsChange = (newTags: string[]) => {
     handleInputChange('tags', newTags.join(', '));
   };
+  const { swipeHandlers: tabSwipeHandlers } = useSwipeActions<HTMLDivElement>({
+    enabled: !isEditing,
+    ignoreDefaultSelectors: false,
+    onSwipeLeft: activeTab === 'manual' ? () => setActiveTab('url') : undefined,
+    onSwipeRight: activeTab === 'url' ? () => setActiveTab('manual') : undefined,
+  });
 
   return (
     <ModalOverlay onClose={handleClose}>
@@ -194,7 +201,7 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
         </div>
 
         {!isEditing && (
-          <div className="tab-group">
+          <div className="tab-group swipe-tab-group" {...tabSwipeHandlers}>
             <button
               className={`tab-btn ${activeTab === 'manual' ? 'active' : ''}`}
               onClick={() => setActiveTab('manual')}

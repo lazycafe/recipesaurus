@@ -19,6 +19,7 @@ import { useClient } from '../client/ClientContext';
 import { useRecipes } from '../context/RecipeContext';
 import { useCookbooks } from '../context/CookbookContext';
 import { RecipeDetail } from './RecipeDetail';
+import { useSwipeActions } from '../hooks/useSwipeActions';
 import type { MealPlanHistoryItem, MealPlanMentionedRecipe, MealPlanResult, MealPlanUsage, Recipe as ClientRecipe } from '../client/types';
 import type { Recipe } from '../types/Recipe';
 import type { FormEvent, ReactNode } from 'react';
@@ -151,6 +152,15 @@ export function MealPlannerPage() {
       historyPage * HISTORY_ITEMS_PER_PAGE
     )
   ), [history, historyPage]);
+  const { swipeHandlers: historyPaginationSwipeHandlers } = useSwipeActions<HTMLElement>({
+    enabled: historyPageCount > 1,
+    onSwipeLeft: historyPage < historyPageCount
+      ? () => setHistoryPage(page => Math.min(historyPageCount, page + 1))
+      : undefined,
+    onSwipeRight: historyPage > 1
+      ? () => setHistoryPage(page => Math.max(1, page - 1))
+      : undefined,
+  });
 
   const quotaText = useMemo(() => {
     if (!usage) return 'Checking your weekly AI requests...';
@@ -608,7 +618,11 @@ export function MealPlannerPage() {
               </div>
 
               {historyPageCount > 1 && (
-                <nav className="recipe-pagination meal-planner-history-pagination" aria-label="Meal planning history pagination">
+                <nav
+                  className="recipe-pagination meal-planner-history-pagination swipe-pagination"
+                  aria-label="Meal planning history pagination"
+                  {...historyPaginationSwipeHandlers}
+                >
                   <span className="pagination-status">Page {historyPage} of {historyPageCount}</span>
                   <div className="pagination-buttons">
                     <button

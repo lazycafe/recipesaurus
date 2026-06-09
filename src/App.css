@@ -953,7 +953,8 @@ img {
 }
 
 .recipe-card:hover .card-actions,
-.cookbook-card:hover .card-actions {
+.cookbook-card:hover .card-actions,
+.recipe-card.swipe-actions-open .card-actions {
   opacity: 1;
   transform: translateY(0);
 }
@@ -1327,6 +1328,15 @@ img {
   border-radius: var(--radius-md);
   margin-bottom: var(--space-6);
   border: 1px solid var(--color-border);
+}
+
+.swipe-tab-group,
+.swipe-pagination {
+  touch-action: pan-y;
+}
+
+.swipe-close-region {
+  touch-action: pan-x;
 }
 
 .tab-btn {
@@ -7335,6 +7345,7 @@ img {
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
+  touch-action: pan-y;
   transition: all var(--transition-fast);
   box-shadow: var(--shadow-sm);
 }
@@ -7378,11 +7389,18 @@ img {
   display: flex;
   gap: var(--space-1);
   opacity: 0;
+  pointer-events: none;
   transition: opacity var(--transition-fast);
 }
 
 .recipe-card-compact:hover .compact-card-actions {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.recipe-card-compact.swipe-actions-open .compact-card-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .compact-action {
@@ -7442,6 +7460,7 @@ img {
 
   .recipe-card {
     border-radius: var(--radius-md);
+    touch-action: pan-y;
   }
 
   .card-image {
@@ -7476,8 +7495,22 @@ img {
   .card-actions {
     top: var(--space-1);
     right: var(--space-1);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(8px);
+  }
+
+  .recipe-card:hover .card-actions {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(8px);
+  }
+
+  .recipe-card.swipe-actions-open .card-actions,
+  .recipe-card.swipe-actions-open:hover .card-actions {
     opacity: 1;
-    transform: translateY(0);
+    pointer-events: auto;
+    transform: translateX(0);
   }
 
   .card-action {
@@ -7713,6 +7746,7 @@ img {
 
 .discovery-page {
   animation: fadeIn 0.3s ease-out;
+  touch-action: pan-y;
 }
 
 .discovery-header.discovery-hero {
@@ -7946,6 +7980,7 @@ img {
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: pointer;
+  touch-action: pan-y;
   transition: all var(--transition-fast);
   box-shadow: var(--shadow-sm);
 }
@@ -8002,10 +8037,17 @@ img {
   box-shadow: var(--shadow-md);
   transition: all var(--transition-fast);
   opacity: 0;
+  pointer-events: none;
 }
 
 .discovery-card:hover .discovery-save-btn {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.discovery-card.swipe-actions-open .discovery-save-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .discovery-save-btn:hover {
@@ -8019,6 +8061,7 @@ img {
 
 .discovery-save-btn.saved {
   opacity: 1;
+  pointer-events: auto;
   transform: scale(1);
   background: var(--color-terracotta);
   color: white;

@@ -7,6 +7,7 @@ import { DinoMascot } from './DinoMascot';
 import { ModalOverlay } from './ModalOverlay';
 import { ShareRecipeModal } from './ShareRecipeModal';
 import { downloadRecipePdf } from '../utils/recipePdf';
+import { useSwipeActions } from '../hooks/useSwipeActions';
 
 interface RecipeDetailProps {
   recipe: Recipe | ClientRecipe;
@@ -36,6 +37,9 @@ export function RecipeDetail({
   const [showShareModal, setShowShareModal] = useState(false);
   const navigate = useNavigate();
   const publicSaveLabel = isSaved ? 'Saved to My Recipes' : saveLabel;
+  const { swipeHandlers: closeSwipeHandlers } = useSwipeActions<HTMLDivElement>({
+    onSwipeDown: onClose,
+  });
 
   const handleDelete = () => {
     onDelete?.();
@@ -52,7 +56,7 @@ export function RecipeDetail({
           <X size={20} strokeWidth={2} />
         </button>
 
-        <div className="detail-header">
+        <div className="detail-header swipe-close-region" {...closeSwipeHandlers}>
           <div className="detail-image">
             {recipe.imageUrl ? (
               <img src={recipe.imageUrl} alt={recipe.title} />

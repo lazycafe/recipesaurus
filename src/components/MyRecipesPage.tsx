@@ -17,6 +17,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { AddToCookbookModal } from './AddToCookbookModal';
 import { CookbookModal } from './CookbookModal';
 import { DinoMascot } from './DinoMascot';
+import { useSwipeActions } from '../hooks/useSwipeActions';
 import { useCookbooks } from '../context/CookbookContext';
 import { Recipe, RecipeFormData } from '../types/Recipe';
 import { dedupeRecipes } from '../utils/recipeDedupe';
@@ -167,6 +168,15 @@ export function MyRecipesPage() {
     (currentPage - 1) * RECIPES_PER_PAGE,
     currentPage * RECIPES_PER_PAGE
   );
+  const { swipeHandlers: paginationSwipeHandlers } = useSwipeActions<HTMLElement>({
+    enabled: pageCount > 1,
+    onSwipeLeft: currentPage < pageCount
+      ? () => setCurrentPage(page => Math.min(pageCount, page + 1))
+      : undefined,
+    onSwipeRight: currentPage > 1
+      ? () => setCurrentPage(page => Math.max(1, page - 1))
+      : undefined,
+  });
 
   useEffect(() => {
     setCurrentPage(1);
@@ -296,7 +306,11 @@ export function MyRecipesPage() {
               </div>
 
               {pageCount > 1 && (
-                <nav className="recipe-pagination" aria-label="My recipes pagination">
+                <nav
+                  className="recipe-pagination swipe-pagination"
+                  aria-label="My recipes pagination"
+                  {...paginationSwipeHandlers}
+                >
                   <span className="pagination-status">Page {currentPage} of {pageCount}</span>
                   <div className="pagination-buttons">
                     <button

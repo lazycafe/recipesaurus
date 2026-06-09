@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp, Compass } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
@@ -13,6 +13,7 @@ import { RecipeDetail } from './RecipeDetail';
 import { AddRecipeModal } from './AddRecipeModal';
 import { ConfirmModal } from './ConfirmModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { useSwipeActions } from '../hooks/useSwipeActions';
 
 interface RecipeCardCompactProps {
   recipe: Recipe;
@@ -23,6 +24,14 @@ interface RecipeCardCompactProps {
 }
 
 function RecipeCardCompact({ recipe, onToggleSave, onClick, onAuthorClick, isSaving }: RecipeCardCompactProps) {
+  const [isSaveOpen, setIsSaveOpen] = useState(false);
+  const canToggleSave = !recipe.isOwner;
+  const { swipeHandlers, shouldIgnoreSwipeClick } = useSwipeActions<HTMLElement>({
+    enabled: canToggleSave,
+    onSwipeLeft: () => setIsSaveOpen(true),
+    onSwipeRight: () => setIsSaveOpen(false),
+  });
+
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return;
     if (event.key === 'Enter' || event.key === ' ') {
@@ -31,14 +40,30 @@ function RecipeCardCompact({ recipe, onToggleSave, onClick, onAuthorClick, isSav
     }
   };
 
+  const handleCardClick = (event: MouseEvent<HTMLElement>) => {
+    if (shouldIgnoreSwipeClick()) {
+      event.stopPropagation();
+      return;
+    }
+
+    if (isSaveOpen) {
+      setIsSaveOpen(false);
+      event.stopPropagation();
+      return;
+    }
+
+    onClick();
+  };
+
   return (
     <article
-      className="discovery-card"
-      onClick={onClick}
+      className={`discovery-card ${isSaveOpen ? 'swipe-actions-open' : ''}`.trim()}
+      onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
       aria-label={`View ${recipe.title}`}
+      {...swipeHandlers}
     >
       <div className="discovery-card-image">
         {recipe.imageUrl ? (
@@ -57,6 +82,7 @@ function RecipeCardCompact({ recipe, onToggleSave, onClick, onAuthorClick, isSav
             className={`discovery-save-btn ${recipe.isSaved ? 'saved' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
+              setIsSaveOpen(false);
               onToggleSave();
             }}
             disabled={isSaving}
@@ -105,6 +131,14 @@ interface CookbookCardCompactProps {
 }
 
 function CookbookCardCompact({ cookbook, onClick, onToggleSave, onAuthorClick, isSaving }: CookbookCardCompactProps) {
+  const [isSaveOpen, setIsSaveOpen] = useState(false);
+  const canToggleSave = !cookbook.isOwner;
+  const { swipeHandlers, shouldIgnoreSwipeClick } = useSwipeActions<HTMLElement>({
+    enabled: canToggleSave,
+    onSwipeLeft: () => setIsSaveOpen(true),
+    onSwipeRight: () => setIsSaveOpen(false),
+  });
+
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return;
     if (event.key === 'Enter' || event.key === ' ') {
@@ -113,14 +147,30 @@ function CookbookCardCompact({ cookbook, onClick, onToggleSave, onAuthorClick, i
     }
   };
 
+  const handleCardClick = (event: MouseEvent<HTMLElement>) => {
+    if (shouldIgnoreSwipeClick()) {
+      event.stopPropagation();
+      return;
+    }
+
+    if (isSaveOpen) {
+      setIsSaveOpen(false);
+      event.stopPropagation();
+      return;
+    }
+
+    onClick();
+  };
+
   return (
     <article
-      className="discovery-card cookbook-card"
-      onClick={onClick}
+      className={`discovery-card cookbook-card ${isSaveOpen ? 'swipe-actions-open' : ''}`.trim()}
+      onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
       aria-label={`View ${cookbook.name}`}
+      {...swipeHandlers}
     >
       <div className="discovery-card-image">
         {cookbook.coverImage ? (
@@ -139,6 +189,7 @@ function CookbookCardCompact({ cookbook, onClick, onToggleSave, onAuthorClick, i
             className={`discovery-save-btn ${cookbook.isSaved ? 'saved' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
+              setIsSaveOpen(false);
               onToggleSave();
             }}
             disabled={isSaving}
@@ -492,9 +543,14 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     hasMore: hasMoreCookbooks,
     isLoading: isLoadingCookbooks,
   });
+  const { swipeHandlers: discoverySwipeHandlers } = useSwipeActions<HTMLDivElement>({
+    ignoreSelectors: ['.discovery-card', '.tag-btn', '.tag-clear', '.search-input-wrapper'],
+    onSwipeLeft: tab === 'recipes' ? () => navigate('/discover/cookbooks') : undefined,
+    onSwipeRight: tab === 'cookbooks' ? () => navigate('/discover/recipes') : undefined,
+  });
 
   return (
-    <div className="discovery-page">
+    <div className="discovery-page" {...discoverySwipeHandlers}>
       <section className="discovery-header discovery-hero" aria-labelledby="discover-heading">
         <div className="discovery-hero-copy">
           <span className="discovery-eyebrow">

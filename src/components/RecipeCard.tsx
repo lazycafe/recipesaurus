@@ -1,6 +1,9 @@
+import { useState } from 'react';
+import type { MouseEvent } from 'react';
 import { Clock, Users, X, BookPlus, User } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
+import { useSwipeActions } from '../hooks/useSwipeActions';
 
 interface RecipeCardProps {
   recipe: Recipe;
@@ -11,19 +14,48 @@ interface RecipeCardProps {
 }
 
 export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook, addedByUserName }: RecipeCardProps) {
-  const handleDelete = (e: React.MouseEvent) => {
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
+  const hasActions = Boolean(onAddToCookbook || onDelete);
+  const { swipeHandlers, shouldIgnoreSwipeClick } = useSwipeActions<HTMLElement>({
+    enabled: hasActions,
+    onSwipeLeft: () => setIsActionsOpen(true),
+    onSwipeRight: () => setIsActionsOpen(false),
+  });
+
+  const handleDelete = (e: MouseEvent) => {
     e.stopPropagation();
+    setIsActionsOpen(false);
     onDelete?.();
   };
 
-  const handleAddToCookbook = (e: React.MouseEvent) => {
+  const handleAddToCookbook = (e: MouseEvent) => {
     e.stopPropagation();
+    setIsActionsOpen(false);
     onAddToCookbook?.();
   };
 
+  const handleCardClick = (e: MouseEvent<HTMLElement>) => {
+    if (shouldIgnoreSwipeClick()) {
+      e.stopPropagation();
+      return;
+    }
+
+    if (isActionsOpen) {
+      setIsActionsOpen(false);
+      e.stopPropagation();
+      return;
+    }
+
+    onClick();
+  };
+
   return (
-    <article className="recipe-card" onClick={onClick}>
-      {(onAddToCookbook || onDelete) && (
+    <article
+      className={`recipe-card ${isActionsOpen ? 'swipe-actions-open' : ''}`.trim()}
+      onClick={handleCardClick}
+      {...swipeHandlers}
+    >
+      {hasActions && (
         <div className="card-actions">
           {onAddToCookbook && (
             <button className="card-action" onClick={handleAddToCookbook} aria-label="Add to cookbook">
