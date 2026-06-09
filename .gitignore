@@ -29,6 +29,8 @@ npm-debug.log*
 # Test results
 playwright-report/
 test-results/
+*.tsbuildinfo
+.tsbuildinfo/
 
 # Wrangler
 .wrangler/

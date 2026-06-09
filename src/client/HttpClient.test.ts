@@ -73,4 +73,22 @@ describe('HttpClient', () => {
       code: undefined,
     });
   });
+
+  it('does not send bearer tokens from browser token storage', async () => {
+    let capturedInit: RequestInit | undefined;
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedInit = init;
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const transport = new HttpTransport('https://api.test', {
+      getToken: () => 'session-id',
+      setToken: vi.fn(),
+      clearToken: vi.fn(),
+    });
+
+    await transport.request('GET', '/api/auth/session');
+
+    expect((capturedInit?.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
 });

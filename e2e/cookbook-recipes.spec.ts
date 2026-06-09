@@ -53,7 +53,7 @@ test.describe('Cookbook Recipes', () => {
       await card.hover();
       await card.locator('.card-action').first().click();
 
-      await expect(page.getByText(testCookbook.name)).toBeVisible();
+      await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
     test('should show cookbook recipe count', async ({ page }) => {
@@ -61,7 +61,7 @@ test.describe('Cookbook Recipes', () => {
       await card.hover();
       await card.locator('.card-action').first().click();
 
-      await expect(page.getByText('0 recipes')).toBeVisible();
+      await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).getByText('0 recipes')).toBeVisible();
     });
 
     test('should show Create New Cookbook button', async ({ page }) => {
@@ -77,10 +77,10 @@ test.describe('Cookbook Recipes', () => {
       await card.hover();
       await card.locator('.card-action').first().click();
 
-      await page.locator('.cookbook-checkbox-item').click();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
 
       // Should show checkmark indicating it was added
-      await expect(page.locator('.cookbook-checkbox-item.added')).toBeVisible();
+      await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
     test('should show loading state while adding', async ({ page }) => {
@@ -89,10 +89,10 @@ test.describe('Cookbook Recipes', () => {
       await card.locator('.card-action').first().click();
 
       // Click to add
-      await page.locator('.cookbook-checkbox-item').click();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
 
       // After adding, should show check mark
-      await expect(page.locator('.cookbook-checkbox-status svg')).toBeVisible();
+      await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).locator('.cookbook-checkbox-status svg')).toBeVisible();
     });
 
     test('should prevent adding same recipe twice', async ({ page }) => {
@@ -101,11 +101,11 @@ test.describe('Cookbook Recipes', () => {
       await card.locator('.card-action').first().click();
 
       // Add recipe
-      await page.locator('.cookbook-checkbox-item').click();
-      await expect(page.locator('.cookbook-checkbox-item.added')).toBeVisible();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
+      await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();
 
-      // The button should be disabled
-      await expect(page.locator('.cookbook-checkbox-item')).toBeDisabled();
+      // The selected cookbook should stay marked as added.
+      await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
     test('should close modal when clicking X', async ({ page }) => {
@@ -130,16 +130,16 @@ test.describe('Cookbook Recipes', () => {
     });
   });
 
-  test.describe('No Cookbooks State', () => {
-    test('should show message when user has no cookbooks', async ({ page }) => {
+  test.describe('Default Cookbook Options', () => {
+    test('should show existing default cookbook options', async ({ page }) => {
       const card = page.locator('.recipe-card').first();
       await card.hover();
       await card.locator('.card-action').first().click();
 
-      await expect(page.getByText("You don't have any cookbooks yet")).toBeVisible();
+      await expect(page.locator('.cookbook-checkbox-item').first()).toBeVisible();
     });
 
-    test('should show create cookbook button when no cookbooks', async ({ page }) => {
+    test('should show create cookbook button alongside default options', async ({ page }) => {
       const card = page.locator('.recipe-card').first();
       await card.hover();
       await card.locator('.card-action').first().click();
@@ -157,14 +157,14 @@ test.describe('Cookbook Recipes', () => {
       const card = page.locator('.recipe-card').first();
       await card.hover();
       await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').click();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
       await page.waitForTimeout(500);
       await page.locator('.modal-close').click();
     });
 
     test('should show recipe in cookbook detail', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
       await expect(page.getByText('Herb-Crusted Chicken')).toBeVisible();
     });
@@ -172,19 +172,19 @@ test.describe('Cookbook Recipes', () => {
     test('should update recipe count in cookbook', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
 
-      await expect(page.getByText('1 recipe')).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).getByText('1 recipe')).toBeVisible();
     });
 
     test('should show recipe card in cookbook detail', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
       await expect(page.locator('.recipe-card')).toBeVisible();
     });
 
     test('should open recipe detail from cookbook', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
       await page.getByText('Herb-Crusted Chicken').click();
 
       await expect(page.getByText('Ingredients')).toBeVisible();
@@ -201,63 +201,54 @@ test.describe('Cookbook Recipes', () => {
       const card = page.locator('.recipe-card').first();
       await card.hover();
       await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').click();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
       await page.waitForTimeout(500);
       await page.locator('.modal-close').click();
     });
 
-    test('should show remove button on recipe card in cookbook', async ({ page, helpers }) => {
-      await helpers.navigateToCookbooks();
-      await page.getByText(testCookbook.name).click();
-
-      const recipeCard = page.locator('.cookbook-recipe-card');
+    test('should show selected cookbook in add-to-cookbook modal', async ({ page }) => {
+      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
       await recipeCard.hover();
+      await recipeCard.locator('.card-action').first().click();
 
-      await expect(page.locator('.remove-from-cookbook')).toBeVisible();
+      await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
-    test('should remove recipe from cookbook after confirmation', async ({ page, helpers }) => {
-      page.on('dialog', dialog => dialog.accept());
+    test('should remove recipe from cookbook when toggling selected cookbook', async ({ page, helpers }) => {
+      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
+      await recipeCard.hover();
+      await recipeCard.locator('.card-action').first().click();
+      await page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name }).click();
+      await page.waitForTimeout(500);
+      await page.locator('.modal-close').click();
 
       await helpers.navigateToCookbooks();
-      await page.getByText(testCookbook.name).click();
-
-      const recipeCard = page.locator('.cookbook-recipe-card');
-      await recipeCard.hover();
-      await page.locator('.remove-from-cookbook').click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
       await expect(page.getByText('Herb-Crusted Chicken')).not.toBeVisible({ timeout: 5000 });
       await expect(page.getByText('No recipes yet')).toBeVisible();
     });
 
-    test('should not remove recipe when confirmation is cancelled', async ({ page, helpers }) => {
-      page.on('dialog', dialog => dialog.dismiss());
+    test('should keep recipe in cookbook when modal is closed without toggling', async ({ page, helpers }) => {
+      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
+      await recipeCard.hover();
+      await recipeCard.locator('.card-action').first().click();
+      await page.locator('.modal-close').click();
 
       await helpers.navigateToCookbooks();
-      await page.getByText(testCookbook.name).click();
-
-      const recipeCard = page.locator('.cookbook-recipe-card');
-      await recipeCard.hover();
-      await page.locator('.remove-from-cookbook').click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
       await expect(page.getByText('Herb-Crusted Chicken')).toBeVisible();
     });
 
     test('should not delete the actual recipe when removing from cookbook', async ({ page, helpers }) => {
-      page.on('dialog', dialog => dialog.accept());
-
-      await helpers.navigateToCookbooks();
-      await page.getByText(testCookbook.name).click();
-
-      const recipeCard = page.locator('.cookbook-recipe-card');
+      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
       await recipeCard.hover();
-      await page.locator('.remove-from-cookbook').click();
+      await recipeCard.locator('.card-action').first().click();
+      await page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name }).click();
       await page.waitForTimeout(500);
-
-      // Close cookbook detail
       await page.locator('.modal-close').click();
 
-      // Navigate back to recipes
       await helpers.navigateToRecipes();
 
       // Recipe should still exist
@@ -276,7 +267,7 @@ test.describe('Cookbook Recipes', () => {
       let card = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
       await card.hover();
       await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').click();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
       await page.waitForTimeout(500);
       await page.locator('.modal-close').click();
 
@@ -284,15 +275,15 @@ test.describe('Cookbook Recipes', () => {
       card = page.locator('.recipe-card').filter({ hasText: 'Classic Buttermilk Pancakes' });
       await card.hover();
       await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').click();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
       await page.waitForTimeout(500);
       await page.locator('.modal-close').click();
 
       // Check cookbook has both recipes
       await helpers.navigateToCookbooks();
-      await expect(page.getByText('2 recipes')).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).getByText('2 recipes')).toBeVisible();
 
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
       await expect(page.getByText('Herb-Crusted Chicken')).toBeVisible();
       await expect(page.getByText('Classic Buttermilk Pancakes')).toBeVisible();
     });
@@ -305,13 +296,13 @@ test.describe('Cookbook Recipes', () => {
         const card = page.locator('.recipe-card').filter({ hasText: recipeName });
         await card.hover();
         await card.locator('.card-action').first().click();
-        await page.locator('.cookbook-checkbox-item').click();
+        await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
         await page.waitForTimeout(500);
         await page.locator('.modal-close').click();
       }
 
       await helpers.navigateToCookbooks();
-      await expect(page.getByText('3 recipes')).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).getByText('3 recipes')).toBeVisible();
     });
   });
 
@@ -329,20 +320,20 @@ test.describe('Cookbook Recipes', () => {
       await card.locator('.card-action').first().click();
 
       // Should see both cookbooks
-      await expect(page.getByText(testCookbook.name)).toBeVisible();
-      await expect(page.getByText(cookbook2.name)).toBeVisible();
+      await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name })).toBeVisible();
+      await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: cookbook2.name })).toBeVisible();
 
       // Add to first cookbook
-      await page.locator('.cookbook-checkbox-item').first().click();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
       await page.waitForTimeout(500);
 
       // Add to second cookbook
-      await page.locator('.cookbook-checkbox-item').last().click();
+      await page.locator('.cookbook-checkbox-item').filter({ hasText: cookbook2.name }).click();
       await page.waitForTimeout(500);
 
-      // Both should show as added
-      const addedItems = page.locator('.cookbook-checkbox-item.added');
-      await expect(addedItems).toHaveCount(2);
+      // Both selected cookbooks should show as added, even if default collections are also selected.
+      await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();
+      await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: cookbook2.name })).toBeVisible();
     });
   });
 });

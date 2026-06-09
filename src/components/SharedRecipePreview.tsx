@@ -3,8 +3,8 @@ import { Clock, Users, ExternalLink, ChefHat, Download, Loader2, Heart } from 'l
 import { DinoMascot } from './DinoMascot';
 import { decompressFromEncodedURIComponent } from 'lz-string';
 import { downloadRecipePdf } from '../utils/recipePdf';
-import { useClient } from '../client/ClientContext';
-import { useToast } from '../context/ToastContext';
+import { useOptionalClient } from '../client/ClientContext';
+import { useOptionalToast } from '../context/ToastContext';
 
 interface PreviewRecipe {
   title: string;
@@ -40,23 +40,8 @@ export function SharedRecipePreview({
   const [isSaving, setIsSaving] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
-
-  // These will only be available when rendered within the logged-in app context
-  let client: ReturnType<typeof useClient> | null = null;
-  let showToast: ReturnType<typeof useToast>['showToast'] | null = null;
-
-  try {
-    client = useClient();
-  } catch {
-    // Not in a ClientProvider - this is expected for unauthenticated preview
-  }
-
-  try {
-    const toast = useToast();
-    showToast = toast.showToast;
-  } catch {
-    // Not in a ToastProvider
-  }
+  const client = useOptionalClient();
+  const showToast = useOptionalToast()?.showToast ?? null;
 
   useEffect(() => {
     let cancelled = false;

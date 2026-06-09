@@ -53,50 +53,55 @@ export class TestHelpers {
 
   async register(user: typeof testUser) {
     await this.page.goto('/');
-    await this.page.getByRole('button', { name: 'Get Started' }).click();
+    await this.page.getByRole('button', { name: 'Get Started', exact: true }).click();
     await this.page.getByLabel('Name').fill(user.name);
     await this.page.getByLabel('Email').fill(user.email);
     await this.page.locator('#password').fill(user.password);
     await this.page.locator('#confirmPassword').fill(user.password);
     await this.page.getByRole('button', { name: 'Create Account' }).click();
-    await expect(this.page.getByText(user.name)).toBeVisible({ timeout: 10000 });
+    await expect(this.page.getByRole('heading', { name: 'My Recipes' })).toBeVisible({ timeout: 10000 });
   }
 
   async login(user: typeof testUser) {
     await this.page.goto('/');
-    await this.page.getByRole('button', { name: 'Sign In' }).click();
+    await this.page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
     await this.page.getByLabel('Email').fill(user.email);
     await this.page.locator('#password').fill(user.password);
-    await this.page.getByRole('button', { name: 'Sign In' }).click();
-    await expect(this.page.getByText(user.name)).toBeVisible({ timeout: 10000 });
+    await this.page.locator('.auth-submit').click();
+    await expect(this.page.getByRole('heading', { name: 'My Recipes' })).toBeVisible({ timeout: 10000 });
   }
 
   async logout() {
+    await this.page.getByRole('button', { name: 'User menu' }).click();
     await this.page.getByRole('button', { name: 'Sign out' }).click();
-    await expect(this.page.getByRole('button', { name: 'Get Started' })).toBeVisible();
+    await expect(this.page.getByRole('button', { name: 'Get Started', exact: true })).toBeVisible();
   }
 
   async createRecipe(recipe: typeof testRecipe) {
     await this.page.getByRole('button', { name: 'New Recipe' }).click();
-    await this.page.getByLabel('Recipe Title').fill(recipe.title);
+    await this.page.getByRole('button', { name: 'Manual' }).click();
+    await this.page.getByLabel('Title').fill(recipe.title);
     await this.page.getByLabel('Description').fill(recipe.description);
     await this.page.getByLabel('Ingredients').fill(recipe.ingredients);
     await this.page.getByLabel('Instructions').fill(recipe.instructions);
-    await this.page.getByLabel('Tags').fill(recipe.tags);
-    await this.page.locator('input[placeholder="e.g., 30 mins"]').first().fill(recipe.prepTime);
-    await this.page.locator('input[placeholder="e.g., 1 hour"]').fill(recipe.cookTime);
-    await this.page.locator('input[placeholder="e.g., 4"]').fill(recipe.servings);
-    await this.page.getByRole('button', { name: 'Add Recipe' }).click();
+    for (const tag of recipe.tags.split(',').map(tag => tag.trim()).filter(Boolean)) {
+      await this.page.locator('.tag-input').fill(tag);
+      await this.page.keyboard.press('Enter');
+    }
+    await this.page.getByLabel('Prep Time').fill(recipe.prepTime);
+    await this.page.getByLabel('Cook Time').fill(recipe.cookTime);
+    await this.page.getByLabel('Servings').fill(recipe.servings);
+    await this.page.getByRole('button', { name: 'Save Recipe' }).click();
     await expect(this.page.getByText(recipe.title)).toBeVisible({ timeout: 10000 });
   }
 
   async navigateToCookbooks() {
-    await this.page.getByRole('button', { name: 'Cookbooks' }).click();
-    await expect(this.page.getByText('My Cookbooks')).toBeVisible();
+    await this.page.getByRole('link', { name: 'Cookbooks', exact: true }).click();
+    await expect(this.page.getByRole('heading', { name: 'Cookbooks' })).toBeVisible();
   }
 
   async navigateToRecipes() {
-    await this.page.getByRole('button', { name: 'Recipes' }).click();
+    await this.page.getByRole('link', { name: 'My Recipes' }).click();
   }
 
   async createCookbook(cookbook: typeof testCookbook) {
@@ -105,7 +110,7 @@ export class TestHelpers {
     await this.page.getByLabel('Name').fill(cookbook.name);
     await this.page.getByLabel('Description').fill(cookbook.description);
     await this.page.getByRole('button', { name: 'Create Cookbook' }).click();
-    await expect(this.page.getByText(cookbook.name)).toBeVisible({ timeout: 10000 });
+    await expect(this.page.locator('.cookbook-card-link').filter({ hasText: cookbook.name })).toBeVisible({ timeout: 10000 });
   }
 
   async openRecipeDetail(recipeTitle: string) {

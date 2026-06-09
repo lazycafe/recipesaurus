@@ -3,7 +3,10 @@ import initSqlJs, { Database as SqlJsDatabase } from 'sql.js';
 
 // sql.js Database Adapter (pure JavaScript SQLite)
 export class SqliteAdapter implements IDatabaseAdapter {
-  constructor(private db: SqlJsDatabase) {}
+  constructor(
+    private db: SqlJsDatabase,
+    private onRun?: () => void
+  ) {}
 
   async get<T>(sql: string, ...params: unknown[]): Promise<T | null> {
     const stmt = this.db.prepare(sql);
@@ -41,18 +44,19 @@ export class SqliteAdapter implements IDatabaseAdapter {
 
   async run(sql: string, ...params: unknown[]): Promise<void> {
     this.db.run(sql, params.map(p => p as null | number | string | Uint8Array));
+    this.onRun?.();
   }
 }
 
 // Helper to create an in-memory SQLite database with schema
-export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
+export async function createInMemoryDatabase(initialData?: Uint8Array): Promise<SqlJsDatabase> {
   const maybeProcess = (globalThis as { process?: { cwd?: () => string; versions?: { node?: string } } }).process;
   const SQL = await initSqlJs({
     locateFile: () => maybeProcess?.versions?.node
       ? `${maybeProcess.cwd?.() || '.'}/node_modules/sql.js/dist/sql-wasm.wasm`
       : '/sql-wasm.wasm',
   });
-  const db = new SQL.Database();
+  const db = new SQL.Database(initialData);
 
   // Initialize schema
   db.run(`
@@ -139,6 +143,7 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       token TEXT UNIQUE NOT NULL,
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
       FOREIGN KEY (cookbook_id) REFERENCES cookbooks(id)
     );
 
@@ -155,6 +160,15 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       ip_address TEXT,
       attempted_at INTEGER NOT NULL,
       success INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS rate_limits (
+      id TEXT PRIMARY KEY,
+      bucket TEXT NOT NULL,
+      key TEXT NOT NULL,
+      window_start INTEGER NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(bucket, key, window_start)
     );
 
     CREATE TABLE IF NOT EXISTS ai_meal_plan_requests (
@@ -241,11 +255,14 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
     CREATE INDEX IF NOT EXISTS idx_cookbook_recipes_recipe_id ON cookbook_recipes(recipe_id);
     CREATE INDEX IF NOT EXISTS idx_cookbook_shares_cookbook_id ON cookbook_shares(cookbook_id);
     CREATE INDEX IF NOT EXISTS idx_cookbook_shares_shared_with ON cookbook_shares(shared_with_user_id);
+    CREATE INDEX IF NOT EXISTS idx_cookbook_share_links_expires_at ON cookbook_share_links(expires_at);
     CREATE INDEX IF NOT EXISTS idx_friendships_user_a ON friendships(user_a_id);
     CREATE INDEX IF NOT EXISTS idx_friendships_user_b ON friendships(user_b_id);
     CREATE INDEX IF NOT EXISTS idx_friend_requests_requested_user ON friend_requests(requested_user_id);
     CREATE INDEX IF NOT EXISTS idx_friend_requests_status ON friend_requests(status);
     CREATE INDEX IF NOT EXISTS idx_login_attempts_email ON login_attempts(email);
+    CREATE INDEX IF NOT EXISTS idx_rate_limits_bucket_key ON rate_limits(bucket, key);
+    CREATE INDEX IF NOT EXISTS idx_rate_limits_window_start ON rate_limits(window_start);
     CREATE INDEX IF NOT EXISTS idx_recipe_share_links_token ON recipe_share_links(token);
     CREATE INDEX IF NOT EXISTS idx_recipe_share_links_created_at ON recipe_share_links(created_at);
     CREATE INDEX IF NOT EXISTS idx_ai_meal_plan_requests_user_created ON ai_meal_plan_requests(user_id, created_at);

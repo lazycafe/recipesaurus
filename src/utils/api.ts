@@ -3,11 +3,11 @@ const TOKEN_KEY = 'recipesaurus_token';
 
 // Token management
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return null;
 }
 
-export function setStoredToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+export function setStoredToken(_token: string): void {
+  clearStoredToken();
 }
 
 export function clearStoredToken(): void {
@@ -24,15 +24,10 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
   try {
-    const token = getStoredToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
     };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
@@ -40,13 +35,21 @@ async function request<T>(
       headers,
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      return { error: data.error || 'Request failed' };
+    const responseText = await response.text();
+    let data: { error?: string } | null = null;
+    if (responseText) {
+      try {
+        data = JSON.parse(responseText) as { error?: string };
+      } catch {
+        data = { error: responseText };
+      }
     }
 
-    return { data };
+    if (!response.ok) {
+      return { error: data?.error || 'Request failed' };
+    }
+
+    return { data: data as T };
   } catch (error) {
     console.error('API Error:', error);
     return { error: 'Network error. Please try again.' };
@@ -200,6 +203,7 @@ export interface CookbookShareLinkResponse {
   token: string;
   isActive: boolean;
   createdAt: number;
+  expiresAt: number;
 }
 
 export const cookbooksApi = {
@@ -244,7 +248,7 @@ export const cookbooksApi = {
     });
   },
 
-  async shareByEmail(cookbookId: string, email: string): Promise<ApiResponse<{ success: boolean; sharedWith?: { id: string; name: string } }>> {
+  async shareByEmail(cookbookId: string, email: string): Promise<ApiResponse<{ success: boolean; message?: string; sharedWith?: { id: string; name: string } }>> {
     return request(`/api/cookbooks/${cookbookId}/share`, {
       method: 'POST',
       body: JSON.stringify({ email }),

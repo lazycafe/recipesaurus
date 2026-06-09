@@ -13,31 +13,31 @@ test.describe('Cookbooks', () => {
 
   test.describe('Navigation', () => {
     test('should show Cookbooks tab in header', async ({ page }) => {
-      await expect(page.getByRole('button', { name: 'Cookbooks' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Cookbooks' })).toBeVisible();
     });
 
     test('should navigate to cookbooks view when clicking Cookbooks tab', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
 
-      await expect(page.getByText('My Cookbooks')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Cookbooks' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'New Cookbook' })).toBeVisible();
     });
 
     test('should show Recipes tab as active by default', async ({ page }) => {
-      const recipesTab = page.getByRole('button', { name: 'Recipes' });
+      const recipesTab = page.getByRole('link', { name: 'My Recipes' });
       await expect(recipesTab).toHaveClass(/active/);
     });
 
     test('should highlight Cookbooks tab when active', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
 
-      const cookbooksTab = page.getByRole('button', { name: 'Cookbooks' });
+      const cookbooksTab = page.getByRole('link', { name: 'Cookbooks' });
       await expect(cookbooksTab).toHaveClass(/active/);
     });
 
     test('should switch between Recipes and Cookbooks views', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
-      await expect(page.getByText('My Cookbooks')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Cookbooks' })).toBeVisible();
 
       await helpers.navigateToRecipes();
       await expect(page.getByText('Herb-Crusted Chicken')).toBeVisible();
@@ -45,18 +45,18 @@ test.describe('Cookbooks', () => {
   });
 
   test.describe('Cookbook List', () => {
-    test('should show empty state when no cookbooks exist', async ({ page, helpers }) => {
+    test('should show existing cookbook list and create action', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
 
-      await expect(page.getByText('No cookbooks yet')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Create Your First Cookbook' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Cookbooks' })).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').first()).toBeVisible();
+      await expect(page.getByRole('button', { name: 'New Cookbook' })).toBeVisible();
     });
 
-    test('should show My Cookbooks tab by default', async ({ page, helpers }) => {
+    test('should show Cookbooks page by default', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
 
-      const myTab = page.locator('.cookbook-tab').filter({ hasText: 'My Cookbooks' });
-      await expect(myTab).toHaveClass(/active/);
+      await expect(page.getByRole('heading', { name: 'Cookbooks' })).toBeVisible();
     });
 
     test('should not show Shared with Me tab when no shared cookbooks', async ({ page, helpers }) => {
@@ -74,9 +74,9 @@ test.describe('Cookbooks', () => {
       await expect(page.getByRole('heading', { name: 'Create Cookbook' })).toBeVisible();
     });
 
-    test('should open create cookbook modal from empty state button', async ({ page, helpers }) => {
+    test('should open create cookbook modal from empty state', async ({ page, helpers }) => {
       await helpers.navigateToCookbooks();
-      await page.getByRole('button', { name: 'Create Your First Cookbook' }).click();
+      await page.getByRole('button', { name: 'New Cookbook' }).click();
 
       await expect(page.getByRole('heading', { name: 'Create Cookbook' })).toBeVisible();
     });
@@ -84,7 +84,7 @@ test.describe('Cookbooks', () => {
     test('should create a cookbook with name and description', async ({ page, helpers }) => {
       await helpers.createCookbook(testCookbook);
 
-      await expect(page.getByText(testCookbook.name)).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name })).toBeVisible();
       await expect(page.getByText(testCookbook.description)).toBeVisible();
     });
 
@@ -94,7 +94,7 @@ test.describe('Cookbooks', () => {
       await page.getByLabel('Name').fill('Name Only Cookbook');
       await page.getByRole('button', { name: 'Create Cookbook' }).click();
 
-      await expect(page.getByText('Name Only Cookbook')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: 'Name Only Cookbook' })).toBeVisible({ timeout: 10000 });
     });
 
     test('should show validation error for empty name', async ({ page, helpers }) => {
@@ -115,7 +115,7 @@ test.describe('Cookbooks', () => {
 
       // The button should briefly show loading state
       // This test checks the button exists and cookbook is created
-      await expect(page.getByText('Loading Test Cookbook')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: 'Loading Test Cookbook' })).toBeVisible({ timeout: 10000 });
     });
 
     test('should close create modal when clicking X', async ({ page, helpers }) => {
@@ -144,7 +144,7 @@ test.describe('Cookbooks', () => {
     });
 
     test('should display cookbook name', async ({ page }) => {
-      await expect(page.getByText(testCookbook.name)).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
     test('should display cookbook description', async ({ page }) => {
@@ -155,15 +155,15 @@ test.describe('Cookbooks', () => {
       await expect(page.getByText('0 recipes')).toBeVisible();
     });
 
-    test('should display book icon', async ({ page }) => {
-      await expect(page.locator('.cookbook-card-icon')).toBeVisible();
+    test('should display book cover', async ({ page }) => {
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).locator('.cookbook-book')).toBeVisible();
     });
 
-    test('should show delete button on hover', async ({ page }) => {
-      const card = page.locator('.cookbook-card').first();
-      await card.hover();
+    test('should show delete button in edit modal', async ({ page }) => {
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
+      await page.getByRole('button', { name: 'Edit' }).click();
 
-      await expect(card.locator('.card-delete')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Delete Cookbook' })).toBeVisible();
     });
   });
 
@@ -173,52 +173,50 @@ test.describe('Cookbooks', () => {
     });
 
     test('should open cookbook detail when clicking card', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
-      await expect(page.locator('.cookbook-detail')).toBeVisible();
+      await expect(page.locator('.cookbook-detail-page')).toBeVisible();
       await expect(page.getByRole('heading', { name: testCookbook.name })).toBeVisible();
     });
 
     test('should display cookbook description in detail view', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
       await expect(page.getByText(testCookbook.description)).toBeVisible();
     });
 
     test('should show Edit button for owned cookbook', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
       await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
     });
 
     test('should show Share button for owned cookbook', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
       await expect(page.getByRole('button', { name: 'Share' })).toBeVisible();
     });
 
     test('should show empty state when cookbook has no recipes', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
       await expect(page.getByText('No recipes yet')).toBeVisible();
     });
 
-    test('should close cookbook detail when clicking X', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await expect(page.locator('.cookbook-detail')).toBeVisible();
+    test('should return to cookbooks when clicking back link', async ({ page }) => {
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
+      await expect(page.locator('.cookbook-detail-page')).toBeVisible();
 
-      await page.locator('.modal-close').click();
+      await page.getByRole('link', { name: 'Back to Cookbooks' }).click();
 
-      await expect(page.locator('.cookbook-detail')).not.toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Cookbooks' })).toBeVisible();
     });
 
-    test('should close cookbook detail when clicking overlay', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await expect(page.locator('.cookbook-detail')).toBeVisible();
+    test('should stay on cookbook detail without an overlay', async ({ page }) => {
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
-      await page.locator('.cookbook-detail-overlay').click({ position: { x: 10, y: 10 } });
-
-      await expect(page.locator('.cookbook-detail')).not.toBeVisible();
+      await expect(page.locator('.cookbook-detail-page')).toBeVisible();
+      await expect(page.locator('.cookbook-detail-overlay')).not.toBeVisible();
     });
   });
 
@@ -228,14 +226,14 @@ test.describe('Cookbooks', () => {
     });
 
     test('should open edit modal when clicking Edit button', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
       await page.getByRole('button', { name: 'Edit' }).click();
 
       await expect(page.getByRole('heading', { name: 'Edit Cookbook' })).toBeVisible();
     });
 
     test('should pre-fill form with current cookbook data', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
       await page.getByRole('button', { name: 'Edit' }).click();
 
       await expect(page.getByLabel('Name')).toHaveValue(testCookbook.name);
@@ -243,23 +241,22 @@ test.describe('Cookbooks', () => {
     });
 
     test('should update cookbook name', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
       await page.getByRole('button', { name: 'Edit' }).click();
 
       await page.getByLabel('Name').fill('Updated Cookbook Name');
       await page.getByRole('button', { name: 'Save Changes' }).click();
 
-      await expect(page.getByText('Updated Cookbook Name')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('heading', { name: 'Updated Cookbook Name' })).toBeVisible({ timeout: 10000 });
     });
 
     test('should update cookbook description', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
       await page.getByRole('button', { name: 'Edit' }).click();
 
       await page.getByLabel('Description').fill('Updated description');
       await page.getByRole('button', { name: 'Save Changes' }).click();
 
-      await page.getByText(testCookbook.name).click();
       await expect(page.getByText('Updated description')).toBeVisible();
     });
   });
@@ -270,38 +267,30 @@ test.describe('Cookbooks', () => {
     });
 
     test('should delete cookbook after confirmation', async ({ page }) => {
-      page.on('dialog', dialog => dialog.accept());
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
+      await page.getByRole('button', { name: 'Edit' }).click();
+      await page.getByRole('button', { name: 'Delete Cookbook' }).click();
+      await page.locator('.confirm-modal').getByRole('button', { name: 'Delete', exact: true }).click();
 
-      const card = page.locator('.cookbook-card').first();
-      await card.hover();
-      await card.locator('.card-delete').click();
-
-      await expect(page.getByText(testCookbook.name)).not.toBeVisible({ timeout: 10000 });
-      await expect(page.getByText('No cookbooks yet')).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name })).not.toBeVisible({ timeout: 10000 });
+      await expect(page.locator('.cookbook-card-link').first()).toBeVisible();
     });
 
     test('should not delete cookbook when confirmation is cancelled', async ({ page }) => {
-      page.on('dialog', dialog => dialog.dismiss());
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
+      await page.getByRole('button', { name: 'Edit' }).click();
+      await page.getByRole('button', { name: 'Delete Cookbook' }).click();
+      await page.getByRole('button', { name: 'Cancel' }).click();
 
-      const card = page.locator('.cookbook-card').first();
-      await card.hover();
-      await card.locator('.card-delete').click();
-
-      await expect(page.getByText(testCookbook.name)).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Edit Cookbook' })).toBeVisible();
     });
 
     test('should show confirmation message mentioning recipes won\'t be deleted', async ({ page }) => {
-      let dialogMessage = '';
-      page.on('dialog', dialog => {
-        dialogMessage = dialog.message();
-        dialog.accept();
-      });
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
+      await page.getByRole('button', { name: 'Edit' }).click();
+      await page.getByRole('button', { name: 'Delete Cookbook' }).click();
 
-      const card = page.locator('.cookbook-card').first();
-      await card.hover();
-      await card.locator('.card-delete').click();
-
-      expect(dialogMessage).toContain('Recipes will not be deleted');
+      await expect(page.getByText(/recipes will not be deleted/i)).toBeVisible();
     });
   });
 
@@ -310,23 +299,25 @@ test.describe('Cookbooks', () => {
       await helpers.createCookbook(testCookbook);
       await helpers.createCookbook(testCookbook2);
 
-      await expect(page.getByText(testCookbook.name)).toBeVisible();
-      await expect(page.getByText(testCookbook2.name)).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name })).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook2.name })).toBeVisible();
     });
 
-    test('should show cookbook count in tab', async ({ page, helpers }) => {
+    test('should show created cookbooks in grid', async ({ page, helpers }) => {
       await helpers.createCookbook(testCookbook);
       await helpers.createCookbook(testCookbook2);
 
-      await expect(page.locator('.tab-count').filter({ hasText: '2' })).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name })).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook2.name })).toBeVisible();
     });
 
     test('should display cookbooks in grid layout', async ({ page, helpers }) => {
       await helpers.createCookbook(testCookbook);
       await helpers.createCookbook(testCookbook2);
 
-      const cards = page.locator('.cookbook-card');
-      await expect(cards).toHaveCount(2);
+      await expect(page.locator('.cookbook-grid')).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).locator('.cookbook-card')).toBeVisible();
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook2.name }).locator('.cookbook-card')).toBeVisible();
     });
   });
 });

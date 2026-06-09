@@ -34,7 +34,7 @@ describe('Profiles and friends', () => {
 
     const friendRequest = await aliceClient.profile.addFriend({ email: 'bob@example.com' });
     expect(friendRequest.error).toBeUndefined();
-    expect(friendRequest.data?.friend.id).toBe(bob.data?.user?.id);
+    expect(friendRequest.data?.friend?.id).toBe(bob.data?.user?.id);
 
     const aliceProfile = await aliceClient.profile.get(alice.data!.user!.id);
     expect(aliceProfile.data?.profile.friendCount).toBe(0);
@@ -134,6 +134,21 @@ describe('Profiles and friends', () => {
     expect(profile.data?.profile.cookbookCount).toBe(3);
     expect(profile.data?.profile.recipes.map(recipe => recipe.title)).toEqual(['Public Recipe']);
     expect(profile.data?.profile.cookbooks.map(cookbook => cookbook.name)).toEqual(['Public Cookbook']);
+  });
+
+  it('limits friend list visibility to the owner and existing friends', async () => {
+    const aliceClient = harness.createClient();
+    const bobClient = harness.createClient();
+    const anonymousClient = harness.createClient();
+
+    const alice = await aliceClient.auth.register('alice@example.com', 'Alice Chef', 'Password123');
+    await bobClient.auth.register('bob@example.com', 'Bob Baker', 'Password123');
+
+    const anonymousFriends = await anonymousClient.profile.listFriends(alice.data!.user!.id);
+    expect(anonymousFriends.error).toContain('Unauthorized');
+
+    const nonFriendFriends = await bobClient.profile.listFriends(alice.data!.user!.id);
+    expect(nonFriendFriends.error).toContain('only visible');
   });
 
   it('accepts a pending friend request even when the notification request id is stale', async () => {

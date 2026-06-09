@@ -15,12 +15,12 @@ test.describe('Edit Recipe', () => {
     test('should show Edit Recipe button in recipe detail', async ({ page }) => {
       await page.getByText('Herb-Crusted Chicken').click();
 
-      await expect(page.getByRole('button', { name: 'Edit Recipe' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
     });
 
     test('should open edit modal when clicking Edit Recipe', async ({ page }) => {
       await page.getByText('Herb-Crusted Chicken').click();
-      await page.getByRole('button', { name: 'Edit Recipe' }).click();
+      await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
       await expect(page.getByRole('heading', { name: 'Edit Recipe' })).toBeVisible();
     });
@@ -29,32 +29,32 @@ test.describe('Edit Recipe', () => {
   test.describe('Edit Form', () => {
     test.beforeEach(async ({ page }) => {
       await page.getByText('Herb-Crusted Chicken').click();
-      await page.getByRole('button', { name: 'Edit Recipe' }).click();
+      await page.getByRole('button', { name: 'Edit', exact: true }).click();
     });
 
     test('should pre-fill form with current recipe data', async ({ page }) => {
-      await expect(page.getByLabel('Recipe Title')).toHaveValue('Herb-Crusted Chicken');
+      await expect(page.getByLabel('Title')).toHaveValue('Herb-Crusted Chicken');
       await expect(page.getByLabel('Description')).toContainText('Tender chicken');
     });
 
     test('should update recipe title', async ({ page }) => {
-      await page.getByLabel('Recipe Title').fill('Updated Chicken Recipe');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await page.getByLabel('Title').fill('Updated Chicken Recipe');
+      await page.getByRole('button', { name: 'Update Recipe' }).click();
 
       await expect(page.getByText('Updated Chicken Recipe')).toBeVisible({ timeout: 10000 });
     });
 
     test('should update recipe description', async ({ page }) => {
       await page.getByLabel('Description').fill('A new updated description');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await page.getByRole('button', { name: 'Update Recipe' }).click();
 
       await page.getByText('Herb-Crusted Chicken').click();
-      await expect(page.getByText('A new updated description')).toBeVisible();
+      await expect(page.locator('.detail-description').filter({ hasText: 'A new updated description' })).toBeVisible();
     });
 
     test('should update recipe ingredients', async ({ page }) => {
       await page.getByLabel('Ingredients').fill('new ingredient 1\nnew ingredient 2\nnew ingredient 3');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await page.getByRole('button', { name: 'Update Recipe' }).click();
 
       await page.getByText('Herb-Crusted Chicken').click();
       await expect(page.getByText('new ingredient 1')).toBeVisible();
@@ -62,42 +62,43 @@ test.describe('Edit Recipe', () => {
 
     test('should update recipe instructions', async ({ page }) => {
       await page.getByLabel('Instructions').fill('new step 1\nnew step 2');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await page.getByRole('button', { name: 'Update Recipe' }).click();
 
       await page.getByText('Herb-Crusted Chicken').click();
       await expect(page.getByText('new step 1')).toBeVisible();
     });
 
     test('should update recipe tags', async ({ page }) => {
-      await page.getByLabel('Tags').fill('updated, tags, test');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await page.locator('.tag-input').fill('updated');
+      await page.keyboard.press('Enter');
+      await page.getByRole('button', { name: 'Update Recipe' }).click();
 
       await page.getByText('Herb-Crusted Chicken').click();
       await expect(page.getByText('updated')).toBeVisible();
     });
 
     test('should update prep time', async ({ page }) => {
-      await page.locator('input[placeholder="e.g., 30 mins"]').first().fill('25 mins');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await page.getByLabel('Prep Time').fill('25 mins');
+      await page.getByRole('button', { name: 'Update Recipe' }).click();
 
       await page.getByText('Herb-Crusted Chicken').click();
-      await expect(page.getByText('25 mins')).toBeVisible();
+      await expect(page.locator('.modal-detail .meta-value').filter({ hasText: '25 mins' })).toBeVisible();
     });
 
     test('should update cook time', async ({ page }) => {
-      await page.locator('input[placeholder="e.g., 1 hour"]').fill('40 mins');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await page.getByLabel('Cook Time').fill('40 mins');
+      await page.getByRole('button', { name: 'Update Recipe' }).click();
 
       await page.getByText('Herb-Crusted Chicken').click();
       await expect(page.getByText('40 mins')).toBeVisible();
     });
 
     test('should update servings', async ({ page }) => {
-      await page.locator('input[placeholder="e.g., 4"]').fill('6');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await page.getByLabel('Servings').fill('6');
+      await page.getByRole('button', { name: 'Update Recipe' }).click();
 
       await page.getByText('Herb-Crusted Chicken').click();
-      await expect(page.getByText('6')).toBeVisible();
+      await expect(page.locator('.modal-detail .meta-value').filter({ hasText: '6' })).toBeVisible();
     });
 
     test('should close edit modal when clicking X', async ({ page }) => {
@@ -107,38 +108,30 @@ test.describe('Edit Recipe', () => {
     });
 
     test('should show validation for empty title', async ({ page }) => {
-      await page.getByLabel('Recipe Title').fill('');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
+      await page.getByLabel('Title').fill('');
+      await page.getByRole('button', { name: 'Update Recipe' }).click();
 
-      // HTML5 validation should prevent submission
-      await expect(page.getByLabel('Recipe Title')).toBeFocused();
+      await expect(page.getByText('Please enter a recipe title')).toBeVisible();
     });
   });
 
-  test.describe('Image URL Update', () => {
-    test('should add image URL to recipe without image', async ({ page }) => {
+  test.describe('Image Controls', () => {
+    test('should show image controls while editing recipe', async ({ page }) => {
       await page.getByText('Herb-Crusted Chicken').click();
-      await page.getByRole('button', { name: 'Edit Recipe' }).click();
+      await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
-      await page.getByLabel('Image URL').fill('https://example.com/chicken.jpg');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
-
-      // Verify the card shows the image (or at least the recipe was updated)
-      await expect(page.getByText('Herb-Crusted Chicken')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText('Image', { exact: true })).toBeVisible();
+      await expect(page.locator('#image-upload')).toBeAttached();
     });
   });
 
-  test.describe('Source URL Update', () => {
-    test('should add source URL to recipe', async ({ page }) => {
+  test.describe('Visibility Controls', () => {
+    test('should show visibility controls while editing recipe', async ({ page }) => {
       await page.getByText('Herb-Crusted Chicken').click();
-      await page.getByRole('button', { name: 'Edit Recipe' }).click();
+      await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
-      await page.getByLabel('Source URL').fill('https://example.com/original-recipe');
-      await page.getByRole('button', { name: 'Save Changes' }).click();
-
-      await page.getByText('Herb-Crusted Chicken').click();
-      // Source URL should be displayed as a link
-      await expect(page.getByRole('link', { name: 'View Original' })).toBeVisible();
+      await expect(page.getByText('Visibility')).toBeVisible();
+      await expect(page.locator('.visibility-control')).toBeVisible();
     });
   });
 });

@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS cookbook_share_links (
   token TEXT UNIQUE NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
   FOREIGN KEY (cookbook_id) REFERENCES cookbooks(id) ON DELETE CASCADE
 );
 
@@ -180,6 +181,16 @@ CREATE TABLE IF NOT EXISTS friend_requests (
   CHECK (requester_id <> requested_user_id)
 );
 
+-- Fixed-window API rate limits for public utility endpoints
+CREATE TABLE IF NOT EXISTS rate_limits (
+  id TEXT PRIMARY KEY,
+  bucket TEXT NOT NULL,
+  key TEXT NOT NULL,
+  window_start INTEGER NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(bucket, key, window_start)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
@@ -206,8 +217,11 @@ CREATE INDEX IF NOT EXISTS idx_cookbook_shares_cookbook_id ON cookbook_shares(co
 CREATE INDEX IF NOT EXISTS idx_cookbook_shares_shared_with ON cookbook_shares(shared_with_user_id);
 CREATE INDEX IF NOT EXISTS idx_cookbook_share_links_token ON cookbook_share_links(token);
 CREATE INDEX IF NOT EXISTS idx_cookbook_share_links_cookbook_id ON cookbook_share_links(cookbook_id);
+CREATE INDEX IF NOT EXISTS idx_cookbook_share_links_expires_at ON cookbook_share_links(expires_at);
 CREATE INDEX IF NOT EXISTS idx_recipe_share_links_token ON recipe_share_links(token);
 CREATE INDEX IF NOT EXISTS idx_recipe_share_links_created_at ON recipe_share_links(created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_meal_plan_requests_user_created ON ai_meal_plan_requests(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_customer ON user_subscriptions(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_subscription ON user_subscriptions(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_bucket_key ON rate_limits(bucket, key);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_window_start ON rate_limits(window_start);

@@ -39,6 +39,13 @@ import {
   shouldContinueOpenAIResponse,
 } from './core/mealPlanner';
 import { getDefaultRecipesaurusErrorCode } from './core/apiErrors';
+import {
+  COOKBOOK_SHARE_LINK_RATE_LIMIT,
+  SHARE_LINK_DURATION_MS,
+  getShareLinkExpiresAt,
+  getSqlLikePattern,
+  normalizeDiscoverySearchQuery,
+} from './core/shared';
 
 export interface Env {
   DB: D1Database;
@@ -123,22 +130,6 @@ interface Cookbook {
   is_public: number;
   created_at: number;
   updated_at: number;
-}
-
-interface CookbookShare {
-  id: string;
-  cookbook_id: string;
-  shared_with_user_id: string;
-  shared_by_user_id: string;
-  created_at: number;
-}
-
-interface CookbookShareLink {
-  id: string;
-  cookbook_id: string;
-  token: string;
-  is_active: number;
-  created_at: number;
 }
 
 interface RecipeSharePayload {
@@ -233,10 +224,40 @@ const SESSION_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Rate limiting
 const MAX_LOGIN_ATTEMPTS = 5;
-const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+const MAX_LOGIN_IP_ATTEMPTS = 50;
 const ATTEMPT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const MAX_RECIPE_SHARE_BYTES = 512 * 1024;
 const MAX_RECIPE_SHARE_ITEMS = 250;
+const MAX_RECIPE_IMPORT_BYTES = 1024 * 1024;
+const MAX_JSON_BODY_BYTES = 1024 * 1024;
+const MAX_URL_LENGTH = 2048;
+const MAX_IMAGE_DATA_URL_BYTES = 5 * 1024 * 1024;
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
+const PUBLIC_PROXY_FETCH_LIMIT = 20;
+const AUTHENTICATED_PROXY_FETCH_LIMIT = 100;
+const PUBLIC_RECIPE_SHARE_LIMIT = 30;
+const AUTHENTICATED_RECIPE_SHARE_LIMIT = 120;
+const FEEDBACK_RATE_LIMIT = 10;
+const PASSWORD_RESET_EMAIL_LIMIT = 3;
+const PASSWORD_RESET_IP_LIMIT = 20;
+const RESEND_VERIFICATION_EMAIL_LIMIT = 3;
+const RESEND_VERIFICATION_IP_LIMIT = 20;
+const REGISTRATION_EMAIL_LIMIT = 3;
+const REGISTRATION_IP_LIMIT = 10;
+const FRIEND_REQUEST_LIMIT = 30;
+const COOKBOOK_INVITE_LIMIT = 30;
+const RECIPE_SHARE_LINK_DURATION = SHARE_LINK_DURATION_MS;
+const GENERIC_FRIEND_REQUEST_EMAIL_MESSAGE = 'If that account exists, a friend request will be sent.';
+const GENERIC_COOKBOOK_INVITE_EMAIL_MESSAGE = 'If that account exists, a cookbook invite will be sent.';
+const GENERIC_RESEND_VERIFICATION_MESSAGE = 'If your email is registered and unverified, you will receive a verification email.';
+const GENERIC_REGISTRATION_MESSAGE = 'If this email can be registered, you will receive a verification email.';
+const IMAGE_DATA_URL_PATTERN = /^data:image\/(?:png|jpe?g|webp|gif);base64,([A-Za-z0-9+/]+={0,2})$/i;
+const ALLOWED_CORS_ORIGINS = new Set([
+  'https://recipesaurus.pages.dev',
+  'https://recipesaurus-git-main.pages.dev',
+  'https://recipesaurus.ai',
+  'https://www.recipesaurus.ai',
+]);
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -275,6 +296,71 @@ function normalizeOptionalString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function isValidEmailAddress(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function hasNonEmptyString(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function normalizeHttpUrl(value: unknown): string | null {
+  const trimmed = normalizeOptionalString(value);
+  if (!trimmed || trimmed.length > MAX_URL_LENGTH) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    if (parsed.username || parsed.password) {
+      return null;
+    }
+    return parsed.toString();
+  } catch (error) {
+    if (error instanceof JsonBodyTooLargeError) {
+      throw error;
+    }
+    return null;
+  }
+}
+
+function normalizeImageUrl(value: unknown): string | null {
+  const trimmed = normalizeOptionalString(value);
+  if (!trimmed) return null;
+
+  const dataUrlMatch = trimmed.match(IMAGE_DATA_URL_PATTERN);
+  if (dataUrlMatch) {
+    const base64Data = dataUrlMatch[1];
+    const maxBase64Length = Math.ceil(MAX_IMAGE_DATA_URL_BYTES / 3) * 4;
+    if (base64Data.length > maxBase64Length || base64Data.length % 4 !== 0) {
+      return null;
+    }
+    return trimmed;
+  }
+
+  return normalizeHttpUrl(trimmed);
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, char => {
+    switch (char) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return char;
+    }
+  });
+}
+
 function normalizeStringList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -285,6 +371,13 @@ function normalizeStringList(value: unknown): string[] {
 }
 
 function normalizeRecipeSharePayload(data: RecipeSharePayload): RecipeSharePayload | null {
+  const imageUrl = normalizeImageUrl(data.imageUrl);
+  const sourceUrl = normalizeHttpUrl(data.sourceUrl);
+
+  if ((hasNonEmptyString(data.imageUrl) && !imageUrl) || (hasNonEmptyString(data.sourceUrl) && !sourceUrl)) {
+    return null;
+  }
+
   const recipe: RecipeSharePayload = {
     title: normalizeOptionalString(data.title) || '',
     description: normalizeOptionalString(data.description),
@@ -293,8 +386,8 @@ function normalizeRecipeSharePayload(data: RecipeSharePayload): RecipeSharePaylo
     prepTime: normalizeOptionalString(data.prepTime),
     cookTime: normalizeOptionalString(data.cookTime),
     servings: normalizeOptionalString(data.servings),
-    imageUrl: normalizeOptionalString(data.imageUrl),
-    sourceUrl: normalizeOptionalString(data.sourceUrl),
+    imageUrl,
+    sourceUrl,
   };
 
   if (!recipe.title || recipe.ingredients.length === 0 || recipe.instructions.length === 0) {
@@ -623,18 +716,25 @@ function validatePassword(password: string): { valid: boolean; error?: string } 
 // Rate limiting
 async function checkRateLimit(db: D1Database, email: string, ip: string | null): Promise<{ allowed: boolean; remainingAttempts: number }> {
   const windowStart = Date.now() - ATTEMPT_WINDOW;
+  const normalizedEmail = email.toLowerCase();
+  const normalizedIp = ip || 'unknown';
 
-  // Count recent failed attempts for this email
-  const result = await db.prepare(`
+  const emailIpResult = await db.prepare(`
     SELECT COUNT(*) as count FROM login_attempts
-    WHERE email = ? AND attempted_at > ? AND success = 0
-  `).bind(email.toLowerCase(), windowStart).first<{ count: number }>();
+    WHERE email = ? AND ip_address = ? AND attempted_at > ? AND success = 0
+  `).bind(normalizedEmail, normalizedIp, windowStart).first<{ count: number }>();
 
-  const failedAttempts = result?.count || 0;
-  const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - failedAttempts);
+  const ipResult = await db.prepare(`
+    SELECT COUNT(*) as count FROM login_attempts
+    WHERE ip_address = ? AND attempted_at > ? AND success = 0
+  `).bind(normalizedIp, windowStart).first<{ count: number }>();
+
+  const emailIpFailures = emailIpResult?.count || 0;
+  const ipFailures = ipResult?.count || 0;
+  const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - emailIpFailures);
 
   return {
-    allowed: failedAttempts < MAX_LOGIN_ATTEMPTS,
+    allowed: emailIpFailures < MAX_LOGIN_ATTEMPTS && ipFailures < MAX_LOGIN_IP_ATTEMPTS,
     remainingAttempts,
   };
 }
@@ -670,6 +770,41 @@ function errorResponse(message: string, status = 400, origin?: string | null, co
   );
 }
 
+class InvalidJsonBodyError extends Error {
+  constructor() {
+    super('Invalid request body');
+    this.name = 'InvalidJsonBodyError';
+  }
+}
+
+class JsonBodyTooLargeError extends Error {
+  constructor() {
+    super('Request body is too large');
+    this.name = 'JsonBodyTooLargeError';
+  }
+}
+
+async function readJsonBody<T>(request: Request): Promise<T> {
+  const contentLength = Number(request.headers.get('Content-Length') || 0);
+  if (Number.isFinite(contentLength) && contentLength > MAX_JSON_BODY_BYTES) {
+    throw new JsonBodyTooLargeError();
+  }
+
+  try {
+    const text = await request.text();
+    if (text.length > MAX_JSON_BODY_BYTES) {
+      throw new JsonBodyTooLargeError();
+    }
+    return JSON.parse(text) as T;
+  } catch (error) {
+    if (error instanceof JsonBodyTooLargeError) {
+      throw error;
+    }
+    throw new InvalidJsonBodyError();
+  }
+}
+
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -683,12 +818,12 @@ function getErrorMessage(error: unknown): string {
 }
 
 function setCookie(name: string, value: string, maxAge: number, isSecure: boolean): string {
-  const secureFlags = isSecure ? 'Secure; SameSite=None' : 'SameSite=Lax';
+  const secureFlags = isSecure ? 'Secure; SameSite=Lax' : 'SameSite=Lax';
   return `${name}=${value}; Path=/; HttpOnly; ${secureFlags}; Max-Age=${maxAge}`;
 }
 
 function clearCookie(name: string, isSecure: boolean): string {
-  const secureFlags = isSecure ? 'Secure; SameSite=None' : 'SameSite=Lax';
+  const secureFlags = isSecure ? 'Secure; SameSite=Lax' : 'SameSite=Lax';
   return `${name}=; Path=/; HttpOnly; ${secureFlags}; Max-Age=0`;
 }
 
@@ -699,43 +834,36 @@ function getCookie(request: Request, name: string): string | null {
   return match ? match[1] : null;
 }
 
+function isLocalhostOrigin(origin: string): boolean {
+  try {
+    const parsed = new URL(origin);
+    return parsed.protocol === 'http:' && (
+      parsed.hostname === 'localhost' ||
+      parsed.hostname === '127.0.0.1' ||
+      parsed.hostname === '[::1]' ||
+      parsed.hostname === '::1'
+    );
+  } catch {
+    return false;
+  }
+}
+
 // CORS headers
 function corsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigins = [
-    'https://recipesaurus.pages.dev',
-    'https://recipesaurus-git-main.pages.dev',
-    'https://recipesaurus.ai',
-    'https://www.recipesaurus.ai',
-  ];
-
-  // Allow any localhost port for development, or *.pages.dev for Cloudflare Pages previews
-  const isAllowed = origin && (
-    origin.startsWith('http://localhost:') ||
-    allowedOrigins.includes(origin) ||
-    origin.endsWith('.pages.dev')
-  );
-
-  const allowOrigin = isAllowed ? origin : allowedOrigins[0];
+  const isAllowed = origin && (ALLOWED_CORS_ORIGINS.has(origin) || isLocalhostOrigin(origin));
+  const allowOrigin = isAllowed ? origin : 'https://recipesaurus.ai';
 
   return {
-    'Access-Control-Allow-Origin': allowOrigin!,
+    'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Credentials': 'true',
   };
 }
 
 // Auth middleware
 async function getSessionUser(request: Request, db: D1Database): Promise<User | null> {
-  // Check Authorization header first (for cross-origin requests where cookies are blocked)
-  const authHeader = request.headers.get('Authorization');
-  let sessionId = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-
-  // Fall back to cookie
-  if (!sessionId) {
-    sessionId = getCookie(request, 'session');
-  }
-
+  const sessionId = getCookie(request, 'session');
   if (!sessionId) return null;
 
   const session = await db.prepare(
@@ -745,6 +873,138 @@ async function getSessionUser(request: Request, db: D1Database): Promise<User | 
   if (!session) return null;
 
   return db.prepare('SELECT * FROM users WHERE id = ?').bind(session.user_id).first<User>();
+}
+
+function getClientRateLimitKey(request: Request, user: User | null): string {
+  if (user) {
+    return `user:${user.id}`;
+  }
+
+  const ip = request.headers.get('CF-Connecting-IP') ||
+    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
+    'unknown';
+  return `ip:${ip}`;
+}
+
+async function checkFixedWindowRateLimit(
+  db: D1Database,
+  bucket: string,
+  key: string,
+  maxRequests: number,
+  windowMs = RATE_LIMIT_WINDOW
+): Promise<boolean> {
+  const now = Date.now();
+  const windowStart = Math.floor(now / windowMs) * windowMs;
+  const existing = await db.prepare(
+    'SELECT count FROM rate_limits WHERE bucket = ? AND key = ? AND window_start = ?'
+  ).bind(bucket, key, windowStart).first<{ count: number }>();
+
+  if (existing && existing.count >= maxRequests) {
+    return false;
+  }
+
+  if (existing) {
+    await db.prepare(
+      'UPDATE rate_limits SET count = count + 1 WHERE bucket = ? AND key = ? AND window_start = ?'
+    ).bind(bucket, key, windowStart).run();
+  } else {
+    await db.prepare(
+      'INSERT INTO rate_limits (id, bucket, key, window_start, count) VALUES (?, ?, ?, ?, 1)'
+    ).bind(generateId(), bucket, key, windowStart).run();
+  }
+
+  await db.prepare('DELETE FROM rate_limits WHERE window_start < ?')
+    .bind(now - windowMs * 2)
+    .run();
+
+  return true;
+}
+
+function isPrivateIPv4(hostname: string): boolean {
+  const parts = hostname.split('.');
+  if (parts.length !== 4) return false;
+
+  const octets = parts.map(part => Number(part));
+  if (octets.some(octet => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false;
+  }
+
+  const [a, b] = octets;
+  return a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    a >= 224;
+}
+
+function isBlockedProxyHostname(hostname: string): boolean {
+  const normalized = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (!normalized) return true;
+
+  if (
+    normalized === 'localhost' ||
+    normalized.endsWith('.localhost') ||
+    normalized.endsWith('.local') ||
+    normalized.endsWith('.internal')
+  ) {
+    return true;
+  }
+
+  if (isPrivateIPv4(normalized)) {
+    return true;
+  }
+
+  if (
+    normalized === '::1' ||
+    normalized === '::' ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('fe80:') ||
+    normalized.startsWith('::ffff:127.') ||
+    normalized.startsWith('::ffff:10.') ||
+    normalized.startsWith('::ffff:192.168.')
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isBlockedProxyTarget(url: URL): boolean {
+  return Boolean(url.username || url.password || isBlockedProxyHostname(url.hostname));
+}
+
+async function readTextWithLimit(response: Response, maxBytes: number): Promise<string> {
+  const contentLength = Number(response.headers.get('Content-Length'));
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    throw new Error('Response is too large');
+  }
+
+  if (!response.body) {
+    return '';
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let receivedBytes = 0;
+  let text = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    receivedBytes += value.byteLength;
+    if (receivedBytes > maxBytes) {
+      await reader.cancel();
+      throw new Error('Response is too large');
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+
+  text += decoder.decode();
+  return text;
 }
 
 function formatUser(user: User) {
@@ -1024,13 +1284,19 @@ async function notifyDiscordNewUser(webhookUrl: string | undefined, name: string
   });
 }
 
-async function handleFeedback(request: Request, env: Env): Promise<Response> {
+async function handleFeedback(request: Request, db: D1Database, env: Env): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const body = await request.json() as {
+  const rateLimitKey = getClientRateLimitKey(request, null);
+  const isAllowed = await checkFixedWindowRateLimit(db, 'feedback', rateLimitKey, FEEDBACK_RATE_LIMIT);
+  if (!isAllowed) {
+    return errorResponse('Too many feedback submissions. Please try again later.', 429, origin);
+  }
+
+  const body = await readJsonBody<{
     type?: 'bug' | 'feature' | 'general';
     message?: string;
     email?: string;
-  };
+  }>(request);
 
   const message = body.message?.trim();
   const email = body.email?.trim();
@@ -1075,7 +1341,7 @@ async function createVerificationToken(db: D1Database, userId: string): Promise<
     'INSERT INTO email_verification_tokens (id, user_id, token, expires_at, created_at) VALUES (?, ?, ?, ?, ?)'
   ).bind(generateId(), userId, token, now + VERIFICATION_TOKEN_EXPIRY, now).run();
 
-  console.log('Created verification token for user:', userId, 'Token:', token.substring(0, 10) + '...', 'Insert success:', result.success);
+  console.log('Created verification token for user:', userId, 'Insert success:', result.success);
 
   return token;
 }
@@ -1088,9 +1354,8 @@ async function sendVerificationEmail(
   appUrl: string
 ): Promise<boolean> {
   const verifyUrl = `${appUrl}/verify-email?token=${token}`;
-
-  console.log('Sending verification email to:', email, 'verifyUrl:', verifyUrl);
-  console.log('API key present:', !!apiKey, 'API key length:', apiKey?.length || 0);
+  const safeName = escapeHtml(name);
+  const safeVerifyUrl = escapeHtml(verifyUrl);
 
   try {
     const response = await fetch('https://api.resend.com/emails', {
@@ -1105,10 +1370,10 @@ async function sendVerificationEmail(
         subject: 'Verify your email for Recipesaurus',
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 40px 20px; text-align: center;">
-            <h1 style="color: #7a9e7e; margin-bottom: 8px; font-size: 28px;">Welcome, ${name}!</h1>
+            <h1 style="color: #7a9e7e; margin-bottom: 8px; font-size: 28px;">Welcome, ${safeName}!</h1>
             <p style="font-size: 16px; color: #666; margin-bottom: 32px;">Verify your email to start saving recipes.</p>
             <div style="margin: 32px 0;">
-              <a href="${verifyUrl}" style="background-color: #7a9e7e; color: white; padding: 16px 48px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">Verify Email</a>
+              <a href="${safeVerifyUrl}" style="background-color: #7a9e7e; color: white; padding: 16px 48px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;">Verify Email</a>
             </div>
             <p style="font-size: 13px; color: #999; margin-top: 32px;">Link expires in 24 hours.</p>
             <hr style="border: none; border-top: 1px solid #eee; margin: 32px 0;" />
@@ -1122,7 +1387,7 @@ async function sendVerificationEmail(
       const errorText = await response.text();
       console.error('Resend API error:', response.status, errorText);
     } else {
-      console.log('Verification email sent successfully to:', email);
+      console.log('Verification email sent successfully');
     }
 
     return response.ok;
@@ -1135,11 +1400,30 @@ async function sendVerificationEmail(
 // Route handlers
 async function handleRegister(request: Request, db: D1Database, env: Env, ctx: ExecutionContext): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const body = await request.json() as { email: string; name: string; password: string };
+  const body = await readJsonBody<{ email: string; name: string; password: string }>(request);
   const { email, name, password } = body;
+  const registrationResponse = (normalizedEmail: string) => jsonResponse(
+    {
+      requiresVerification: true,
+      email: normalizedEmail,
+      message: GENERIC_REGISTRATION_MESSAGE,
+    },
+    200,
+    corsHeaders(origin)
+  );
 
   if (!email || !name || !password) {
     return errorResponse('Email, name, and password are required', 400, origin);
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  if (!isValidEmailAddress(normalizedEmail)) {
+    return errorResponse('A valid email address is required', 400, origin);
+  }
+
+  const normalizedName = normalizeDisplayName(name);
+  if (!normalizedName) {
+    return errorResponse('Display name must be between 1 and 80 characters', 400, origin);
   }
 
   const passwordValidation = validatePassword(password);
@@ -1147,12 +1431,27 @@ async function handleRegister(request: Request, db: D1Database, env: Env, ctx: E
     return errorResponse(passwordValidation.error!, 400, origin);
   }
 
-  const normalizedEmail = email.toLowerCase().trim();
+  const clientKey = getClientRateLimitKey(request, null);
+  const isIpAllowed = await checkFixedWindowRateLimit(
+    db,
+    'registration-ip',
+    clientKey,
+    REGISTRATION_IP_LIMIT
+  );
+  const isEmailAllowed = await checkFixedWindowRateLimit(
+    db,
+    'registration-email',
+    `email:${normalizedEmail}`,
+    REGISTRATION_EMAIL_LIMIT
+  );
 
-  // Check if user exists
+  if (!isIpAllowed || !isEmailAllowed) {
+    return errorResponse('Too many registration attempts. Please try again later.', 429, origin);
+  }
+
   const existing = await db.prepare('SELECT id FROM users WHERE email = ?').bind(normalizedEmail).first();
   if (existing) {
-    return errorResponse('An account with this email already exists', 400, origin);
+    return registrationResponse(normalizedEmail);
   }
 
   // Hash password
@@ -1166,7 +1465,7 @@ async function handleRegister(request: Request, db: D1Database, env: Env, ctx: E
   const userId = generateId();
   await db.prepare(
     'INSERT INTO users (id, email, name, password_hash, password_salt, email_verified, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  ).bind(userId, normalizedEmail, name.trim(), hash, salt, emailVerified, Date.now()).run();
+  ).bind(userId, normalizedEmail, normalizedName, hash, salt, emailVerified, Date.now()).run();
 
   // Create default "My Recipes" cookbook for new user
   await getOrCreateRecipeCollection(db, userId);
@@ -1182,28 +1481,31 @@ async function handleRegister(request: Request, db: D1Database, env: Env, ctx: E
       'INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)'
     ).bind(sessionId, userId, Date.now(), expiresAt).run();
 
+    const isSecure = !origin?.includes('localhost');
     return jsonResponse(
       {
-        user: { id: userId, email: normalizedEmail, name: name.trim(), avatarUrl: null },
-        token: sessionId,
+        user: { id: userId, email: normalizedEmail, name: normalizedName, avatarUrl: null },
       },
       200,
-      corsHeaders(origin)
+      {
+        ...corsHeaders(origin),
+        'Set-Cookie': setCookie('session', sessionId, SESSION_DURATION / 1000, isSecure),
+      }
     );
   }
 
   // Production: Create verification token and send email
   const verificationToken = await createVerificationToken(db, userId);
-  await sendVerificationEmail(env.RESEND_API_KEY, normalizedEmail, name.trim(), verificationToken, env.APP_URL);
+  await sendVerificationEmail(env.RESEND_API_KEY, normalizedEmail, normalizedName, verificationToken, env.APP_URL);
 
   // Notify Discord of new signup (runs in background after response)
-  ctx.waitUntil(notifyDiscordNewUser(env.DISCORD_SIGNUP_WEBHOOK_URL, name.trim(), normalizedEmail));
+  ctx.waitUntil(notifyDiscordNewUser(env.DISCORD_SIGNUP_WEBHOOK_URL, normalizedName, normalizedEmail));
 
   return jsonResponse(
     {
       requiresVerification: true,
       email: normalizedEmail,
-      message: 'Please check your email to verify your account'
+      message: GENERIC_REGISTRATION_MESSAGE
     },
     200,
     corsHeaders(origin)
@@ -1212,7 +1514,7 @@ async function handleRegister(request: Request, db: D1Database, env: Env, ctx: E
 
 async function handleLogin(request: Request, db: D1Database, env: Env): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const body = await request.json() as { email: string; password: string };
+  const body = await readJsonBody<{ email: string; password: string }>(request);
   const { email, password } = body;
 
   if (!email || !password) {
@@ -1271,7 +1573,7 @@ async function handleLogin(request: Request, db: D1Database, env: Env): Promise<
 
   const isSecure = !origin?.includes('localhost');
   return jsonResponse(
-    { user: formatUser(user), token: sessionId },
+    { user: formatUser(user) },
     200,
     {
       ...corsHeaders(origin),
@@ -1281,12 +1583,7 @@ async function handleLogin(request: Request, db: D1Database, env: Env): Promise<
 }
 
 async function handleLogout(request: Request, db: D1Database): Promise<Response> {
-  // Check Authorization header first
-  const authHeader = request.headers.get('Authorization');
-  let sessionId = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (!sessionId) {
-    sessionId = getCookie(request, 'session');
-  }
+  const sessionId = getCookie(request, 'session');
   if (sessionId) {
     await db.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId).run();
   }
@@ -1305,7 +1602,7 @@ async function handleLogout(request: Request, db: D1Database): Promise<Response>
 
 async function handleVerifyEmail(request: Request, db: D1Database): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const body = await request.json() as { token: string };
+  const body = await readJsonBody<{ token: string }>(request);
   const { token } = body;
 
   if (!token) {
@@ -1318,9 +1615,6 @@ async function handleVerifyEmail(request: Request, db: D1Database): Promise<Resp
   ).bind(token).first<{ id: string; user_id: string; token: string; expires_at: number }>();
 
   if (!verificationRecord) {
-    // Debug: check if any tokens exist
-    const tokenCount = await db.prepare('SELECT COUNT(*) as count FROM email_verification_tokens').first<{ count: number }>();
-    console.log('Token lookup failed. Token received:', token.substring(0, 10) + '...', 'Total tokens in DB:', tokenCount?.count);
     return errorResponse('Invalid or expired verification link', 400, origin);
   }
 
@@ -1350,7 +1644,7 @@ async function handleVerifyEmail(request: Request, db: D1Database): Promise<Resp
 
   const isSecure = !origin?.includes('localhost');
   return jsonResponse(
-    { user: formatUser(user), token: sessionId, verified: true },
+    { user: formatUser(user), verified: true },
     200,
     {
       ...corsHeaders(origin),
@@ -1361,7 +1655,7 @@ async function handleVerifyEmail(request: Request, db: D1Database): Promise<Resp
 
 async function handleResendVerification(request: Request, db: D1Database, env: Env): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const body = await request.json() as { email: string };
+  const body = await readJsonBody<{ email: string }>(request);
   const { email } = body;
 
   if (!email) {
@@ -1369,18 +1663,35 @@ async function handleResendVerification(request: Request, db: D1Database, env: E
   }
 
   const normalizedEmail = email.toLowerCase().trim();
+  const clientKey = getClientRateLimitKey(request, null);
+  const isIpAllowed = await checkFixedWindowRateLimit(
+    db,
+    'resend-verification-ip',
+    clientKey,
+    RESEND_VERIFICATION_IP_LIMIT
+  );
+  const isEmailAllowed = await checkFixedWindowRateLimit(
+    db,
+    'resend-verification-email',
+    `email:${normalizedEmail}`,
+    RESEND_VERIFICATION_EMAIL_LIMIT
+  );
+
+  if (!isIpAllowed || !isEmailAllowed) {
+    return errorResponse('Too many verification email requests. Please try again later.', 429, origin);
+  }
+
   const user = await db.prepare('SELECT * FROM users WHERE email = ?').bind(normalizedEmail).first<User>();
 
-  // Always return success to prevent email enumeration
   if (!user || user.email_verified) {
-    return jsonResponse({ success: true, message: 'If your email is registered and unverified, you will receive a verification email.' }, 200, corsHeaders(origin));
+    return jsonResponse({ success: true, message: GENERIC_RESEND_VERIFICATION_MESSAGE }, 200, corsHeaders(origin));
   }
 
   // Create new verification token and send email
   const verificationToken = await createVerificationToken(db, user.id);
   await sendVerificationEmail(env.RESEND_API_KEY, user.email, user.name, verificationToken, env.APP_URL);
 
-  return jsonResponse({ success: true, message: 'Verification email sent' }, 200, corsHeaders(origin));
+  return jsonResponse({ success: true, message: GENERIC_RESEND_VERIFICATION_MESSAGE }, 200, corsHeaders(origin));
 }
 
 async function handleGetSession(request: Request, db: D1Database): Promise<Response> {
@@ -1406,7 +1717,7 @@ async function handleUpdateProfile(request: Request, db: D1Database): Promise<Re
     return errorResponse('Unauthorized', 401, origin);
   }
 
-  const body = await request.json() as { name?: string; avatarUrl?: string | null };
+  const body = await readJsonBody<{ name?: string; avatarUrl?: string | null }>(request);
   const hasName = Object.prototype.hasOwnProperty.call(body, 'name');
   const hasAvatar = Object.prototype.hasOwnProperty.call(body, 'avatarUrl');
 
@@ -1467,6 +1778,8 @@ async function handleGetProfile(request: Request, db: D1Database, userId: string
   const publicRecipeVisibility = 'AND r.is_public = 1';
   const publicCookbookVisibility = 'AND c.is_public = 1';
 
+  // Expected behavior: public profiles leak private content counts as aggregate stats,
+  // while the recipe and cookbook item lists below stay limited to public content.
   const recipeCount = await db.prepare(
     'SELECT COUNT(*) as count FROM recipes r WHERE r.user_id = ?'
   ).bind(profileUser.id).first<{ count: number }>();
@@ -1531,10 +1844,19 @@ async function handleGetProfile(request: Request, db: D1Database, userId: string
 
 async function handleGetProfileFriends(request: Request, db: D1Database, userId: string): Promise<Response> {
   const origin = request.headers.get('Origin');
+  const currentUser = await getSessionUser(request, db);
+  if (!currentUser) {
+    return errorResponse('Unauthorized', 401, origin);
+  }
+
   const profileUser = await db.prepare('SELECT id FROM users WHERE id = ?').bind(userId).first<{ id: string }>();
 
   if (!profileUser) {
     return errorResponse('Profile not found', 404, origin);
+  }
+
+  if (currentUser.id !== profileUser.id && !(await areFriends(db, currentUser.id, profileUser.id))) {
+    return errorResponse('Friends are only visible to the profile owner and friends', 403, origin);
   }
 
   const friends = await db.prepare(
@@ -1563,11 +1885,32 @@ async function handleAddFriend(request: Request, db: D1Database): Promise<Respon
     return errorResponse('Unauthorized', 401, origin);
   }
 
-  const body = await request.json() as { userId?: string; email?: string };
+  const body = await readJsonBody<{ userId?: string; email?: string }>(request);
   const normalizedEmail = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
-  const friend = body.userId
+  const targetUserId = typeof body.userId === 'string' ? body.userId.trim() : '';
+  const emailFriendResponse = () => jsonResponse(
+    { success: true, message: GENERIC_FRIEND_REQUEST_EMAIL_MESSAGE },
+    200,
+    corsHeaders(origin)
+  );
+
+  if (!targetUserId && !normalizedEmail) {
+    return errorResponse('User is required', 400, origin);
+  }
+
+  const isAllowed = await checkFixedWindowRateLimit(
+    db,
+    'friend-request',
+    `user:${user.id}`,
+    FRIEND_REQUEST_LIMIT
+  );
+  if (!isAllowed) {
+    return errorResponse('Too many friend requests sent. Please try again later.', 429, origin);
+  }
+
+  const friend = targetUserId
     ? await db.prepare('SELECT id, name, avatar_url FROM users WHERE id = ?')
-        .bind(body.userId)
+        .bind(targetUserId)
         .first<{ id: string; name: string; avatar_url: string | null }>()
     : normalizedEmail
       ? await db.prepare('SELECT id, name, avatar_url FROM users WHERE email = ?')
@@ -1576,6 +1919,9 @@ async function handleAddFriend(request: Request, db: D1Database): Promise<Respon
       : null;
 
   if (!friend) {
+    if (normalizedEmail) {
+      return emailFriendResponse();
+    }
     return errorResponse('User not found', 404, origin);
   }
 
@@ -1584,6 +1930,9 @@ async function handleAddFriend(request: Request, db: D1Database): Promise<Respon
   }
 
   if (await areFriends(db, user.id, friend.id)) {
+    if (normalizedEmail) {
+      return emailFriendResponse();
+    }
     return jsonResponse(
       { friend: formatProfileUser(friend) },
       200,
@@ -1600,6 +1949,9 @@ async function handleAddFriend(request: Request, db: D1Database): Promise<Respon
     if (!accepted) {
       return errorResponse('Friend request not found or already responded', 404, origin);
     }
+    if (normalizedEmail) {
+      return emailFriendResponse();
+    }
     return jsonResponse(
       { friend: formatProfileUser(friend) },
       200,
@@ -1614,6 +1966,9 @@ async function handleAddFriend(request: Request, db: D1Database): Promise<Respon
 
   const friendRequestId = existingRequest?.id ?? generateId();
   if (existingRequest?.status === 'pending') {
+    if (normalizedEmail) {
+      return emailFriendResponse();
+    }
     return jsonResponse(
       { friend: formatProfileUser(friend) },
       200,
@@ -1650,6 +2005,10 @@ async function handleAddFriend(request: Request, db: D1Database): Promise<Respon
     0,
     now
   ).run();
+
+  if (normalizedEmail) {
+    return emailFriendResponse();
+  }
 
   return jsonResponse(
     { friend: formatProfileUser(friend) },
@@ -1792,7 +2151,7 @@ async function handleDeclineFriendRequest(request: Request, db: D1Database, frie
 
 async function getFriendRequestIdFromBody(request: Request): Promise<string | null> {
   try {
-    const body = await request.json() as { friendRequestId?: unknown };
+    const body = await readJsonBody<{ friendRequestId?: unknown }>(request);
     return typeof body.friendRequestId === 'string' && body.friendRequestId.trim()
       ? body.friendRequestId
       : null;
@@ -1819,7 +2178,7 @@ async function handleRemoveFriend(request: Request, db: D1Database, friendId: st
 
 async function handleForgotPassword(request: Request, db: D1Database, env: Env): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const body = await request.json() as { email: string };
+  const body = await readJsonBody<{ email: string }>(request);
   const { email } = body;
 
   if (!email) {
@@ -1827,6 +2186,23 @@ async function handleForgotPassword(request: Request, db: D1Database, env: Env):
   }
 
   const normalizedEmail = email.toLowerCase().trim();
+  const clientKey = getClientRateLimitKey(request, null);
+  const isIpAllowed = await checkFixedWindowRateLimit(
+    db,
+    'password-reset-ip',
+    clientKey,
+    PASSWORD_RESET_IP_LIMIT
+  );
+  const isEmailAllowed = await checkFixedWindowRateLimit(
+    db,
+    'password-reset-email',
+    `email:${normalizedEmail}`,
+    PASSWORD_RESET_EMAIL_LIMIT
+  );
+
+  if (!isIpAllowed || !isEmailAllowed) {
+    return errorResponse('Too many password reset requests. Please try again later.', 429, origin);
+  }
 
   // Always return success to prevent email enumeration
   const successResponse = () => jsonResponse(
@@ -1859,6 +2235,8 @@ async function handleForgotPassword(request: Request, db: D1Database, env: Env):
 
   // Send email via Resend
   const resetUrl = `${env.APP_URL}/reset-password?token=${token}`;
+  const safeName = escapeHtml(user.name);
+  const safeResetUrl = escapeHtml(resetUrl);
 
   try {
     const emailResponse = await fetch('https://api.resend.com/emails', {
@@ -1875,13 +2253,13 @@ async function handleForgotPassword(request: Request, db: D1Database, env: Env):
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #10b981; margin-bottom: 24px;">Reset Your Password</h1>
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">
-              Hi ${user.name},
+              Hi ${safeName},
             </p>
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">
               We received a request to reset your password. Click the button below to create a new password:
             </p>
             <div style="text-align: center; margin: 32px 0;">
-              <a href="${resetUrl}" style="display: inline-block; background-color: #10b981; color: white; padding: 12px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
+              <a href="${safeResetUrl}" style="display: inline-block; background-color: #10b981; color: white; padding: 12px 32px; text-decoration: none; border-radius: 8px; font-weight: 600;">
                 Reset Password
               </a>
             </div>
@@ -1911,7 +2289,7 @@ async function handleForgotPassword(request: Request, db: D1Database, env: Env):
 
 async function handleResetPassword(request: Request, db: D1Database): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const body = await request.json() as { token: string; password: string };
+  const body = await readJsonBody<{ token: string; password: string }>(request);
   const { token, password } = body;
 
   if (!token || !password) {
@@ -2191,7 +2569,7 @@ async function handleCreateMealPlan(request: Request, env: Env): Promise<Respons
     return errorResponse('Unauthorized', 401, origin, MEAL_PLAN_UNAUTHORIZED_CODE);
   }
 
-  const body = await request.json() as { request?: unknown };
+  const body = await readJsonBody<{ request?: unknown }>(request);
   const mealPlanRequest = normalizeMealPlanRequest(body.request);
   if (!mealPlanRequest) {
     return errorResponse(
@@ -2556,7 +2934,7 @@ async function handleCreateRecipe(request: Request, db: D1Database): Promise<Res
     return errorResponse('Unauthorized', 401, origin);
   }
 
-  const body = await request.json() as {
+  const body = await readJsonBody<{
     title: string;
     description: string;
     ingredients: string[];
@@ -2568,7 +2946,17 @@ async function handleCreateRecipe(request: Request, db: D1Database): Promise<Res
     cookTime?: string;
     servings?: string;
     isPublic?: boolean;
-  };
+  }>(request);
+
+  const imageUrl = normalizeImageUrl(body.imageUrl);
+  if (hasNonEmptyString(body.imageUrl) && !imageUrl) {
+    return errorResponse('Image URL must be HTTP(S) or a supported image data URL under 5MB', 400, origin);
+  }
+
+  const sourceUrl = normalizeHttpUrl(body.sourceUrl);
+  if (hasNonEmptyString(body.sourceUrl) && !sourceUrl) {
+    return errorResponse('Source URL must be a valid HTTP(S) URL', 400, origin);
+  }
 
   const recipeId = generateId();
   const now = Date.now();
@@ -2584,8 +2972,8 @@ async function handleCreateRecipe(request: Request, db: D1Database): Promise<Res
     JSON.stringify(body.ingredients),
     JSON.stringify(body.instructions),
     JSON.stringify(body.tags || []),
-    body.imageUrl || null,
-    body.sourceUrl || null,
+    imageUrl,
+    sourceUrl,
     body.prepTime || null,
     body.cookTime || null,
     body.servings || null,
@@ -2675,6 +3063,18 @@ async function saveRecipeSharePayloadForUser(
   return { recipeId, collectionId };
 }
 
+async function deleteExpiredRecipeShareLinks(db: D1Database, now = Date.now()): Promise<void> {
+  await db.prepare('DELETE FROM recipe_share_links WHERE created_at < ?')
+    .bind(now - RECIPE_SHARE_LINK_DURATION)
+    .run();
+}
+
+async function deleteExpiredCookbookShareLinks(db: D1Database, now = Date.now()): Promise<void> {
+  await db.prepare('DELETE FROM cookbook_share_links WHERE expires_at <= ?')
+    .bind(now)
+    .run();
+}
+
 async function handleSavePreviewRecipe(request: Request, db: D1Database): Promise<Response> {
   const user = await getSessionUser(request, db);
   const origin = request.headers.get('Origin');
@@ -2683,7 +3083,7 @@ async function handleSavePreviewRecipe(request: Request, db: D1Database): Promis
     return errorResponse('Unauthorized', 401, origin);
   }
 
-  const body = await request.json() as {
+  const body = await readJsonBody<{
     title: string;
     description: string;
     ingredients: string[];
@@ -2693,10 +3093,20 @@ async function handleSavePreviewRecipe(request: Request, db: D1Database): Promis
     servings?: string;
     imageUrl?: string;
     sourceUrl: string;
-  };
+  }>(request);
 
   if (!body.title || !body.ingredients?.length || !body.instructions?.length) {
     return errorResponse('Recipe must have a title, ingredients, and instructions', 400, origin);
+  }
+
+  const imageUrl = normalizeImageUrl(body.imageUrl);
+  if (hasNonEmptyString(body.imageUrl) && !imageUrl) {
+    return errorResponse('Image URL must be HTTP(S) or a supported image data URL under 5MB', 400, origin);
+  }
+
+  const sourceUrl = normalizeHttpUrl(body.sourceUrl);
+  if (!sourceUrl) {
+    return errorResponse('Source URL must be a valid HTTP(S) URL', 400, origin);
   }
 
   // Create the recipe
@@ -2715,8 +3125,8 @@ async function handleSavePreviewRecipe(request: Request, db: D1Database): Promis
     JSON.stringify(body.ingredients),
     JSON.stringify(body.instructions),
     JSON.stringify([]),
-    body.imageUrl || null,
-    body.sourceUrl,
+    imageUrl,
+    sourceUrl,
     body.prepTime || null,
     body.cookTime || null,
     body.servings || null,
@@ -2771,7 +3181,15 @@ async function handleGetCookbooksForRecipe(request: Request, db: D1Database, rec
 
 async function handleCreateRecipeShareLink(request: Request, db: D1Database): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const body = await request.json() as RecipeSharePayload;
+  const user = await getSessionUser(request, db);
+  const rateLimitKey = getClientRateLimitKey(request, user);
+  const maxRequests = user ? AUTHENTICATED_RECIPE_SHARE_LIMIT : PUBLIC_RECIPE_SHARE_LIMIT;
+  const isAllowed = await checkFixedWindowRateLimit(db, 'recipe-share-link', rateLimitKey, maxRequests);
+  if (!isAllowed) {
+    return errorResponse('Too many share links created. Please try again later.', 429, origin);
+  }
+
+  const body = await readJsonBody<RecipeSharePayload>(request);
   const recipe = normalizeRecipeSharePayload(body);
 
   if (!recipe) {
@@ -2786,6 +3204,8 @@ async function handleCreateRecipeShareLink(request: Request, db: D1Database): Pr
   const id = generateId();
   const token = generateId();
   const createdAt = Date.now();
+
+  await deleteExpiredRecipeShareLinks(db, createdAt);
 
   await db.prepare(`
     INSERT INTO recipe_share_links (id, token, recipe_data, created_at)
@@ -2803,7 +3223,7 @@ async function handleShareRecipeWithUser(request: Request, db: D1Database): Prom
     return errorResponse('Unauthorized', 401, origin);
   }
 
-  const body = await request.json() as { recipe?: RecipeSharePayload; userId?: string };
+  const body = await readJsonBody<{ recipe?: RecipeSharePayload; userId?: string }>(request);
   const targetUserId = typeof body.userId === 'string' ? body.userId.trim() : '';
   if (!targetUserId) {
     return errorResponse('User is required', 400, origin);
@@ -2825,6 +3245,16 @@ async function handleShareRecipeWithUser(request: Request, db: D1Database): Prom
     return errorResponse('You can only share recipes with friends', 400, origin);
   }
 
+  const isAllowed = await checkFixedWindowRateLimit(
+    db,
+    'recipe-share-user',
+    getClientRateLimitKey(request, user),
+    AUTHENTICATED_RECIPE_SHARE_LIMIT
+  );
+  if (!isAllowed) {
+    return errorResponse('Too many recipe shares sent. Please try again later.', 429, origin);
+  }
+
   const rawRecipe = body.recipe;
   const recipe = rawRecipe ? normalizeRecipeSharePayload(rawRecipe) : null;
   if (!recipe) {
@@ -2840,6 +3270,8 @@ async function handleShareRecipeWithUser(request: Request, db: D1Database): Prom
   const token = generateId();
   const notificationId = generateId();
   const createdAt = Date.now();
+
+  await deleteExpiredRecipeShareLinks(db, createdAt);
 
   await db.prepare(`
     INSERT INTO recipe_share_links (id, token, recipe_data, created_at)
@@ -2877,8 +3309,8 @@ async function handleShareRecipeWithUser(request: Request, db: D1Database): Prom
 
 async function handleGetSharedRecipe(request: Request, db: D1Database, token: string): Promise<Response> {
   const origin = request.headers.get('Origin');
-  const link = await db.prepare('SELECT * FROM recipe_share_links WHERE token = ?')
-    .bind(token)
+  const link = await db.prepare('SELECT * FROM recipe_share_links WHERE token = ? AND created_at >= ?')
+    .bind(token, Date.now() - RECIPE_SHARE_LINK_DURATION)
     .first<RecipeShareLink>();
 
   if (!link) {
@@ -2905,8 +3337,8 @@ async function handleAcceptRecipeShare(request: Request, db: D1Database, token: 
     return errorResponse('Recipe share not found or already responded', 404, origin);
   }
 
-  const link = await db.prepare('SELECT * FROM recipe_share_links WHERE token = ?')
-    .bind(shareToken)
+  const link = await db.prepare('SELECT * FROM recipe_share_links WHERE token = ? AND created_at >= ?')
+    .bind(shareToken, Date.now() - RECIPE_SHARE_LINK_DURATION)
     .first<RecipeShareLink>();
 
   if (!link) {
@@ -2964,7 +3396,7 @@ async function handleUpdateRecipe(request: Request, db: D1Database, recipeId: st
     return errorResponse('Recipe not found', 404, origin);
   }
 
-  const body = await request.json() as {
+  const body = await readJsonBody<{
     title?: string;
     description?: string;
     ingredients?: string[];
@@ -2976,7 +3408,17 @@ async function handleUpdateRecipe(request: Request, db: D1Database, recipeId: st
     cookTime?: string;
     servings?: string;
     isPublic?: boolean;
-  };
+  }>(request);
+
+  const imageUrl = normalizeImageUrl(body.imageUrl);
+  if (hasNonEmptyString(body.imageUrl) && !imageUrl) {
+    return errorResponse('Image URL must be HTTP(S) or a supported image data URL under 5MB', 400, origin);
+  }
+
+  const sourceUrl = normalizeHttpUrl(body.sourceUrl);
+  if (hasNonEmptyString(body.sourceUrl) && !sourceUrl) {
+    return errorResponse('Source URL must be a valid HTTP(S) URL', 400, origin);
+  }
 
   await db.prepare(`
     UPDATE recipes SET
@@ -2999,8 +3441,8 @@ async function handleUpdateRecipe(request: Request, db: D1Database, recipeId: st
     body.ingredients ? JSON.stringify(body.ingredients) : null,
     body.instructions ? JSON.stringify(body.instructions) : null,
     body.tags ? JSON.stringify(body.tags) : null,
-    body.imageUrl ?? null,
-    body.sourceUrl ?? null,
+    imageUrl,
+    sourceUrl,
     body.prepTime ?? null,
     body.cookTime ?? null,
     body.servings ?? null,
@@ -3073,10 +3515,15 @@ async function handleCreateCookbook(request: Request, db: D1Database): Promise<R
     return errorResponse('Unauthorized', 401, origin);
   }
 
-  const body = await request.json() as { name: string; description?: string; coverImage?: string; isPublic?: boolean };
+  const body = await readJsonBody<{ name: string; description?: string; coverImage?: string; isPublic?: boolean }>(request);
 
   if (!body.name?.trim()) {
     return errorResponse('Cookbook name is required', 400, origin);
+  }
+
+  const coverImage = normalizeImageUrl(body.coverImage);
+  if (hasNonEmptyString(body.coverImage) && !coverImage) {
+    return errorResponse('Cover image must be HTTP(S) or a supported image data URL under 5MB', 400, origin);
   }
 
   const cookbookId = generateId();
@@ -3090,7 +3537,7 @@ async function handleCreateCookbook(request: Request, db: D1Database): Promise<R
     user.id,
     body.name.trim(),
     body.description?.trim() || null,
-    body.coverImage?.trim() || null,
+    coverImage,
     0, // not a system cookbook
     null,
     body.isPublic ? 1 : 0,
@@ -3202,16 +3649,20 @@ async function handleUpdateCookbook(request: Request, db: D1Database, cookbookId
     return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
-  const body = await request.json() as { name?: string; description?: string; coverImage?: string | null; isPublic?: boolean };
+  const body = await readJsonBody<{ name?: string; description?: string; coverImage?: string | null; isPublic?: boolean }>(request);
+
+  const nextCoverImage = body.coverImage !== undefined ? normalizeImageUrl(body.coverImage) : cookbook.cover_image;
+  if (body.coverImage !== undefined && hasNonEmptyString(body.coverImage) && !nextCoverImage) {
+    return errorResponse('Cover image must be HTTP(S) or a supported image data URL under 5MB', 400, origin);
+  }
 
   const newName = body.name?.trim() || cookbook.name;
   const newDescription = body.description !== undefined ? (body.description?.trim() || null) : cookbook.description;
-  const newCoverImage = body.coverImage !== undefined ? (body.coverImage?.trim() || null) : cookbook.cover_image;
   const newIsPublic = body.isPublic !== undefined ? (body.isPublic ? 1 : 0) : cookbook.is_public;
 
   await db.prepare(`
     UPDATE cookbooks SET name = ?, description = ?, cover_image = ?, source_cookbook_id = NULL, is_public = ?, updated_at = ? WHERE id = ?
-  `).bind(newName, newDescription, newCoverImage, newIsPublic, Date.now(), cookbookId).run();
+  `).bind(newName, newDescription, nextCoverImage, newIsPublic, Date.now(), cookbookId).run();
 
   return jsonResponse({ success: true }, 200, corsHeaders(origin));
 }
@@ -3277,7 +3728,7 @@ async function handleAddRecipeToCookbook(request: Request, db: D1Database, cookb
     return errorResponse('Access denied', 403, origin);
   }
 
-  const body = await request.json() as { recipeId: string };
+  const body = await readJsonBody<{ recipeId: string }>(request);
 
   if (!body.recipeId) {
     return errorResponse('Recipe ID is required', 400, origin);
@@ -3424,13 +3875,29 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
     return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
-  const body = await request.json() as { userId?: string; email?: string };
+  const body = await readJsonBody<{ userId?: string; email?: string }>(request);
   const targetUserId = typeof body.userId === 'string' ? body.userId.trim() : '';
   const targetEmail = typeof body.email === 'string' ? body.email.toLowerCase().trim() : '';
   const isFriendShare = Boolean(targetUserId);
+  const isEmailShare = Boolean(targetEmail && !targetUserId);
+  const emailInviteResponse = () => jsonResponse(
+    { success: true, message: GENERIC_COOKBOOK_INVITE_EMAIL_MESSAGE },
+    200,
+    corsHeaders(origin)
+  );
 
   if (!targetUserId && !targetEmail) {
     return errorResponse('User is required', 400, origin);
+  }
+
+  const isAllowed = await checkFixedWindowRateLimit(
+    db,
+    'cookbook-invite',
+    `user:${user.id}`,
+    COOKBOOK_INVITE_LIMIT
+  );
+  if (!isAllowed) {
+    return errorResponse('Too many cookbook invites sent. Please try again later.', 429, origin);
   }
 
   const targetUser = targetUserId
@@ -3442,6 +3909,9 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
       ).bind(targetEmail).first<{ id: string; name: string }>();
 
   if (!targetUser) {
+    if (isEmailShare) {
+      return emailInviteResponse();
+    }
     return errorResponse('User not found', 404, origin);
   }
 
@@ -3459,6 +3929,9 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
   ).bind(cookbookId, targetUser.id).first();
 
   if (existingShare) {
+    if (isEmailShare) {
+      return emailInviteResponse();
+    }
     return errorResponse('Cookbook is already shared with this user', 400, origin);
   }
 
@@ -3472,6 +3945,9 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
 
   if (existingInvite) {
     if (existingInvite.status === 'pending') {
+      if (isEmailShare) {
+        return emailInviteResponse();
+      }
       return errorResponse('An invite has already been sent to this user', 400, origin);
     }
     // Reactivate declined invite
@@ -3503,6 +3979,10 @@ async function handleShareCookbook(request: Request, db: D1Database, cookbookId:
     0,
     now
   ).run();
+
+  if (isEmailShare) {
+    return emailInviteResponse();
+  }
 
   return jsonResponse({ success: true, sharedWith: { id: targetUser.id, name: targetUser.name } }, 200, corsHeaders(origin));
 }
@@ -3553,6 +4033,9 @@ async function handleGetShares(request: Request, db: D1Database, cookbookId: str
     return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
+  const now = Date.now();
+  await deleteExpiredCookbookShareLinks(db, now);
+
   const shares = await db.prepare(`
     SELECT cs.id, cs.created_at, u.id as user_id, u.name, u.email
     FROM cookbook_shares cs
@@ -3562,11 +4045,11 @@ async function handleGetShares(request: Request, db: D1Database, cookbookId: str
   `).bind(cookbookId).all();
 
   const links = await db.prepare(`
-    SELECT id, token, is_active, created_at
+    SELECT id, token, is_active, created_at, expires_at
     FROM cookbook_share_links
     WHERE cookbook_id = ?
     ORDER BY created_at DESC
-  `).bind(cookbookId).all();
+  `).bind(cookbookId).all<{ id: string; token: string; is_active: number; created_at: number; expires_at: number }>();
 
   return jsonResponse({
     shares: shares.results.map(s => ({
@@ -3581,6 +4064,7 @@ async function handleGetShares(request: Request, db: D1Database, cookbookId: str
       token: l.token,
       isActive: l.is_active === 1,
       createdAt: l.created_at,
+      expiresAt: l.expires_at,
     })),
   }, 200, corsHeaders(origin));
 }
@@ -3601,18 +4085,35 @@ async function handleCreateShareLink(request: Request, db: D1Database, cookbookI
     return errorResponse('Cookbook not found or access denied', 404, origin);
   }
 
+  const rateLimitKey = `user:${user.id}`;
+  const isAllowed = await checkFixedWindowRateLimit(
+    db,
+    'cookbook-share-link',
+    rateLimitKey,
+    COOKBOOK_SHARE_LINK_RATE_LIMIT
+  );
+  if (!isAllowed) {
+    return errorResponse('Too many cookbook share links created. Please try again later.', 429, origin);
+  }
+
   const linkId = generateId();
   const token = generateId();
+  const createdAt = Date.now();
+  const expiresAt = getShareLinkExpiresAt(createdAt);
+
+  await deleteExpiredCookbookShareLinks(db, createdAt);
 
   await db.prepare(`
-    INSERT INTO cookbook_share_links (id, cookbook_id, token, is_active, created_at)
-    VALUES (?, ?, ?, 1, ?)
-  `).bind(linkId, cookbookId, token, Date.now()).run();
+    INSERT INTO cookbook_share_links (id, cookbook_id, token, is_active, created_at, expires_at)
+    VALUES (?, ?, ?, 1, ?, ?)
+  `).bind(linkId, cookbookId, token, createdAt, expiresAt).run();
 
   return jsonResponse({
     id: linkId,
     token,
     isActive: true,
+    createdAt,
+    expiresAt,
   }, 201, corsHeaders(origin));
 }
 
@@ -3645,11 +4146,11 @@ async function handleGetSharedCookbook(request: Request, db: D1Database, token: 
     FROM cookbook_share_links csl
     JOIN cookbooks c ON csl.cookbook_id = c.id
     JOIN users u ON c.user_id = u.id
-    WHERE csl.token = ? AND csl.is_active = 1
-  `).bind(token).first<{ cookbook_id: string; user_id: string; name: string; description: string | null; owner_name: string }>();
+    WHERE csl.token = ? AND csl.is_active = 1 AND csl.expires_at > ?
+  `).bind(token, Date.now()).first<{ cookbook_id: string; user_id: string; name: string; description: string | null; owner_name: string }>();
 
   if (!link) {
-    return errorResponse('Share link not found or has been revoked', 404, origin);
+    return errorResponse('Share link not found, expired, or has been revoked', 404, origin);
   }
 
   const recipes = await db.prepare(`
@@ -3938,12 +4439,18 @@ async function handleDiscoverRecipes(request: Request, db: D1Database): Promise<
     .split(',')
     .map(tag => tag.trim().toLowerCase())
     .filter(Boolean);
+  const searchQuery = normalizeDiscoverySearchQuery(url.searchParams.get('q'));
 
   let whereClause = 'WHERE r.is_public = 1';
   const params: string[] = [];
   for (const tag of tags) {
     whereClause += ' AND r.tags LIKE ?';
     params.push(`%"${tag}"%`);
+  }
+  if (searchQuery) {
+    whereClause += ` AND (r.title LIKE ? ESCAPE '\\' OR r.description LIKE ? ESCAPE '\\' OR r.tags LIKE ? ESCAPE '\\')`;
+    const pattern = getSqlLikePattern(searchQuery);
+    params.push(pattern, pattern, pattern);
   }
 
   const count = await db.prepare(
@@ -3981,25 +4488,34 @@ async function handleDiscoverCookbooks(request: Request, db: D1Database): Promis
   const user = await getSessionUser(request, db);
   const url = new URL(request.url);
   const { limit, offset } = parseLimitOffset(url);
+  const searchQuery = normalizeDiscoverySearchQuery(url.searchParams.get('q'));
+  const searchPattern = searchQuery ? getSqlLikePattern(searchQuery) : null;
+  let whereClause = 'WHERE c.is_public = 1 AND c.is_system = 0';
+  const params: string[] = [];
+  if (searchPattern) {
+    whereClause += ` AND (c.name LIKE ? ESCAPE '\\' OR c.description LIKE ? ESCAPE '\\')`;
+    params.push(searchPattern, searchPattern);
+  }
 
   const count = await db.prepare(
-    'SELECT COUNT(*) as count FROM cookbooks WHERE is_public = 1 AND is_system = 0'
-  ).first<{ count: number }>();
+    `SELECT COUNT(*) as count FROM cookbooks c ${whereClause}`
+  ).bind(...params).first<{ count: number }>();
 
   const cookbooks = await db.prepare(
-    `SELECT c.*, COUNT(DISTINCT cr.recipe_id) as recipe_count, u.name as owner_name
+    `SELECT c.*, COUNT(DISTINCT CASE WHEN r.is_public = 1 THEN cr.recipe_id END) as recipe_count, u.name as owner_name
      FROM cookbooks c
      LEFT JOIN cookbook_recipes cr ON c.id = cr.cookbook_id
+     LEFT JOIN recipes r ON r.id = cr.recipe_id
      JOIN users u ON c.user_id = u.id
-     WHERE c.is_public = 1 AND c.is_system = 0
+     ${whereClause}
      GROUP BY c.id
      ORDER BY c.updated_at DESC
      LIMIT ? OFFSET ?`
-  ).bind(limit, offset).all<Cookbook & { recipe_count: number; owner_name: string }>();
+  ).bind(...params, limit, offset).all<Cookbook & { recipe_count: number; owner_name: string }>();
 
   const formattedCookbooks = await Promise.all(cookbooks.results.map(async cookbook => {
     const savedCopyId = user
-      ? await findExistingSavedCookbookId(db, user.id, cookbook, false)
+      ? await findExistingSavedCookbookId(db, user.id, cookbook, false, true)
       : null;
 
     return {
@@ -4075,12 +4591,12 @@ async function handleDiscoverCookbook(request: Request, db: D1Database, cookbook
      FROM recipes r
      JOIN cookbook_recipes cr ON r.id = cr.recipe_id
      JOIN users u ON r.owner_id = u.id
-     WHERE cr.cookbook_id = ?
+     WHERE cr.cookbook_id = ? AND r.is_public = 1
      ORDER BY cr.added_at DESC`
   ).bind(cookbookId).all<Recipe & { owner_name: string | null }>();
 
   const savedCopyId = user
-    ? await findExistingSavedCookbookId(db, user.id, cookbook, false)
+    ? await findExistingSavedCookbookId(db, user.id, cookbook, false, true)
     : null;
   const formattedRecipes = await Promise.all(recipes.results.map(async recipe => {
     const recipeSavedCopyId = user
@@ -4133,16 +4649,16 @@ async function handleDiscoverSaveCookbook(request: Request, db: D1Database, cook
     return errorResponse('Cookbook not found or not public', 404, origin);
   }
 
-  const existingCookbookId = await findExistingSavedCookbookId(db, user.id, cookbook);
+  const existingCookbookId = await findExistingSavedCookbookId(db, user.id, cookbook, true, true);
   if (existingCookbookId) {
     return jsonResponse({ id: existingCookbookId }, 200, corsHeaders(origin));
   }
 
-  // Get all recipes in the cookbook
+  // Get public recipes in the cookbook
   const { results: cookbookRecipes } = await db.prepare(`
     SELECT r.* FROM recipes r
     JOIN cookbook_recipes cr ON r.id = cr.recipe_id
-    WHERE cr.cookbook_id = ?
+    WHERE cr.cookbook_id = ? AND r.is_public = 1
   `).bind(cookbookId).all<Recipe & { owner_id: string }>();
 
   const now = Date.now();
@@ -4294,23 +4810,28 @@ async function copyCookbookRecipesToUserCollection(
     .run();
 }
 
-async function getCookbookRecipeRows(db: D1Database, cookbookId: string): Promise<Recipe[]> {
+async function getCookbookRecipeRows(db: D1Database, cookbookId: string, publicOnly = false): Promise<Recipe[]> {
   const { results } = await db.prepare(`
     SELECT r.* FROM recipes r
     JOIN cookbook_recipes cr ON r.id = cr.recipe_id
-    WHERE cr.cookbook_id = ?
+    WHERE cr.cookbook_id = ?${publicOnly ? ' AND r.is_public = 1' : ''}
     ORDER BY cr.added_at ASC, r.id ASC
   `).bind(cookbookId).all<Recipe>();
 
   return results;
 }
 
-async function isUneditedCookbookCopy(db: D1Database, candidate: Cookbook, source: Cookbook): Promise<boolean> {
+async function isUneditedCookbookCopy(
+  db: D1Database,
+  candidate: Cookbook,
+  source: Cookbook,
+  sourcePublicOnly = false
+): Promise<boolean> {
   if (candidate.source_cookbook_id !== source.id || !cookbooksHaveSameSavedContent(candidate, source)) {
     return false;
   }
 
-  const sourceRecipes = await getCookbookRecipeRows(db, source.id);
+  const sourceRecipes = await getCookbookRecipeRows(db, source.id, sourcePublicOnly);
   const candidateRecipes = await getCookbookRecipeRows(db, candidate.id);
   if (sourceRecipes.length !== candidateRecipes.length) {
     return false;
@@ -4336,7 +4857,8 @@ async function findExistingSavedCookbookId(
   db: D1Database,
   userId: string,
   cookbook: Cookbook,
-  includeOriginal = true
+  includeOriginal = true,
+  sourcePublicOnly = false
 ): Promise<string | null> {
   const { results } = await db.prepare(`
     SELECT * FROM cookbooks
@@ -4363,7 +4885,7 @@ async function findExistingSavedCookbookId(
       return candidate.id;
     }
 
-    if (await isUneditedCookbookCopy(db, candidate, cookbook)) {
+    if (await isUneditedCookbookCopy(db, candidate, cookbook, sourcePublicOnly)) {
       return candidate.id;
     }
   }
@@ -4479,7 +5001,7 @@ async function handleDiscoverUnsaveCookbook(request: Request, db: D1Database, co
     return errorResponse('Cookbook not found or not public', 404, origin);
   }
 
-  const savedCopyId = await findExistingSavedCookbookId(db, user.id, cookbook, false);
+  const savedCopyId = await findExistingSavedCookbookId(db, user.id, cookbook, false, true);
   if (!savedCopyId) {
     return jsonResponse({ success: true, id: null }, 200, corsHeaders(origin));
   }
@@ -4498,6 +5020,70 @@ async function handleDiscoverUnsaveCookbook(request: Request, db: D1Database, co
     .run();
 
   return jsonResponse({ success: true, id: savedCopyId }, 200, corsHeaders(origin));
+}
+
+async function handleProxyFetch(request: Request, db: D1Database): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const user = await getSessionUser(request, db);
+  const rateLimitKey = getClientRateLimitKey(request, user);
+  const maxRequests = user ? AUTHENTICATED_PROXY_FETCH_LIMIT : PUBLIC_PROXY_FETCH_LIMIT;
+  const isAllowed = await checkFixedWindowRateLimit(db, 'proxy-fetch', rateLimitKey, maxRequests);
+  if (!isAllowed) {
+    return errorResponse('Too many import attempts. Please try again later.', 429, origin);
+  }
+
+  let body: { url?: string };
+  try {
+    body = await readJsonBody<{ url?: string }>(request);
+  } catch (error) {
+    if (error instanceof JsonBodyTooLargeError) {
+      throw error;
+    }
+    return errorResponse('Invalid request body', 400, origin);
+  }
+
+  const normalizedUrl = normalizeHttpUrl(body.url);
+  if (!normalizedUrl) {
+    return errorResponse('A valid HTTP or HTTPS URL is required', 400, origin);
+  }
+
+  const parsedUrl = new URL(normalizedUrl);
+  if (isBlockedProxyTarget(parsedUrl)) {
+    return errorResponse('This URL cannot be imported', 400, origin);
+  }
+
+  try {
+    const fetchResponse = await fetch(normalizedUrl, {
+      redirect: 'manual',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Recipesaurus/1.0; +https://recipesaurus.ai)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,text/xml;q=0.8',
+      },
+    });
+
+    if (fetchResponse.status >= 300 && fetchResponse.status < 400) {
+      return errorResponse('Redirects are not supported for recipe imports', 400, origin);
+    }
+
+    if (!fetchResponse.ok) {
+      return errorResponse(`Failed to fetch URL: ${fetchResponse.status}`, 400, origin);
+    }
+
+    const contentType = fetchResponse.headers.get('Content-Type') || '';
+    if (contentType && !/(^|;|\s)(text\/html|application\/xhtml\+xml|application\/xml|text\/xml)(;|\s|$)/i.test(contentType)) {
+      return errorResponse('URL did not return an HTML document', 400, origin);
+    }
+
+    const html = await readTextWithLimit(fetchResponse, MAX_RECIPE_IMPORT_BYTES);
+    return jsonResponse({ html }, 200, corsHeaders(origin));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : '';
+    if (message.includes('too large')) {
+      return errorResponse('Imported page is too large', 413, origin);
+    }
+    console.error('Proxy fetch error:', err);
+    return errorResponse('Failed to fetch URL', 500, origin);
+  }
 }
 
 async function addSampleRecipes(db: D1Database, userId: string): Promise<void> {
@@ -4623,7 +5209,7 @@ export default {
         return handleResetPassword(request, env.DB);
       }
       if (path === '/api/feedback' && method === 'POST') {
-        return handleFeedback(request, env);
+        return handleFeedback(request, env.DB, env);
       }
 
       const profileFriendsMatch = path.match(/^\/api\/profiles\/([^/]+)\/friends$/);
@@ -4673,48 +5259,7 @@ export default {
 
       // Proxy fetch for recipe import
       if (path === '/api/proxy-fetch' && method === 'POST') {
-        try {
-          const body = await request.json() as { url?: string };
-          const targetUrl = body.url;
-
-          if (!targetUrl || typeof targetUrl !== 'string') {
-            return errorResponse('URL is required', 400, origin);
-          }
-
-          // Validate URL format
-          let parsedUrl: URL;
-          try {
-            parsedUrl = new URL(targetUrl);
-            if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-              return errorResponse('Invalid URL protocol', 400, origin);
-            }
-          } catch {
-            return errorResponse('Invalid URL format', 400, origin);
-          }
-
-          // Fetch the page content
-          const fetchResponse = await fetch(targetUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (compatible; Recipesaurus/1.0; +https://recipesaurus.app)',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            },
-          });
-
-          if (!fetchResponse.ok) {
-            return errorResponse(`Failed to fetch URL: ${fetchResponse.status}`, 400, origin);
-          }
-
-          const html = await fetchResponse.text();
-
-          // Limit response size to prevent abuse
-          const maxSize = 1024 * 1024; // 1MB
-          const truncatedHtml = html.length > maxSize ? html.slice(0, maxSize) : html;
-
-          return jsonResponse({ html: truncatedHtml }, 200, corsHeaders(origin));
-        } catch (err) {
-          console.error('Proxy fetch error:', err);
-          return errorResponse('Failed to fetch URL', 500, origin);
-        }
+        return handleProxyFetch(request, env.DB);
       }
 
       // Recipe routes
@@ -4909,6 +5454,12 @@ export default {
 
       return errorResponse('Not found', 404, origin);
     } catch (error) {
+      if (error instanceof InvalidJsonBodyError) {
+        return errorResponse('Invalid request body', 400, origin);
+      }
+      if (error instanceof JsonBodyTooLargeError) {
+        return errorResponse('Request body is too large', 413, origin);
+      }
       console.error('Error:', error);
       return errorResponse('Internal server error', 500, origin);
     }

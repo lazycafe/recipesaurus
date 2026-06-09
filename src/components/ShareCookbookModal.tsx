@@ -31,6 +31,11 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
   const [revokeLinkId, setRevokeLinkId] = useState<string | null>(null);
 
   const getShareUrl = (token: string) => `${window.location.origin}/shared/${token}`;
+  const formatExpiry = (expiresAt: number) => new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(expiresAt));
 
   const fetchShareData = useCallback(async () => {
     setIsLoading(true);
@@ -39,7 +44,7 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
     const sharesResult = await client.cookbooks.getShares(cookbook.id);
     if (sharesResult.data) {
       setShares(sharesResult.data.shares);
-      setLinks(sharesResult.data.links.filter(l => l.isActive));
+      setLinks(sharesResult.data.links.filter(l => l.isActive && (!l.expiresAt || l.expiresAt > Date.now())));
     } else if (sharesResult.error) {
       setError(sharesResult.error);
     }
@@ -237,7 +242,7 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
             {error && <div className="form-error">{error}</div>}
 
             <p className="share-link-info">
-              Anyone with the link can view this cookbook without signing in.
+              Anyone with the link can view this cookbook without signing in. Links expire after 30 days.
             </p>
 
             <button
@@ -257,6 +262,9 @@ export function ShareCookbookModal({ cookbook, onClose }: ShareCookbookModalProp
                     <code className="share-link-url" title={getShareUrl(link.token)}>
                       {getShareUrl(link.token)}
                     </code>
+                    {link.expiresAt && (
+                      <span className="share-link-expiry">Expires {formatExpiry(link.expiresAt)}</span>
+                    )}
                     <div className="share-link-actions">
                       <button
                         className="btn-icon"

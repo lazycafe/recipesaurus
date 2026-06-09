@@ -69,6 +69,48 @@ describe('public discovery visibility', () => {
     expect(discoverResult.data!.cookbooks.some(cookbook => cookbook.id === cookbookId)).toBe(false);
   });
 
+  it('keeps private recipes hidden inside public cookbooks', async () => {
+    const ownerClient = harness.getClient();
+    const publicRecipe = await ownerClient.recipes.create({
+      title: 'Visible Cookbook Recipe',
+      description: 'This one can be discovered',
+      ingredients: ['rice'],
+      instructions: ['steam'],
+      tags: ['side'],
+      isPublic: true,
+    });
+    const privateRecipe = await ownerClient.recipes.create({
+      title: 'Hidden Cookbook Recipe',
+      description: 'This one stays private',
+      ingredients: ['secret'],
+      instructions: ['hide'],
+      tags: ['private'],
+      isPublic: false,
+    });
+    const cookbook = await ownerClient.cookbooks.create({
+      name: 'Mixed Visibility Cookbook',
+      description: 'Contains public and private recipes',
+      isPublic: true,
+    });
+    await ownerClient.cookbooks.addRecipe(cookbook.data!.id, publicRecipe.data!.id);
+    await ownerClient.cookbooks.addRecipe(cookbook.data!.id, privateRecipe.data!.id);
+
+    const viewerClient = harness.createClient();
+    await viewerClient.auth.register('viewer@example.com', 'Viewer', 'Password123');
+
+    const discoverList = await viewerClient.discover.cookbooks({ limit: 20 });
+    const discoveredCookbook = discoverList.data!.cookbooks.find(item => item.id === cookbook.data!.id)!;
+    expect(discoveredCookbook.recipeCount).toBe(1);
+
+    const detail = await viewerClient.discover.getCookbook(cookbook.data!.id);
+    expect(detail.data!.cookbook.recipeCount).toBe(1);
+    expect(detail.data!.recipes.map(recipe => recipe.title)).toEqual(['Visible Cookbook Recipe']);
+
+    const saveResult = await viewerClient.discover.saveCookbook(cookbook.data!.id);
+    const savedCookbook = await viewerClient.cookbooks.get(saveResult.data!.id);
+    expect(savedCookbook.data!.recipes.map(recipe => recipe.title)).toEqual(['Visible Cookbook Recipe']);
+  });
+
   it('does not return duplicate recipes or cookbooks on Discover', async () => {
     const client = harness.getClient();
     const recipeResult = await client.recipes.create({

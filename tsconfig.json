@@ -9,6 +9,7 @@
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",
+    "tsBuildInfoFile": "./.tsbuildinfo/tsconfig.tsbuildinfo",
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,

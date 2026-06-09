@@ -6,6 +6,7 @@
     "lib": ["ES2021"],
     "types": ["@cloudflare/workers-types"],
     "strict": true,
+    "tsBuildInfoFile": "./.tsbuildinfo/tsconfig.tsbuildinfo",
     "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true

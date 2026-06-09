@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { ReactTestHarness } from './ReactTestHarness';
 import { useClient } from '../client/ClientContext';
@@ -407,10 +407,32 @@ describe('Cookbooks with React components', () => {
 
       expect(linkResult.data!.token).toBeDefined();
       expect(linkResult.data!.isActive).toBe(true);
+      expect(linkResult.data!.expiresAt).toBeGreaterThan(linkResult.data!.createdAt);
 
       // Can view via share link
       const sharedView = await client.cookbooks.getShared(linkResult.data!.token);
       expect(sharedView.data!.cookbook.name).toBe('My Cookbook');
+    });
+
+    it('should expire share links after 30 days', async () => {
+      const now = new Date('2026-01-01T00:00:00Z').getTime();
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+
+      try {
+        await harness.seedUser('test@example.com', 'Password123', 'Test User');
+        const cookbookId = await harness.seedCookbook({ name: 'My Cookbook' });
+
+        const client = harness.getClient();
+        const linkResult = await client.cookbooks.createShareLink(cookbookId);
+        const token = linkResult.data!.token;
+
+        vi.setSystemTime(now + 30 * 24 * 60 * 60 * 1000 + 1);
+        const sharedView = await client.cookbooks.getShared(token);
+        expect(sharedView.error).toContain('expired');
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });

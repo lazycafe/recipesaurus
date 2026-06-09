@@ -1,4 +1,5 @@
 import { test, expect, testCookbook } from './fixtures';
+import type { Page } from '@playwright/test';
 
 test.describe('Cookbook Sharing', () => {
   const user1 = {
@@ -13,6 +14,130 @@ test.describe('Cookbook Sharing', () => {
     password: 'SharePassword456!',
   };
 
+  async function seedSharingState(
+    page: Page,
+    options: { makeFriends?: boolean; acceptedShare?: boolean; loginAs?: 'owner' | 'recipient' } = {}
+  ) {
+    await page.goto('/');
+
+    await page.evaluate(async ({ owner, recipient, cookbook, makeFriends, acceptedShare, loginAs }) => {
+      const { createDevClient } = await import('/src/client/devClient.ts');
+      const client = await createDevClient();
+
+      const fail = (message: string): never => {
+        throw new Error(message);
+      };
+
+      const recipientRegistration = await client.auth.register(
+        recipient.email,
+        recipient.name,
+        recipient.password
+      );
+      const recipientUser = recipientRegistration.data?.user;
+      if (!recipientUser) {
+        fail(`Could not register recipient: ${recipientRegistration.error ?? 'missing user'}`);
+      }
+
+      await client.auth.logout();
+
+      const ownerRegistration = await client.auth.register(owner.email, owner.name, owner.password);
+      if (!ownerRegistration.data?.user) {
+        fail(`Could not register owner: ${ownerRegistration.error ?? 'missing user'}`);
+      }
+
+      const cookbookResult = await client.cookbooks.create(cookbook);
+      const cookbookId = cookbookResult.data?.id;
+      if (!cookbookId) {
+        fail(`Could not create cookbook: ${cookbookResult.error ?? 'missing id'}`);
+      }
+
+      if (makeFriends) {
+        const friendRequest = await client.profile.addFriend({ email: recipient.email });
+        if (friendRequest.error) {
+          fail(`Could not request friendship: ${friendRequest.error}`);
+        }
+
+        await client.auth.logout();
+
+        const recipientLogin = await client.auth.login(recipient.email, recipient.password);
+        if (!recipientLogin.data?.user) {
+          fail(`Could not log in recipient: ${recipientLogin.error ?? 'missing user'}`);
+        }
+
+        const notifications = await client.notifications.list();
+        const friendRequestId = notifications.data?.notifications.find(
+          notification => notification.type === 'friend_request'
+        )?.data?.friendRequestId;
+        if (!friendRequestId) {
+          fail('Could not find friend request notification');
+        }
+
+        const acceptFriend = await client.profile.acceptFriendRequest(friendRequestId);
+        if (acceptFriend.error) {
+          fail(`Could not accept friend request: ${acceptFriend.error}`);
+        }
+
+        await client.auth.logout();
+
+        const ownerLogin = await client.auth.login(owner.email, owner.password);
+        if (!ownerLogin.data?.user) {
+          fail(`Could not log owner back in: ${ownerLogin.error ?? 'missing user'}`);
+        }
+      }
+
+      if (acceptedShare) {
+        const shareResult = await client.cookbooks.shareByEmail(cookbookId, recipient.email);
+        if (shareResult.error) {
+          fail(`Could not share cookbook: ${shareResult.error}`);
+        }
+
+        await client.auth.logout();
+
+        const recipientLogin = await client.auth.login(recipient.email, recipient.password);
+        if (!recipientLogin.data?.user) {
+          fail(`Could not log in recipient: ${recipientLogin.error ?? 'missing user'}`);
+        }
+
+        const notifications = await client.notifications.list();
+        const inviteId = notifications.data?.notifications.find(
+          notification => notification.type === 'cookbook_invite' && notification.data?.cookbookId === cookbookId
+        )?.data?.inviteId;
+        if (!inviteId) {
+          fail('Could not find cookbook invite notification');
+        }
+
+        const acceptInvite = await client.invites.accept(inviteId);
+        if (acceptInvite.error) {
+          fail(`Could not accept cookbook invite: ${acceptInvite.error}`);
+        }
+      }
+
+      await client.auth.logout();
+
+      const finalUser = loginAs === 'recipient' ? recipient : owner;
+      const finalLogin = await client.auth.login(finalUser.email, finalUser.password);
+      if (!finalLogin.data?.user) {
+        fail(`Could not log final user in: ${finalLogin.error ?? 'missing user'}`);
+      }
+    }, {
+      owner: user1,
+      recipient: user2,
+      cookbook: testCookbook,
+      makeFriends: Boolean(options.makeFriends),
+      acceptedShare: Boolean(options.acceptedShare),
+      loginAs: options.loginAs ?? 'owner',
+    });
+
+    await page.goto('/cookbooks');
+    await expect(page.getByRole('heading', { name: 'Cookbooks' })).toBeVisible({ timeout: 10000 });
+  }
+
+  async function openShareModal(page: Page) {
+    await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
+    await page.getByRole('button', { name: 'Share' }).click();
+    await expect(page.locator('.share-modal')).toBeVisible();
+  }
+
   test.describe('Share Modal', () => {
     test.beforeEach(async ({ page, helpers }) => {
       await helpers.register(user1);
@@ -20,38 +145,32 @@ test.describe('Cookbook Sharing', () => {
     });
 
     test('should open share modal when clicking Share button', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
 
       await expect(page.getByRole('heading', { name: `Share "${testCookbook.name}"` })).toBeVisible();
     });
 
-    test('should show Share by Email tab by default', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+    test('should show Share with User tab by default', async ({ page }) => {
+      await openShareModal(page);
 
-      const emailTab = page.locator('.share-tab').filter({ hasText: 'Share by Email' });
-      await expect(emailTab).toHaveClass(/active/);
+      const userTab = page.locator('.share-tab').filter({ hasText: 'Share with User' });
+      await expect(userTab).toHaveClass(/active/);
     });
 
-    test('should show email input field', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+    test('should show empty friend state when there are no friends', async ({ page }) => {
+      await openShareModal(page);
 
-      await expect(page.getByPlaceholder('Enter email address')).toBeVisible();
+      await expect(page.getByText('Add friends before sharing cookbooks with users.')).toBeVisible();
     });
 
     test('should show Share Link tab', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
 
       await expect(page.getByText('Share Link')).toBeVisible();
     });
 
     test('should close share modal when clicking X', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-      await expect(page.locator('.share-modal')).toBeVisible();
+      await openShareModal(page);
 
       await page.locator('.modal-close').click();
 
@@ -59,142 +178,63 @@ test.describe('Cookbook Sharing', () => {
     });
   });
 
-  test.describe('Share by Email', () => {
-    test.beforeEach(async ({ browser }) => {
-      // Register user2 first so they exist
-      const page2 = await browser.newPage();
-      await page2.goto('/');
-      await page2.getByRole('button', { name: 'Get Started' }).click();
-      await page2.getByLabel('Name').fill(user2.name);
-      await page2.getByLabel('Email').fill(user2.email);
-      await page2.locator('#password').fill(user2.password);
-      await page2.locator('#confirmPassword').fill(user2.password);
-      await page2.getByRole('button', { name: 'Create Account' }).click();
-      await expect(page2.getByText(user2.name)).toBeVisible({ timeout: 10000 });
-      await page2.close();
+  test.describe('Share with User', () => {
+    test.beforeEach(async ({ page }) => {
+      await seedSharingState(page, { makeFriends: true });
     });
 
-    test.beforeEach(async ({ page, helpers }) => {
-      await helpers.register(user1);
-      await helpers.createCookbook(testCookbook);
+    test('should list friends in the share modal', async ({ page }) => {
+      await openShareModal(page);
+
+      const friendRow = page.locator('.share-friend-item').filter({ hasText: user2.name });
+      await expect(friendRow).toBeVisible();
+      await expect(friendRow).toContainText('Friend');
     });
 
-    test('should share cookbook with another user by email', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+    test('should send a cookbook invite to a friend', async ({ page }) => {
+      await openShareModal(page);
 
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
+      const friendRow = page.locator('.share-friend-item').filter({ hasText: user2.name });
+      await friendRow.getByRole('button', { name: 'Share' }).click();
 
-      await expect(page.getByText(`Shared with ${user2.name}`)).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText(`Invite sent to ${user2.name}`)).toBeVisible({ timeout: 10000 });
+      await expect(friendRow.getByRole('button', { name: 'Sent' })).toBeDisabled();
     });
 
-    test('should show error for non-existent email', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+    test('should mark friend as pending after sharing', async ({ page }) => {
+      await openShareModal(page);
 
-      await page.getByPlaceholder('Enter email address').fill('nonexistent@example.com');
-      await page.getByRole('button', { name: 'Share' }).click();
+      const friendRow = page.locator('.share-friend-item').filter({ hasText: user2.name });
+      await friendRow.getByRole('button', { name: 'Share' }).click();
 
-      await expect(page.getByText('No user found with that email')).toBeVisible();
-    });
-
-    test('should show error when trying to share with self', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-
-      await page.getByPlaceholder('Enter email address').fill(user1.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-
-      await expect(page.getByText('Cannot share with yourself')).toBeVisible();
-    });
-
-    test('should show error when cookbook already shared with user', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-
-      // Share first time
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-      await expect(page.getByText(`Shared with ${user2.name}`)).toBeVisible({ timeout: 10000 });
-
-      // Try to share again
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-
-      await expect(page.getByText('Cookbook is already shared with this user')).toBeVisible();
-    });
-
-    test('should show shared users list after sharing', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-      await page.waitForTimeout(1000);
-
-      await expect(page.getByText('Shared with')).toBeVisible();
-      await expect(page.getByText(user2.name)).toBeVisible();
-      await expect(page.getByText(user2.email)).toBeVisible();
-    });
-
-    test('should clear input after successful share', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-      await expect(page.getByText(`Shared with ${user2.name}`)).toBeVisible({ timeout: 10000 });
-
-      await expect(page.getByPlaceholder('Enter email address')).toHaveValue('');
+      await expect(friendRow).toContainText('Invite pending');
+      await expect(friendRow.getByRole('button', { name: 'Sent' })).toBeVisible();
     });
   });
 
-  test.describe('Remove Email Share', () => {
-    test.beforeEach(async ({ browser }) => {
-      // Register user2 first
-      const page2 = await browser.newPage();
-      await page2.goto('/');
-      await page2.getByRole('button', { name: 'Get Started' }).click();
-      await page2.getByLabel('Name').fill(user2.name);
-      await page2.getByLabel('Email').fill(user2.email);
-      await page2.locator('#password').fill(user2.password);
-      await page2.locator('#confirmPassword').fill(user2.password);
-      await page2.getByRole('button', { name: 'Create Account' }).click();
-      await expect(page2.getByText(user2.name)).toBeVisible({ timeout: 10000 });
-      await page2.close();
-    });
-
-    test.beforeEach(async ({ page, helpers }) => {
-      await helpers.register(user1);
-      await helpers.createCookbook(testCookbook);
-
-      // Share with user2
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-      await expect(page.getByText(`Shared with ${user2.name}`)).toBeVisible({ timeout: 10000 });
+  test.describe('Remove User Share', () => {
+    test.beforeEach(async ({ page }) => {
+      await seedSharingState(page, { acceptedShare: true });
+      await openShareModal(page);
     });
 
     test('should show remove button for shared user', async ({ page }) => {
+      await expect(page.locator('.share-item').filter({ hasText: user2.name })).toBeVisible();
       await expect(page.locator('.share-item-remove')).toBeVisible();
     });
 
     test('should remove share access after confirmation', async ({ page }) => {
-      page.on('dialog', dialog => dialog.accept());
-
       await page.locator('.share-item-remove').click();
+      await page.locator('.confirm-modal').getByRole('button', { name: 'Remove', exact: true }).click();
 
-      await expect(page.locator('.share-item')).not.toBeVisible({ timeout: 5000 });
+      await expect(page.locator('.share-item').filter({ hasText: user2.name })).not.toBeVisible({ timeout: 5000 });
     });
 
     test('should not remove share when confirmation is cancelled', async ({ page }) => {
-      page.on('dialog', dialog => dialog.dismiss());
-
       await page.locator('.share-item-remove').click();
+      await page.locator('.confirm-modal').getByRole('button', { name: 'Cancel' }).click();
 
-      await expect(page.getByText(user2.name)).toBeVisible();
+      await expect(page.locator('.share-item').filter({ hasText: user2.name })).toBeVisible();
     });
   });
 
@@ -205,8 +245,7 @@ test.describe('Cookbook Sharing', () => {
     });
 
     test('should switch to Share Link tab', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
       await page.getByText('Share Link').click();
 
       const linkTab = page.locator('.share-tab').filter({ hasText: 'Share Link' });
@@ -214,24 +253,21 @@ test.describe('Cookbook Sharing', () => {
     });
 
     test('should show info about share links', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
       await page.getByText('Share Link').click();
 
       await expect(page.getByText('Anyone with the link can view this cookbook')).toBeVisible();
     });
 
     test('should show Generate New Link button', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
       await page.getByText('Share Link').click();
 
       await expect(page.getByRole('button', { name: 'Generate New Link' })).toBeVisible();
     });
 
     test('should generate a share link', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
       await page.getByText('Share Link').click();
 
       await page.getByRole('button', { name: 'Generate New Link' }).click();
@@ -240,8 +276,7 @@ test.describe('Cookbook Sharing', () => {
     });
 
     test('should show Active Links section after generating', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
       await page.getByText('Share Link').click();
       await page.getByRole('button', { name: 'Generate New Link' }).click();
 
@@ -249,8 +284,7 @@ test.describe('Cookbook Sharing', () => {
     });
 
     test('should show copy button for share link', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
       await page.getByText('Share Link').click();
       await page.getByRole('button', { name: 'Generate New Link' }).click();
 
@@ -258,8 +292,7 @@ test.describe('Cookbook Sharing', () => {
     });
 
     test('should show revoke button for share link', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
       await page.getByText('Share Link').click();
       await page.getByRole('button', { name: 'Generate New Link' }).click();
 
@@ -267,12 +300,10 @@ test.describe('Cookbook Sharing', () => {
     });
 
     test('should generate multiple share links', async ({ page }) => {
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
       await page.getByText('Share Link').click();
 
       await page.getByRole('button', { name: 'Generate New Link' }).click();
-      await page.waitForTimeout(1000);
       await page.getByRole('button', { name: 'Generate New Link' }).click();
 
       const links = page.locator('.share-link-item');
@@ -285,148 +316,51 @@ test.describe('Cookbook Sharing', () => {
       await helpers.register(user1);
       await helpers.createCookbook(testCookbook);
 
-      // Generate a share link
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
+      await openShareModal(page);
       await page.getByText('Share Link').click();
       await page.getByRole('button', { name: 'Generate New Link' }).click();
       await expect(page.locator('.share-link-item')).toBeVisible({ timeout: 10000 });
     });
 
     test('should revoke share link after confirmation', async ({ page }) => {
-      page.on('dialog', dialog => dialog.accept());
-
       await page.locator('.btn-danger-icon').click();
+      await page.locator('.confirm-modal').getByRole('button', { name: 'Revoke', exact: true }).click();
 
       await expect(page.locator('.share-link-item')).not.toBeVisible({ timeout: 5000 });
     });
 
     test('should not revoke share link when confirmation is cancelled', async ({ page }) => {
-      page.on('dialog', dialog => dialog.dismiss());
-
       await page.locator('.btn-danger-icon').click();
+      await page.locator('.confirm-modal').getByRole('button', { name: 'Cancel' }).click();
 
       await expect(page.locator('.share-link-item')).toBeVisible();
     });
   });
 
   test.describe('Shared Cookbook Access', () => {
-    test.beforeEach(async ({ browser }) => {
-      // Register user2 first
-      const page2 = await browser.newPage();
-      await page2.goto('/');
-      await page2.getByRole('button', { name: 'Get Started' }).click();
-      await page2.getByLabel('Name').fill(user2.name);
-      await page2.getByLabel('Email').fill(user2.email);
-      await page2.locator('#password').fill(user2.password);
-      await page2.locator('#confirmPassword').fill(user2.password);
-      await page2.getByRole('button', { name: 'Create Account' }).click();
-      await expect(page2.getByText(user2.name)).toBeVisible({ timeout: 10000 });
-      await page2.close();
+    test.beforeEach(async ({ page }) => {
+      await seedSharingState(page, { acceptedShare: true, loginAs: 'recipient' });
     });
 
-    test('should see shared cookbook in Shared with Me tab', async ({ page, helpers, browser }) => {
-      // User1 creates and shares cookbook
-      await helpers.register(user1);
-      await helpers.createCookbook(testCookbook);
-
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-      await expect(page.getByText(`Shared with ${user2.name}`)).toBeVisible({ timeout: 10000 });
-
-      // Logout user1
-      await page.locator('.modal-close').click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
-      await helpers.logout();
-
-      // Login as user2
-      await helpers.login(user2);
-      await helpers.navigateToCookbooks();
-
-      // Should see "Shared with Me" tab
-      await expect(page.getByText('Shared with Me')).toBeVisible();
-      await page.getByText('Shared with Me').click();
-
-      // Should see the shared cookbook
-      await expect(page.getByText(testCookbook.name)).toBeVisible();
+    test('should see shared cookbook in cookbooks grid', async ({ page }) => {
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
-    test('should show owner name on shared cookbook', async ({ page, helpers, browser }) => {
-      // User1 creates and shares cookbook
-      await helpers.register(user1);
-      await helpers.createCookbook(testCookbook);
-
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-      await expect(page.getByText(`Shared with ${user2.name}`)).toBeVisible({ timeout: 10000 });
-
-      // Logout user1 and login as user2
-      await page.locator('.modal-close').click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
-      await helpers.logout();
-      await helpers.login(user2);
-      await helpers.navigateToCookbooks();
-      await page.getByText('Shared with Me').click();
-
-      // Should show owner name
-      await expect(page.getByText(user1.name)).toBeVisible();
+    test('should show owner name on shared cookbook', async ({ page }) => {
+      await expect(page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name })).toContainText(user1.name);
     });
 
-    test('should not show Edit button for shared cookbook', async ({ page, helpers, browser }) => {
-      // User1 creates and shares cookbook
-      await helpers.register(user1);
-      await helpers.createCookbook(testCookbook);
+    test('should not show Edit button for shared cookbook', async ({ page }) => {
+      await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-      await expect(page.getByText(`Shared with ${user2.name}`)).toBeVisible({ timeout: 10000 });
-
-      // Logout user1 and login as user2
-      await page.locator('.modal-close').click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
-      await helpers.logout();
-      await helpers.login(user2);
-      await helpers.navigateToCookbooks();
-      await page.getByText('Shared with Me').click();
-      await page.getByText(testCookbook.name).click();
-
-      // Should NOT show Edit or Share buttons
       await expect(page.getByRole('button', { name: 'Edit' })).not.toBeVisible();
       await expect(page.getByRole('button', { name: 'Share' })).not.toBeVisible();
     });
 
-    test('should not show delete button on shared cookbook card', async ({ page, helpers, browser }) => {
-      // User1 creates and shares cookbook
-      await helpers.register(user1);
-      await helpers.createCookbook(testCookbook);
-
-      await page.getByText(testCookbook.name).click();
-      await page.getByRole('button', { name: 'Share' }).click();
-      await page.getByPlaceholder('Enter email address').fill(user2.email);
-      await page.getByRole('button', { name: 'Share' }).click();
-      await expect(page.getByText(`Shared with ${user2.name}`)).toBeVisible({ timeout: 10000 });
-
-      // Logout user1 and login as user2
-      await page.locator('.modal-close').click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
-      await helpers.logout();
-      await helpers.login(user2);
-      await helpers.navigateToCookbooks();
-      await page.getByText('Shared with Me').click();
-
-      // Hover on shared cookbook card - should NOT have delete button
-      const card = page.locator('.cookbook-card').first();
+    test('should not show delete button on shared cookbook card', async ({ page }) => {
+      const card = page.locator('.cookbook-card').filter({ hasText: testCookbook.name });
       await card.hover();
+
       await expect(card.locator('.card-delete')).not.toBeVisible();
     });
   });
