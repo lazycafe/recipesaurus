@@ -4596,12 +4596,17 @@ img {
 
 .profile-identity {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
   min-width: 0;
 }
 
 .profile-title-row h1 {
+  flex: 0 0 auto;
+  max-width: 100%;
   min-width: 0;
   font-size: var(--text-3xl);
   overflow-wrap: anywhere;
@@ -4610,6 +4615,8 @@ img {
 .profile-badges {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  flex: 0 0 auto;
   gap: var(--space-2);
 }
 
