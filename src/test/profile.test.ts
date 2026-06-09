@@ -148,6 +148,10 @@ describe('Profiles and friends', () => {
       'INSERT INTO profile_badges (user_id, badge, granted_at) VALUES (?, ?, ?)',
       [alice.data!.user!.id, 'early_adopter', grantedAt]
     );
+    db.run(
+      'INSERT INTO profile_badges (user_id, badge, granted_at) VALUES (?, ?, ?)',
+      [alice.data!.user!.id, 'top_contributor', grantedAt + 1]
+    );
 
     const profile = await aliceClient.profile.get(alice.data!.user!.id);
 
@@ -157,6 +161,11 @@ describe('Profiles and friends', () => {
         id: 'early_adopter',
         label: 'Early Adopter',
         grantedAt,
+      },
+      {
+        id: 'top_contributor',
+        label: 'Top Contributor',
+        grantedAt: grantedAt + 1,
       },
     ]);
   });

@@ -772,6 +772,7 @@ function formatProfileUser(user: { id: string; name: string; avatar_url?: string
 
 const PROFILE_BADGE_LABELS: Record<string, string> = {
   early_adopter: 'Early Adopter',
+  top_contributor: 'Top Contributor',
 };
 
 function formatProfileBadge(badge: Pick<ProfileBadge, 'badge' | 'granted_at'>) {

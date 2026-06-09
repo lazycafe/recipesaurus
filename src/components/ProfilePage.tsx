@@ -1,8 +1,8 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, Upload, Trash2, Share2, Sparkles } from 'lucide-react';
+import { ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, Upload, Trash2, Share2, Sparkles, Trophy } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
-import type { Cookbook as ClientCookbook, ProfileUser, Recipe, UserProfile } from '../client/types';
+import type { Cookbook as ClientCookbook, ProfileBadge, ProfileUser, Recipe, UserProfile } from '../client/types';
 import type { Cookbook } from '../types/Cookbook';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -22,6 +22,23 @@ function mapCookbook(cookbook: ClientCookbook): Cookbook {
     ownerId: cookbook.ownerId,
     ownerName: cookbook.ownerName,
   };
+}
+
+function getProfileBadgeClassName(badge: ProfileBadge): string {
+  if (badge.id === 'early_adopter') {
+    return 'profile-badge profile-badge-early-adopter';
+  }
+  if (badge.id === 'top_contributor') {
+    return 'profile-badge profile-badge-top-contributor';
+  }
+  return 'profile-badge';
+}
+
+function renderProfileBadgeIcon(badge: ProfileBadge) {
+  if (badge.id === 'top_contributor') {
+    return <Trophy size={14} aria-hidden="true" />;
+  }
+  return <Sparkles size={14} aria-hidden="true" />;
 }
 
 type ModalFeedback = {
@@ -327,9 +344,9 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
                   {profileBadges.map(badge => (
                     <span
                       key={badge.id}
-                      className={`profile-badge ${badge.id === 'early_adopter' ? 'profile-badge-early-adopter' : ''}`}
+                      className={getProfileBadgeClassName(badge)}
                     >
-                      <Sparkles size={14} aria-hidden="true" />
+                      {renderProfileBadgeIcon(badge)}
                       {badge.label}
                     </span>
                   ))}

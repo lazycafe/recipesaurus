@@ -275,6 +275,11 @@ describe('ProfilePage', () => {
                     label: 'Early Adopter',
                     grantedAt: 1710000000000,
                   },
+                  {
+                    id: 'top_contributor',
+                    label: 'Top Contributor',
+                    grantedAt: 1710000001000,
+                  },
                 ],
               },
               isCurrentUser: true,
@@ -308,6 +313,7 @@ describe('ProfilePage', () => {
     expect(await screen.findByRole('heading', { name: 'Alice Chef' })).toBeDefined();
     expect(screen.getByLabelText('Profile badges')).toBeDefined();
     expect(screen.getByText('Early Adopter')).toBeDefined();
+    expect(screen.getByText('Top Contributor')).toBeDefined();
   });
 
   it('shows add friend by email success inline inside the friends modal', async () => {
