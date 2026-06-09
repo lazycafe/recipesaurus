@@ -19,6 +19,8 @@ import type {
   RecipeShareLinkInfo,
   DbUserSubscription,
   DbAiMealPlanRequest,
+  DbProfileBadge,
+  ProfileBadgeInfo,
 } from './types';
 import {
   MEAL_PLAN_HISTORY_LIMIT,
@@ -192,6 +194,22 @@ function formatProfileUser(user: { id: string; name: string; avatar_url?: string
     id: user.id,
     name: user.name,
     avatarUrl: user.avatar_url ?? null,
+  };
+}
+
+const PROFILE_BADGE_LABELS: Record<string, string> = {
+  early_adopter: 'Early Adopter',
+};
+
+function formatProfileBadge(badge: Pick<DbProfileBadge, 'badge' | 'granted_at'>): ProfileBadgeInfo {
+  const fallbackLabel = badge.badge
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, letter => letter.toUpperCase());
+
+  return {
+    id: badge.badge,
+    label: PROFILE_BADGE_LABELS[badge.badge] || fallbackLabel,
+    grantedAt: badge.granted_at,
   };
 }
 
@@ -863,6 +881,11 @@ export class CoreHandlers {
       profileUser.id
     );
 
+    const badges = await this.db.all<Pick<DbProfileBadge, 'badge' | 'granted_at'>>(
+      'SELECT badge, granted_at FROM profile_badges WHERE user_id = ? ORDER BY granted_at ASC, badge ASC',
+      profileUser.id
+    );
+
     const recipes = await this.db.all<DbRecipe & { owner_name: string | null }>(
       `SELECT r.*, owner.name as owner_name
        FROM recipes r
@@ -888,7 +911,10 @@ export class CoreHandlers {
     return {
       data: {
         profile: {
-          user: formatProfileUser(profileUser),
+          user: {
+            ...formatProfileUser(profileUser),
+            badges: badges.results.map(formatProfileBadge),
+          },
           isCurrentUser,
           isFriend,
           hasPendingFriendRequest: !!outgoingFriendRequest,

@@ -180,6 +180,12 @@ interface UserSubscription {
   updated_at: number;
 }
 
+interface ProfileBadge {
+  user_id: string;
+  badge: string;
+  granted_at: number;
+}
+
 interface AiMealPlanRequest {
   id: string;
   user_id: string;
@@ -761,6 +767,22 @@ function formatProfileUser(user: { id: string; name: string; avatar_url?: string
     id: user.id,
     name: user.name,
     avatarUrl: user.avatar_url || null,
+  };
+}
+
+const PROFILE_BADGE_LABELS: Record<string, string> = {
+  early_adopter: 'Early Adopter',
+};
+
+function formatProfileBadge(badge: Pick<ProfileBadge, 'badge' | 'granted_at'>) {
+  const fallbackLabel = badge.badge
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, letter => letter.toUpperCase());
+
+  return {
+    id: badge.badge,
+    label: PROFILE_BADGE_LABELS[badge.badge] || fallbackLabel,
+    grantedAt: badge.granted_at,
   };
 }
 
@@ -1475,6 +1497,10 @@ async function handleGetProfile(request: Request, db: D1Database, userId: string
     'SELECT COUNT(*) as count FROM cookbooks c WHERE c.user_id = ? AND c.is_system = 0'
   ).bind(profileUser.id).first<{ count: number }>();
 
+  const badges = await db.prepare(
+    'SELECT badge, granted_at FROM profile_badges WHERE user_id = ? ORDER BY granted_at ASC, badge ASC'
+  ).bind(profileUser.id).all<Pick<ProfileBadge, 'badge' | 'granted_at'>>();
+
   const recipes = await db.prepare(
     `SELECT r.*, owner.name as owner_name
      FROM recipes r
@@ -1498,7 +1524,10 @@ async function handleGetProfile(request: Request, db: D1Database, userId: string
   return jsonResponse(
     {
       profile: {
-        user: formatProfileUser(profileUser),
+        user: {
+          ...formatProfileUser(profileUser),
+          badges: badges.results.map(formatProfileBadge),
+        },
         isCurrentUser,
         isFriend,
         hasPendingFriendRequest: !!outgoingFriendRequest,

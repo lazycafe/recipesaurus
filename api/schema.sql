@@ -153,6 +153,15 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Public badges awarded to user profiles.
+CREATE TABLE IF NOT EXISTS profile_badges (
+  user_id TEXT NOT NULL,
+  badge TEXT NOT NULL,
+  granted_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, badge),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- Mutual friendships between users. user_a_id and user_b_id are stored in
 -- lexical order so each friendship has exactly one row.
 CREATE TABLE IF NOT EXISTS friendships (
@@ -211,3 +220,4 @@ CREATE INDEX IF NOT EXISTS idx_recipe_share_links_created_at ON recipe_share_lin
 CREATE INDEX IF NOT EXISTS idx_ai_meal_plan_requests_user_created ON ai_meal_plan_requests(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_customer ON user_subscriptions(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_subscription ON user_subscriptions(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_profile_badges_user_id ON profile_badges(user_id);

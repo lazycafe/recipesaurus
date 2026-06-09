@@ -216,6 +216,7 @@ export class ReactTestHarness {
     this.db.run('DELETE FROM recipes');
     this.db.run('DELETE FROM ai_meal_plan_requests');
     this.db.run('DELETE FROM user_subscriptions');
+    this.db.run('DELETE FROM profile_badges');
     this.db.run('DELETE FROM sessions');
     this.db.run('DELETE FROM login_attempts');
     this.db.run('DELETE FROM friend_requests');

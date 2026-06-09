@@ -12,6 +12,7 @@ export type {
   RecipeShareLink,
   RecipeSharePayload,
   ProfileUser,
+  ProfileBadge,
   UserProfile,
   CreateRecipeData,
   UpdateRecipeData,

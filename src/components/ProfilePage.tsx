@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, Upload, Trash2, Share2 } from 'lucide-react';
+import { ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, Upload, Trash2, Share2, Sparkles } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import type { Cookbook as ClientCookbook, ProfileUser, Recipe, UserProfile } from '../client/types';
 import type { Cookbook } from '../types/Cookbook';
@@ -306,6 +306,7 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
 
   const publicRecipes = profile.recipes.filter(recipe => recipe.isPublic);
   const publicCookbooks = profile.cookbooks.filter(cookbook => cookbook.isPublic).map(mapCookbook);
+  const profileBadges = profile.user.badges || [];
 
   return (
     <div className="profile-page">
@@ -319,7 +320,22 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
 
         <div className="profile-hero-main">
           <div className="profile-title-row">
-            <h1>{profile.user.name}</h1>
+            <div className="profile-identity">
+              <h1>{profile.user.name}</h1>
+              {profileBadges.length > 0 && (
+                <div className="profile-badges" aria-label="Profile badges">
+                  {profileBadges.map(badge => (
+                    <span
+                      key={badge.id}
+                      className={`profile-badge ${badge.id === 'early_adopter' ? 'profile-badge-early-adopter' : ''}`}
+                    >
+                      <Sparkles size={14} aria-hidden="true" />
+                      {badge.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="profile-title-actions">
               {profile.isCurrentUser ? (
                 <button className="btn-secondary profile-action-btn" onClick={openEditProfile}>

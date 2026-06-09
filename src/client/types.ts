@@ -84,6 +84,13 @@ export interface ProfileUser {
   id: string;
   name: string;
   avatarUrl?: string | null;
+  badges?: ProfileBadge[];
+}
+
+export interface ProfileBadge {
+  id: string;
+  label: string;
+  grantedAt: number;
 }
 
 export interface UserProfile {

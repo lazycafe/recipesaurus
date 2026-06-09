@@ -146,6 +146,7 @@ export interface ProfileUserInfo {
   id: string;
   name: string;
   avatarUrl?: string | null;
+  badges?: ProfileBadgeInfo[];
 }
 
 export interface UserProfileInfo {
@@ -256,6 +257,18 @@ export interface DbUserSubscription {
   cancel_at_period_end: number;
   created_at: number;
   updated_at: number;
+}
+
+export interface DbProfileBadge {
+  user_id: string;
+  badge: string;
+  granted_at: number;
+}
+
+export interface ProfileBadgeInfo {
+  id: string;
+  label: string;
+  grantedAt: number;
 }
 
 // Notification info

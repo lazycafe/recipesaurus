@@ -178,6 +178,14 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS profile_badges (
+      user_id TEXT NOT NULL,
+      badge TEXT NOT NULL,
+      granted_at INTEGER NOT NULL,
+      PRIMARY KEY (user_id, badge),
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS notifications (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -251,6 +259,7 @@ export async function createInMemoryDatabase(): Promise<SqlJsDatabase> {
     CREATE INDEX IF NOT EXISTS idx_ai_meal_plan_requests_user_created ON ai_meal_plan_requests(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_user_subscriptions_customer ON user_subscriptions(stripe_customer_id);
     CREATE INDEX IF NOT EXISTS idx_user_subscriptions_subscription ON user_subscriptions(stripe_subscription_id);
+    CREATE INDEX IF NOT EXISTS idx_profile_badges_user_id ON profile_badges(user_id);
   `);
 
   return db;

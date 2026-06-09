@@ -259,6 +259,57 @@ describe('ProfilePage', () => {
     expect(showToast).not.toHaveBeenCalled();
   });
 
+  it('renders awarded profile badges in the profile header', async () => {
+    const client = {
+      profile: {
+        get: vi.fn(async () => ({
+          data: {
+            profile: {
+              user: {
+                id: currentUser.id,
+                name: currentUser.name,
+                avatarUrl: currentUser.avatarUrl,
+                badges: [
+                  {
+                    id: 'early_adopter',
+                    label: 'Early Adopter',
+                    grantedAt: 1710000000000,
+                  },
+                ],
+              },
+              isCurrentUser: true,
+              isFriend: false,
+              hasPendingFriendRequest: false,
+              incomingFriendRequestId: null,
+              friendCount: 0,
+              recipeCount: 0,
+              cookbookCount: 0,
+              recipes: [],
+              cookbooks: [],
+            } satisfies UserProfile,
+          },
+        })),
+        listFriends: vi.fn(),
+        addFriend: vi.fn(),
+        removeFriend: vi.fn(),
+      },
+    } as unknown as IClient;
+
+    render(
+      <ClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/profiles/${currentUser.id}`]}>
+          <Routes>
+            <Route path="/profiles/:userId" element={<ProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </ClientProvider>
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Alice Chef' })).toBeDefined();
+    expect(screen.getByLabelText('Profile badges')).toBeDefined();
+    expect(screen.getByText('Early Adopter')).toBeDefined();
+  });
+
   it('shows add friend by email success inline inside the friends modal', async () => {
     const bob: ProfileUser = { id: 'user-2', name: 'Bob Baker', avatarUrl: null };
     const friends: ProfileUser[] = [];

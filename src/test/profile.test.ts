@@ -136,6 +136,31 @@ describe('Profiles and friends', () => {
     expect(profile.data?.profile.cookbooks.map(cookbook => cookbook.name)).toEqual(['Public Cookbook']);
   });
 
+  it('returns profile badges for awarded users', async () => {
+    const aliceClient = harness.createClient();
+    const alice = await aliceClient.auth.register('alice@example.com', 'Alice Chef', 'Password123');
+    const grantedAt = Date.now();
+
+    const db = (harness as unknown as {
+      db: { run: (sql: string, params?: unknown[]) => void };
+    }).db;
+    db.run(
+      'INSERT INTO profile_badges (user_id, badge, granted_at) VALUES (?, ?, ?)',
+      [alice.data!.user!.id, 'early_adopter', grantedAt]
+    );
+
+    const profile = await aliceClient.profile.get(alice.data!.user!.id);
+
+    expect(profile.error).toBeUndefined();
+    expect(profile.data?.profile.user.badges).toEqual([
+      {
+        id: 'early_adopter',
+        label: 'Early Adopter',
+        grantedAt,
+      },
+    ]);
+  });
+
   it('accepts a pending friend request even when the notification request id is stale', async () => {
     const aliceClient = harness.createClient();
     const bobClient = harness.createClient();
