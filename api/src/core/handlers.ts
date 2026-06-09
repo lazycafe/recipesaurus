@@ -25,6 +25,7 @@ import type {
 import {
   MEAL_PLAN_HISTORY_LIMIT,
   MEAL_PLAN_MAX_RECIPES,
+  MEAL_PLAN_MAX_PUBLIC_RECIPES,
   MEAL_PLAN_FREE_WEEKLY_LIMIT,
   MEAL_PLAN_PAID_PLAN_NAME,
   MEAL_PLAN_PAID_PRICE_CENTS,
@@ -43,6 +44,7 @@ import {
   buildMealPlanHistoryItem,
   buildMealPlanSuggestionDetails,
   buildFallbackMealPlan,
+  mergeMealPlanRecipeContexts,
   normalizeMealPlanRecipeTitle,
   normalizeMealPlanRequest,
 } from './mealPlanner';
@@ -1293,9 +1295,9 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401, code: MEAL_PLAN_UNAUTHORIZED_CODE };
     }
 
-    const [recipes, starterRecipes, requests] = await Promise.all([
+    const [recipes, publicRecipes, requests] = await Promise.all([
       this.getMealPlanRecipes(user.id),
-      this.getMealPlanStarterRecipes(),
+      this.getMealPlanPublicRecipes(user.id),
       this.db.all<DbAiMealPlanRequest>(
         `SELECT id, user_id, prompt, response, created_at
          FROM ai_meal_plan_requests
@@ -1307,6 +1309,8 @@ export class CoreHandlers {
       ),
     ]);
 
+    const recipeContext = mergeMealPlanRecipeContexts(recipes, publicRecipes);
+
     return {
       data: {
         history: requests.results.map(row => buildMealPlanHistoryItem(
@@ -1314,7 +1318,7 @@ export class CoreHandlers {
           row.prompt,
           row.response,
           row.created_at,
-          [...recipes, ...starterRecipes]
+          recipeContext
         )),
       },
       status: 200,
@@ -1341,7 +1345,22 @@ export class CoreHandlers {
       prepTime: recipe.prep_time,
       cookTime: recipe.cook_time,
       servings: recipe.servings,
+      source: 'user',
     }));
+  }
+
+  private async getMealPlanPublicRecipes(userId: string): Promise<MealPlanRecipeContext[]> {
+    const recipes = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
+      `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+       FROM recipes
+       WHERE is_public = 1 AND user_id <> ?
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      userId,
+      MEAL_PLAN_MAX_PUBLIC_RECIPES
+    );
+
+    return recipes.results.map(recipe => this.toMealPlanRecipeContext(recipe, 'public'));
   }
 
   private async getMealPlanStarterRecipeOwner(): Promise<{ id: string } | null> {
@@ -1377,26 +1396,9 @@ export class CoreHandlers {
     return { id: userId };
   }
 
-  private async getMealPlanStarterRecipes(): Promise<MealPlanRecipeContext[]> {
-    const owner = await this.getMealPlanStarterRecipeOwner();
-    if (!owner) {
-      return [];
-    }
-
-    const recipes = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
-      `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
-       FROM recipes
-       WHERE user_id = ? AND owner_id = ? AND is_public = 1
-       ORDER BY created_at DESC`,
-      owner.id,
-      owner.id
-    );
-
-    return recipes.results.map(recipe => this.toMealPlanRecipeContext(recipe));
-  }
-
   private toMealPlanRecipeContext(
-    recipe: Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>
+    recipe: Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>,
+    source: 'user' | 'public' = 'user'
   ): MealPlanRecipeContext {
     return {
       id: recipe.id,
@@ -1407,10 +1409,12 @@ export class CoreHandlers {
       prepTime: recipe.prep_time,
       cookTime: recipe.cook_time,
       servings: recipe.servings,
+      source,
     };
   }
 
   private async createMealPlanGeneratedRecipes(
+    userId: string,
     request: string,
     suggestion: string,
     recipes: MealPlanRecipeContext[],
@@ -1421,25 +1425,31 @@ export class CoreHandlers {
       return [];
     }
 
-    const starterOwner = await this.getOrCreateMealPlanStarterRecipeOwner(now);
-    const existingRows = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
-      `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
+    const existingRows = await this.db.all<Pick<DbRecipe, 'id' | 'user_id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
+      `SELECT id, user_id, title, description, ingredients, tags, prep_time, cook_time, servings
        FROM recipes
-       WHERE user_id = ? AND owner_id = ? AND is_public = 1
-       ORDER BY created_at DESC`,
-      starterOwner.id,
-      starterOwner.id
+       WHERE user_id = ? OR is_public = 1
+       ORDER BY
+         CASE WHEN user_id = ? THEN 0 ELSE 1 END,
+         created_at DESC`,
+      userId,
+      userId
     );
     const existingRecipesByTitle = new Map<string, MealPlanRecipeContext>();
-
-    existingRows.results.forEach(recipe => {
+    const rememberExistingRecipe = (recipe: MealPlanRecipeContext) => {
       const normalizedTitle = normalizeMealPlanRecipeTitle(recipe.title);
       if (!existingRecipesByTitle.has(normalizedTitle)) {
-        existingRecipesByTitle.set(normalizedTitle, this.toMealPlanRecipeContext(recipe));
+        existingRecipesByTitle.set(normalizedTitle, recipe);
       }
+    };
+
+    recipes.forEach(recipe => rememberExistingRecipe(recipe));
+    existingRows.results.forEach(recipe => {
+      rememberExistingRecipe(this.toMealPlanRecipeContext(recipe, recipe.user_id === userId ? 'user' : 'public'));
     });
 
     const generatedRecipes: MealPlanRecipeContext[] = [];
+    let starterOwner: { id: string } | null = null;
 
     for (const draft of drafts) {
       const normalizedTitle = normalizeMealPlanRecipeTitle(draft.title);
@@ -1447,6 +1457,10 @@ export class CoreHandlers {
       if (existingRecipe) {
         generatedRecipes.push(existingRecipe);
         continue;
+      }
+
+      if (!starterOwner) {
+        starterOwner = await this.getOrCreateMealPlanStarterRecipeOwner(now);
       }
 
       const recipeId = this.crypto.generateId();
@@ -1460,6 +1474,7 @@ export class CoreHandlers {
         prepTime: draft.prepTime,
         cookTime: draft.cookTime,
         servings: draft.servings,
+        source: 'public',
       };
 
       existingRecipesByTitle.set(normalizedTitle, recipeContext);
@@ -1519,11 +1534,15 @@ export class CoreHandlers {
       return { error: 'Weekly AI meal planning limit reached', status: 402, code: MEAL_PLAN_LIMIT_CODE };
     }
 
-    const recipes = await this.getMealPlanRecipes(user.id);
-    const suggestion = buildFallbackMealPlan(request, recipes);
+    const [recipes, publicRecipes] = await Promise.all([
+      this.getMealPlanRecipes(user.id),
+      this.getMealPlanPublicRecipes(user.id),
+    ]);
+    const recipeContext = mergeMealPlanRecipeContexts(recipes, publicRecipes);
+    const suggestion = buildFallbackMealPlan(request, recipeContext);
     const now = Date.now();
-    const generatedRecipes = await this.createMealPlanGeneratedRecipes(request, suggestion, recipes, now);
-    const recipesForLinks = [...recipes, ...generatedRecipes];
+    const generatedRecipes = await this.createMealPlanGeneratedRecipes(user.id, request, suggestion, recipeContext, now);
+    const recipesForLinks = mergeMealPlanRecipeContexts(recipeContext, generatedRecipes);
     const details = buildMealPlanSuggestionDetails(request, suggestion, recipesForLinks);
     const id = this.crypto.generateId();
 
