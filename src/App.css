@@ -4617,6 +4617,9 @@ img {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   width: fit-content;
   min-height: 30px;
   padding: var(--space-1) var(--space-3);
@@ -4630,23 +4633,119 @@ img {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .profile-badge svg {
+  position: relative;
+  z-index: 1;
   flex-shrink: 0;
 }
 
 .profile-badge-early-adopter {
-  border-color: #d1aa3f;
-  background: linear-gradient(135deg, #fff7d6 0%, #eef7e9 100%);
-  color: #38572e;
+  border-color: #d49a15;
+  background:
+    linear-gradient(135deg, #fff2a8 0%, #ffd6c0 34%, #dff7da 68%, #d8f3ff 100%);
+  background-size: 220% 220%;
+  color: #244a2c;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.75);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    0 6px 16px rgba(105, 86, 18, 0.12);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(159, 105, 0, 0.16),
+    0 8px 18px rgba(117, 84, 7, 0.18);
+}
+
+.profile-badge-early-adopter::before {
+  content: '';
+  position: absolute;
+  top: -60%;
+  bottom: -60%;
+  left: -55%;
+  z-index: 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.82), transparent);
+  transform: rotate(18deg);
+  opacity: 0.8;
+}
+
+.profile-badge-early-adopter::after {
+  content: '';
+  position: absolute;
+  right: 11px;
+  top: 7px;
+  z-index: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    -13px 13px 0 rgba(250, 198, 54, 0.75),
+    11px 11px 0 rgba(45, 90, 48, 0.35);
 }
 
 .profile-badge-early-adopter svg {
-  color: #9c7410;
+  color: #a86f00;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.9));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .profile-badge-early-adopter {
+    animation: profileBadgeGradient 7s ease infinite;
+  }
+
+  .profile-badge-early-adopter::before {
+    animation: profileBadgeShine 4.2s ease-in-out infinite;
+  }
+
+  .profile-badge-early-adopter svg {
+    animation: profileBadgeTwinkle 2.4s ease-in-out infinite;
+    transform-origin: center;
+  }
+
+  .profile-badge-early-adopter:hover {
+    transform: translateY(-1px) rotate(-1deg);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      inset 0 -1px 0 rgba(159, 105, 0, 0.18),
+      0 10px 22px rgba(117, 84, 7, 0.22);
+  }
+}
+
+@keyframes profileBadgeGradient {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes profileBadgeShine {
+  0%,
+  45% {
+    left: -55%;
+  }
+  75%,
+  100% {
+    left: 125%;
+  }
+}
+
+@keyframes profileBadgeTwinkle {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  45% {
+    transform: rotate(-12deg) scale(1.14);
+  }
+  70% {
+    transform: rotate(8deg) scale(0.98);
+  }
 }
 
 .profile-title-actions {
