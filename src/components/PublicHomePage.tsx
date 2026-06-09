@@ -1,5 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
-import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users, Book, CalendarDays } from 'lucide-react';
+import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users, Book } from 'lucide-react';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
 import { Carousel } from './Carousel';
@@ -368,14 +368,6 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
             </div>
             <h3>Friends and Sharing</h3>
             <p>Send friend requests, share recipes or cookbooks, and collaborate around the food you love.</p>
-          </div>
-
-          <div className="feature-card">
-            <div className="feature-icon">
-              <CalendarDays size={28} />
-            </div>
-            <h3>Plan Meals Together</h3>
-            <p>Use shared cookbooks and saved favorites to coordinate dinners, prep days, and weekly menus.</p>
           </div>
 
           <div className="feature-card">

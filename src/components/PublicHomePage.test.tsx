@@ -64,13 +64,14 @@ describe('PublicHomePage', () => {
   });
 
   it('renders features section', () => {
-    render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
+    const { container } = render(<PublicHomePage onSignUp={mockOnSignUp} onSignIn={mockOnSignIn} />);
     expect(screen.getByText('Why Recipesaurus?')).toBeDefined();
+    expect(container.querySelectorAll('.features-grid .feature-card').length).toBe(4);
     expect(screen.getByText('Extract from Any URL')).toBeDefined();
     expect(screen.getByText('Organize in Cookbooks')).toBeDefined();
     expect(screen.getByText('Friends and Sharing')).toBeDefined();
-    expect(screen.getByText('Plan Meals Together')).toBeDefined();
     expect(screen.getByText('Discover New Recipes')).toBeDefined();
+    expect(screen.queryByText('Plan Meals Together')).toBeNull();
   });
 
   it('renders CTA section', () => {
