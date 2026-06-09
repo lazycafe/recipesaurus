@@ -183,7 +183,7 @@ function cleanNewIdeaRecipeTitle(value: string): string | null {
 
 function inferGeneratedRecipeTags(request: string, title: string): string[] {
   const searchable = `${request} ${title}`.toLowerCase();
-  const tags = ['Recipesaurus starter'];
+  const tags = new Set<string>();
   const tagKeywords = [
     'breakfast',
     'brunch',
@@ -206,11 +206,11 @@ function inferGeneratedRecipeTags(request: string, title: string): string[] {
 
   tagKeywords.forEach(keyword => {
     if (searchable.includes(keyword)) {
-      tags.push(toTitleCase(keyword));
+      tags.add(keyword);
     }
   });
 
-  return tags.slice(0, 8);
+  return Array.from(tags).slice(0, 8);
 }
 
 interface GeneratedRecipeTemplate {
