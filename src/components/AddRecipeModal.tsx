@@ -16,6 +16,27 @@ interface AddRecipeModalProps {
 
 type TabType = 'manual' | 'url';
 
+const suggestedTags = [
+  'breakfast', 'lunch', 'dinner', 'dessert',
+  'vegetarian', 'vegan', 'gluten-free',
+  'quick', 'healthy', 'appetizer', 'soup',
+  'salad', 'side-dish', 'snack', 'beverage'
+];
+
+const suggestedTagSet = new Set(suggestedTags);
+
+function filterSuggestedTags(tags: string[] | undefined): string[] {
+  if (!tags) return [];
+
+  return tags.reduce<string[]>((selectedTags, tag) => {
+    const normalized = tag.trim().toLowerCase();
+    if (suggestedTagSet.has(normalized) && !selectedTags.includes(normalized)) {
+      selectedTags.push(normalized);
+    }
+    return selectedTags;
+  }, []);
+}
+
 export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProps) {
   const isEditing = !!recipe;
   const initialIsPublic = isEditing ? recipe?.isPublic ?? false : true;
@@ -142,13 +163,14 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
       if (selectedImageUrl) {
         setImagePreview(selectedImageUrl);
       }
+      const importedSuggestedTags = filterSuggestedTags(extracted.tags);
       setFormData(prev => ({
         ...prev,
         title: extracted.title || prev.title,
         description: extracted.description || prev.description,
         ingredients: extracted.ingredients?.join('\n') || prev.ingredients,
         instructions: extracted.instructions?.join('\n') || prev.instructions,
-        tags: extracted.tags?.join(', ') || prev.tags,
+        tags: importedSuggestedTags.length > 0 ? importedSuggestedTags.join(', ') : prev.tags,
         prepTime: extracted.prepTime || prev.prepTime,
         cookTime: extracted.cookTime || prev.cookTime,
         servings: extracted.servings || prev.servings,
@@ -164,13 +186,6 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
       setIsLoading(false);
     }
   };
-
-  const suggestedTags = [
-    'breakfast', 'lunch', 'dinner', 'dessert',
-    'vegetarian', 'vegan', 'gluten-free',
-    'quick', 'healthy', 'appetizer', 'soup',
-    'salad', 'side-dish', 'snack', 'beverage'
-  ];
 
   // Convert comma-separated string to array
   const tagsArray = formData.tags

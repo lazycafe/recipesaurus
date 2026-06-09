@@ -87,4 +87,33 @@ describe('AddRecipeModal', () => {
       imageUrl: 'https://example.com/noodles.jpg',
     }));
   });
+
+  it('only preselects suggested tags when importing from a URL', async () => {
+    const onSubmit = vi.fn();
+    vi.spyOn(recipeExtractor, 'fetchAndExtractRecipe').mockResolvedValue({
+      title: 'Imported Chicken Bowl',
+      description: 'A weeknight bowl',
+      ingredients: ['chicken', 'rice', 'avocado'],
+      instructions: ['Cook and assemble'],
+      tags: ['Chicken', 'Lunch', 'rice', 'healthy', 'avocado', 'Lunch'],
+      sourceUrl: 'https://example.com/chicken-bowl',
+    });
+
+    render(<AddRecipeModal onClose={vi.fn()} onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByLabelText('Recipe URL'), {
+      target: { value: 'https://example.com/chicken-bowl' },
+    });
+    fireEvent.submit(screen.getByRole('button', { name: /Extract Recipe/i }).closest('form')!);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Imported Chicken Bowl')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Recipe' }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      tags: 'lunch, healthy',
+    }));
+  });
 });
