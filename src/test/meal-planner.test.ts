@@ -60,6 +60,8 @@ describe('AI meal planner API', () => {
       expect(generatedRecipe.data?.recipe.description).not.toMatch(/ai meal planner/i);
       expect(generatedRecipe.data?.recipe.instructions.join(' ')).not.toMatch(/ai meal planner/i);
       expect(generatedRecipe.data?.recipe.tags.join(' ')).not.toMatch(/ai meal planner/i);
+      expect(generatedRecipe.data?.recipe.tags.join(' ')).not.toMatch(/recipesaurus starter/i);
+      expect(generatedRecipe.data?.recipe.tags.every(tag => tag === tag.toLowerCase())).toBe(true);
 
       const second = await client.ai.createMealPlan('Plan two quick lunches.');
       expect(second.error).toBeUndefined();
@@ -218,6 +220,8 @@ describe('AI meal planner API', () => {
     expect(drafts[0].ingredients).toContain('1/4 cup soy sauce or tamari');
     expect(drafts[0].instructions).toContain('Whisk soy sauce, rice vinegar, ginger, and 2 tbsp water in a small bowl.');
     expect(drafts[0].instructions).toContain('Serve over rice or noodles with scallions, sesame seeds, or chili crisp.');
+    expect(drafts[0].tags.join(' ')).not.toMatch(/recipesaurus starter/i);
+    expect(drafts[0].tags.every(tag => tag === tag.toLowerCase())).toBe(true);
     expect(drafts[0].description).not.toMatch(/ai meal planner/i);
     expect(drafts[0].instructions.join(' ')).not.toMatch(/ai meal planner/i);
   });

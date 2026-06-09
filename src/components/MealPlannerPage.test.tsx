@@ -85,7 +85,7 @@ describe('MealPlannerPage', () => {
           description: 'A flexible Recipesaurus starter recipe for Vegetable Stir-Fry.',
           ingredients: ['Vegetables', 'Rice'],
           instructions: ['Cook vegetables.', 'Serve over rice.'],
-          tags: ['Recipesaurus starter', 'Dinner'],
+          tags: ['dinner', 'healthy'],
           imageUrl: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=800&q=80',
           prepTime: '15 minutes',
           cookTime: '25 minutes',
