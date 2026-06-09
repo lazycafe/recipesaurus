@@ -7,6 +7,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { TagInput } from './TagInput';
 import { VisibilityToggle } from './VisibilityToggle';
 import { fetchAndExtractRecipe, type ExtractedRecipeImage } from '../utils/recipeExtractor';
+import { inferSuggestedRecipeTags } from '../utils/tagInference';
 
 interface AddRecipeModalProps {
   recipe?: Recipe;
@@ -22,20 +23,6 @@ const suggestedTags = [
   'quick', 'healthy', 'appetizer', 'soup',
   'salad', 'side-dish', 'snack', 'beverage'
 ];
-
-const suggestedTagSet = new Set(suggestedTags);
-
-function filterSuggestedTags(tags: string[] | undefined): string[] {
-  if (!tags) return [];
-
-  return tags.reduce<string[]>((selectedTags, tag) => {
-    const normalized = tag.trim().toLowerCase();
-    if (suggestedTagSet.has(normalized) && !selectedTags.includes(normalized)) {
-      selectedTags.push(normalized);
-    }
-    return selectedTags;
-  }, []);
-}
 
 export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProps) {
   const isEditing = !!recipe;
@@ -163,7 +150,7 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
       if (selectedImageUrl) {
         setImagePreview(selectedImageUrl);
       }
-      const importedSuggestedTags = filterSuggestedTags(extracted.tags);
+      const importedSuggestedTags = inferSuggestedRecipeTags(extracted, suggestedTags);
       setFormData(prev => ({
         ...prev,
         title: extracted.title || prev.title,

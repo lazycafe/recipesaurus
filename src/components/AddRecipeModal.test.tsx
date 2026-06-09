@@ -92,7 +92,7 @@ describe('AddRecipeModal', () => {
     const onSubmit = vi.fn();
     vi.spyOn(recipeExtractor, 'fetchAndExtractRecipe').mockResolvedValue({
       title: 'Imported Chicken Bowl',
-      description: 'A weeknight bowl',
+      description: 'A savory bowl',
       ingredients: ['chicken', 'rice', 'avocado'],
       instructions: ['Cook and assemble'],
       tags: ['Chicken', 'Lunch', 'rice', 'healthy', 'avocado', 'Lunch'],
@@ -114,6 +114,34 @@ describe('AddRecipeModal', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       tags: 'lunch, healthy',
+    }));
+  });
+
+  it('infers matching suggested tags when importing from a URL', async () => {
+    const onSubmit = vi.fn();
+    vi.spyOn(recipeExtractor, 'fetchAndExtractRecipe').mockResolvedValue({
+      title: 'Easy Vegan Chocolate Cake',
+      description: 'A quick gluten-free dessert for birthdays.',
+      ingredients: ['flour blend', 'cocoa powder', 'oat milk'],
+      instructions: ['Bake until set'],
+      sourceUrl: 'https://example.com/recipes/vegan-chocolate-cake',
+    });
+
+    render(<AddRecipeModal onClose={vi.fn()} onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByLabelText('Recipe URL'), {
+      target: { value: 'https://example.com/recipes/vegan-chocolate-cake' },
+    });
+    fireEvent.submit(screen.getByRole('button', { name: /Extract Recipe/i }).closest('form')!);
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Easy Vegan Chocolate Cake')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Recipe' }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      tags: 'dessert, vegetarian, vegan, gluten-free, quick',
     }));
   });
 });
