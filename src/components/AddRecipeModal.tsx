@@ -18,6 +18,7 @@ type TabType = 'manual' | 'url';
 
 export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProps) {
   const isEditing = !!recipe;
+  const initialIsPublic = isEditing ? recipe?.isPublic ?? false : true;
   const [activeTab, setActiveTab] = useState<TabType>(isEditing ? 'manual' : 'url');
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +36,7 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
     cookTime: recipe?.cookTime || '',
     servings: recipe?.servings || '',
     sourceUrl: recipe?.sourceUrl || '',
-    isPublic: recipe?.isPublic || false,
+    isPublic: initialIsPublic,
   });
   const [importError, setImportError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
     formData.cookTime !== (recipe?.cookTime || '') ||
     formData.servings !== (recipe?.servings || '') ||
     formData.sourceUrl !== (recipe?.sourceUrl || '') ||
-    formData.isPublic !== (recipe?.isPublic || false);
+    formData.isPublic !== initialIsPublic;
 
   const handleClose = () => {
     if (hasChanges) {

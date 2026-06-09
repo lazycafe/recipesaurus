@@ -44,13 +44,6 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
           {user && (
             <nav className="header-nav desktop-only">
               <NavLink
-                to="/discover/recipes"
-                className={() => `nav-tab ${isDiscoverPage ? 'active' : ''}`}
-              >
-                <Compass size={18} />
-                Discover
-              </NavLink>
-              <NavLink
                 to="/my-recipes"
                 className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
               >
@@ -63,6 +56,13 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
               >
                 <Book size={18} />
                 Cookbooks
+              </NavLink>
+              <NavLink
+                to="/discover/recipes"
+                className={() => `nav-tab ${isDiscoverPage ? 'active' : ''}`}
+              >
+                <Compass size={18} />
+                Discover
               </NavLink>
               <NavLink
                 to="/meal-planner"
@@ -120,13 +120,6 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
         <nav className="mobile-nav">
           <div className="mobile-nav-container">
             <NavLink
-              to="/discover/recipes"
-              className={() => `mobile-nav-item ${isDiscoverPage ? 'active' : ''}`}
-            >
-              <Compass size={20} />
-              <span>Discover</span>
-            </NavLink>
-            <NavLink
               to="/my-recipes"
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
             >
@@ -139,6 +132,13 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
             >
               <Book size={20} />
               <span>Cookbooks</span>
+            </NavLink>
+            <NavLink
+              to="/discover/recipes"
+              className={() => `mobile-nav-item ${isDiscoverPage ? 'active' : ''}`}
+            >
+              <Compass size={20} />
+              <span>Discover</span>
             </NavLink>
             <NavLink
               to="/meal-planner"

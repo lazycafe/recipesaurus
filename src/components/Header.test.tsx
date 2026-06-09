@@ -133,11 +133,37 @@ describe('Header', () => {
     expect(screen.getAllByText('Meal Plan').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cookbooks').length).toBeGreaterThan(0);
     expect(Array.from(container.querySelectorAll('.header-nav .nav-tab')).map(item => item.textContent?.trim())).toEqual([
-      'Discover',
       'My Recipes',
       'Cookbooks',
+      'Discover',
       'Meal Plan',
     ]);
+  });
+
+  it('renders Discover as the third nav item', () => {
+    vi.mocked(AuthContext.useAuth).mockReturnValue({
+      user: mockUser,
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateProfile: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
+      devLogin: vi.fn(),
+    });
+
+    const { container } = renderWithRouter(<Header />);
+
+    const desktopItems = Array.from(container.querySelectorAll('.header-nav .nav-tab')).map(
+      item => item.textContent?.trim()
+    );
+    const mobileItems = Array.from(container.querySelectorAll('.mobile-nav-item')).map(
+      item => item.textContent?.trim()
+    );
+
+    expect(desktopItems).toEqual(['My Recipes', 'Cookbooks', 'Discover', 'Meal Plan']);
+    expect(mobileItems).toEqual(['My Recipes', 'Cookbooks', 'Discover', 'Meal Plan']);
   });
 
   it('shows user name when logged in', () => {
@@ -196,9 +222,9 @@ describe('Header', () => {
     expect(container.querySelector('.mobile-nav')).toBeDefined();
     expect(screen.getAllByText('Meal Plan').length).toBeGreaterThan(0);
     expect(Array.from(container.querySelectorAll('.mobile-nav-item')).map(item => item.textContent?.trim())).toEqual([
-      'Discover',
       'My Recipes',
       'Cookbooks',
+      'Discover',
       'Meal Plan',
     ]);
   });
