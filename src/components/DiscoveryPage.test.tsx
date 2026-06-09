@@ -152,7 +152,12 @@ describe('DiscoveryPage', () => {
 
   it('renders search input', () => {
     renderWithRouter(<DiscoveryPage />);
-    expect(screen.getByPlaceholderText('Search recipes and cookbooks...')).toBeDefined();
+    expect(screen.getByPlaceholderText('Search recipes...')).toBeDefined();
+  });
+
+  it('renders cookbook search input on the cookbooks tab', () => {
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+    expect(screen.getByPlaceholderText('Search cookbooks...')).toBeDefined();
   });
 
   it('renders trending tags', () => {
@@ -574,7 +579,7 @@ describe('DiscoveryPage', () => {
 
     renderWithRouter(<DiscoveryPage />);
 
-    const searchInput = screen.getByPlaceholderText('Search recipes and cookbooks...');
+    const searchInput = screen.getByPlaceholderText('Search recipes...');
     fireEvent.change(searchInput, { target: { value: 'Pasta' } });
 
     expect(screen.getByText('Pasta Dish')).toBeDefined();
