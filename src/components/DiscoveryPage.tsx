@@ -29,7 +29,6 @@ function RecipeCardCompact({ recipe, onToggleSave, onClick, onAuthorClick, isSav
   const { swipeHandlers, shouldIgnoreSwipeClick } = useSwipeActions<HTMLElement>({
     enabled: canToggleSave,
     onSwipeLeft: () => setIsSaveOpen(true),
-    onSwipeRight: () => setIsSaveOpen(false),
   });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -136,7 +135,6 @@ function CookbookCardCompact({ cookbook, onClick, onToggleSave, onAuthorClick, i
   const { swipeHandlers, shouldIgnoreSwipeClick } = useSwipeActions<HTMLElement>({
     enabled: canToggleSave,
     onSwipeLeft: () => setIsSaveOpen(true),
-    onSwipeRight: () => setIsSaveOpen(false),
   });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -546,7 +544,6 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   const { swipeHandlers: discoverySwipeHandlers } = useSwipeActions<HTMLDivElement>({
     ignoreSelectors: ['.discovery-card', '.tag-btn', '.tag-clear', '.search-input-wrapper'],
     onSwipeLeft: tab === 'recipes' ? () => navigate('/discover/cookbooks') : undefined,
-    onSwipeRight: tab === 'cookbooks' ? () => navigate('/discover/recipes') : undefined,
   });
 
   return (

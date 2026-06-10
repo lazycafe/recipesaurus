@@ -25,7 +25,6 @@ export function RecipeCardCompact({
   const { swipeHandlers, shouldIgnoreSwipeClick } = useSwipeActions<HTMLElement>({
     enabled: hasActions,
     onSwipeLeft: () => setIsActionsOpen(true),
-    onSwipeRight: () => setIsActionsOpen(false),
   });
 
   const handleAction = (e: MouseEvent, action: () => void) => {

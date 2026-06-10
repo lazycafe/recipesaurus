@@ -185,7 +185,6 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
     enabled: !isEditing,
     ignoreDefaultSelectors: false,
     onSwipeLeft: activeTab === 'manual' ? () => setActiveTab('url') : undefined,
-    onSwipeRight: activeTab === 'url' ? () => setActiveTab('manual') : undefined,
   });
 
   return (

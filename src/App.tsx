@@ -12,6 +12,7 @@ import { DiscoveryProvider } from './context/DiscoveryContext';
 import { ToastProvider } from './context/ToastContext';
 import { Header } from './components/Header';
 import { PendingPublicHomeRecipeSave } from './components/PendingPublicHomeRecipeSave';
+import { useGlobalSwipeBack } from './hooks/useGlobalSwipeBack';
 import { Loader2, ChefHat } from 'lucide-react';
 import './App.css';
 
@@ -412,6 +413,8 @@ function VerifyEmailRoute() {
 }
 
 function AppWithClient({ client }: { client: IClient }) {
+  useGlobalSwipeBack();
+
   const isSharedRoute = window.location.pathname.startsWith('/shared/');
   const isPreviewRoute = getSharedRecipePreviewData() !== null || getSharedRecipeToken() !== null;
   const isResetPasswordRoute = window.location.pathname.startsWith('/reset-password');
