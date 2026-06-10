@@ -245,18 +245,6 @@ export function MealPlannerPage() {
     setHistoryPage(prev => Math.min(prev, historyPageCount));
   }, [historyPageCount]);
 
-  useEffect(() => {
-    if (!highlightedMealPlanId) return undefined;
-
-    const timeoutId = window.setTimeout(() => {
-      setHighlightedMealPlanId(currentId => (
-        currentId === highlightedMealPlanId ? null : currentId
-      ));
-    }, 3200);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [highlightedMealPlanId]);
-
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (isSubmittingRef.current) return;
@@ -423,7 +411,7 @@ export function MealPlannerPage() {
           <Sparkles size={28} />
           <h1>AI Meal Planner</h1>
         </div>
-        <p>Ask for a week, a dinner lineup, a meal prep pass, or ideas that pull from your saved recipes.</p>
+        <p>Tell Recipesaurus what you need: a full week, a dinner lineup, a meal-prep plan, or fresh ideas built around your saved recipes.</p>
       </section>
 
       <section className="meal-planner-toolbar" aria-label="Meal planner status">
@@ -529,7 +517,10 @@ export function MealPlannerPage() {
       )}
 
       {mealPlan && (
-        <section className={`meal-planner-result ${highlightedMealPlanId === mealPlan.id ? 'is-highlighted' : ''}`}>
+        <section
+          key={mealPlan.id}
+          className={`meal-planner-result ${highlightedMealPlanId === mealPlan.id ? 'is-highlighted' : ''}`}
+        >
           <div className="meal-planner-result-header">
             <CalendarDays size={22} />
             <h2>Suggestions</h2>

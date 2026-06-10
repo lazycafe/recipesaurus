@@ -31,6 +31,10 @@ const DEFAULT_IGNORE_SELECTORS = [
   '[contenteditable="true"]',
 ];
 
+function isTouchPointer(event: ReactPointerEvent): boolean {
+  return event.pointerType === 'touch';
+}
+
 function getSwipeDirection(
   deltaX: number,
   deltaY: number,
@@ -110,6 +114,7 @@ export function useSwipeActions<T extends HTMLElement = HTMLElement>({
 
     if (
       !options.enabled ||
+      !isTouchPointer(event) ||
       isIgnoredTarget(event.target, event.currentTarget, selectors)
     ) {
       startRef.current = null;

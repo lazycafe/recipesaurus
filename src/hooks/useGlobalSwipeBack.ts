@@ -18,6 +18,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && Boolean(target.closest(EDITABLE_SELECTOR));
 }
 
+function isTouchPointer(event: PointerEvent): boolean {
+  return event.pointerType === 'touch';
+}
+
 export function useGlobalSwipeBack({
   enabled = true,
   threshold = 54,
@@ -30,7 +34,7 @@ export function useGlobalSwipeBack({
     if (!enabled) return undefined;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (isEditableTarget(event.target)) {
+      if (!isTouchPointer(event) || isEditableTarget(event.target)) {
         startRef.current = null;
         return;
       }
