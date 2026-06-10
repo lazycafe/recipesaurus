@@ -287,4 +287,40 @@ describe('public discovery visibility', () => {
     expect(cookbooksResult.data!.owned.some(cookbook => cookbook.id === saveResult.data!.id)).toBe(true);
     expect(cookbooksResult.data!.owned.some(cookbook => cookbook.id === secondSave.data!.id)).toBe(false);
   });
+
+  it('saves large public cookbooks in batches without duplicating existing recipe copies', async () => {
+    const ownerClient = harness.getClient();
+    const cookbookResult = await ownerClient.cookbooks.create({
+      name: 'Batch Save Cookbook',
+      description: 'A cookbook large enough to exercise chunked inserts',
+      isPublic: true,
+    });
+
+    const sourceRecipeIds: string[] = [];
+    for (let index = 0; index < 18; index += 1) {
+      const recipeResult = await ownerClient.recipes.create({
+        title: `Batch Save Recipe ${index + 1}`,
+        description: `Recipe ${index + 1}`,
+        ingredients: [`ingredient ${index + 1}`],
+        instructions: [`step ${index + 1}`],
+        tags: ['batch'],
+        isPublic: true,
+      });
+      sourceRecipeIds.push(recipeResult.data!.id);
+      await ownerClient.cookbooks.addRecipe(cookbookResult.data!.id, recipeResult.data!.id);
+    }
+
+    const saverClient = harness.createClient();
+    await saverClient.auth.register('batch-saver@example.com', 'Batch Saver', 'Password123');
+    const existingRecipeSave = await saverClient.discover.saveRecipe(sourceRecipeIds[0]);
+
+    const saveResult = await saverClient.discover.saveCookbook(cookbookResult.data!.id);
+    const savedCookbook = await saverClient.cookbooks.get(saveResult.data!.id);
+    expect(savedCookbook.data!.recipes).toHaveLength(18);
+    expect(savedCookbook.data!.recipes.some(recipe => recipe.id === existingRecipeSave.data!.id)).toBe(true);
+
+    const recipesResult = await saverClient.recipes.list();
+    const savedBatchRecipes = recipesResult.data!.recipes.filter(recipe => recipe.title.startsWith('Batch Save Recipe'));
+    expect(savedBatchRecipes).toHaveLength(18);
+  });
 });
