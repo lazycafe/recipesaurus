@@ -361,13 +361,18 @@ img {
   justify-content: center;
   gap: 2px;
   flex: 1;
-  min-width: 68px;
+  min-width: 0;
   padding: var(--space-2) var(--space-2);
   color: var(--color-taupe);
   font-size: var(--text-xs);
+  line-height: 1.1;
   font-weight: 500;
   transition: color var(--transition-fast);
   position: relative;
+}
+
+.mobile-nav-item span {
+  white-space: nowrap;
 }
 
 .mobile-nav-item::before {
@@ -7454,7 +7459,7 @@ img {
 @media (max-width: 640px) {
   .recipe-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
 
@@ -7534,8 +7539,8 @@ img {
   }
 
   .mobile-nav-item {
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-xs);
+    padding: var(--space-2) var(--space-1);
+    font-size: 0.6875rem;
     gap: var(--space-1);
   }
 
@@ -7582,7 +7587,7 @@ img {
 
 @media (max-width: 640px) {
   .cookbook-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
 
