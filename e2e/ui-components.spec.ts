@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page, TestInfo } from '@playwright/test';
 import { test, expect, testCookbook, testRecipe } from './fixtures';
 
 test.describe('UI Components', () => {
@@ -31,6 +31,74 @@ test.describe('UI Components', () => {
 
     await page.reload();
     await expect(page.getByText(title)).toBeVisible({ timeout: 10000 });
+  }
+
+  async function revealRecipeCardActions(page: Page, card: Locator, testInfo: TestInfo) {
+    await card.scrollIntoViewIfNeeded();
+
+    if (testInfo.project.name === 'mobile-chrome') {
+      const box = await card.boundingBox();
+      if (!box) {
+        throw new Error('Could not reveal recipe card actions because the card is not visible');
+      }
+
+      const y = box.y + Math.min(40, box.height / 2);
+      await card.dispatchEvent('pointerdown', {
+        pointerId: 1,
+        pointerType: 'touch',
+        isPrimary: true,
+        buttons: 1,
+        clientX: box.x + box.width - 20,
+        clientY: y,
+      });
+      await card.dispatchEvent('pointerup', {
+        pointerId: 1,
+        pointerType: 'touch',
+        isPrimary: true,
+        clientX: box.x + 20,
+        clientY: y,
+      });
+      await expect(card).toHaveClass(/swipe-actions-open/);
+      return;
+    }
+
+    await card.hover();
+
+    const addButton = card.getByRole('button', { name: 'Add to cookbook' });
+    if (await addButton.isVisible()) {
+      return;
+    }
+
+    const box = await card.boundingBox();
+    if (!box) {
+      throw new Error('Could not reveal recipe card actions because the card is not visible');
+    }
+
+    const y = box.y + Math.min(40, box.height / 2);
+    await page.mouse.move(box.x + box.width - 20, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 20, y, { steps: 6 });
+    await page.mouse.up();
+  }
+
+  async function activateActionIcon(page: Page, card: Locator, label: string, testInfo: TestInfo) {
+    const button = card.getByRole('button', { name: label });
+    await expect(button).toBeVisible();
+
+    const icon = button.locator('svg').first();
+    await expect(icon).toBeVisible();
+
+    if (testInfo.project.name === 'mobile-chrome') {
+      const box = await icon.boundingBox();
+      if (!box) {
+        throw new Error(`Could not tap ${label} icon because it is not visible`);
+      }
+
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+      return;
+    }
+
+    await icon.click();
   }
 
   test.describe('Header Component', () => {
@@ -146,6 +214,24 @@ test.describe('UI Components', () => {
     test('should display prep time on card', async ({ page }) => {
       const card = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
       await expect(card.getByText('15 mins')).toBeVisible();
+    });
+
+    test('should invoke floating action icons from the SVG target', async ({ page }, testInfo) => {
+      const card = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
+
+      await revealRecipeCardActions(page, card, testInfo);
+      await activateActionIcon(page, card, 'Add to cookbook', testInfo);
+      await expect(page.getByRole('heading', { name: 'Add to Cookbook' })).toBeVisible();
+
+      await page.locator('.modal-close').first().click();
+      await expect(page.getByRole('heading', { name: 'Add to Cookbook' })).not.toBeVisible();
+
+      await revealRecipeCardActions(page, card, testInfo);
+      await activateActionIcon(page, card, 'Delete recipe', testInfo);
+      await expect(page.locator('.confirm-modal')).toContainText('Herb-Crusted Chicken');
+
+      await page.locator('.confirm-modal').getByRole('button', { name: 'Cancel' }).click();
+      await expect(card).toBeVisible();
     });
 
     test('should show placeholder for recipes without image', async ({ page, helpers }) => {
