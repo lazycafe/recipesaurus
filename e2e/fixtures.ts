@@ -1,5 +1,27 @@
 import { test as base, expect, Page } from '@playwright/test';
 
+export interface E2EUser {
+  email: string;
+  name: string;
+  password: string;
+}
+
+export interface E2ERecipe {
+  title: string;
+  description: string;
+  ingredients: string;
+  instructions: string;
+  tags: string;
+  prepTime: string;
+  cookTime: string;
+  servings: string;
+}
+
+export interface E2ECookbook {
+  name: string;
+  description?: string;
+}
+
 // Test user data
 export const testUser = {
   email: `test-${Date.now()}@example.com`,
@@ -51,7 +73,7 @@ export const testCookbook2 = {
 export class TestHelpers {
   constructor(private page: Page) {}
 
-  async register(user: typeof testUser) {
+  async register(user: E2EUser) {
     await this.page.goto('/');
     await this.page.getByRole('button', { name: 'Get Started', exact: true }).click();
     await this.page.getByLabel('Name').fill(user.name);
@@ -62,7 +84,7 @@ export class TestHelpers {
     await expect(this.page.getByRole('heading', { name: 'My Recipes' })).toBeVisible({ timeout: 10000 });
   }
 
-  async login(user: typeof testUser) {
+  async login(user: E2EUser) {
     await this.page.goto('/');
     await this.page.getByRole('button', { name: 'Sign In', exact: true }).first().click();
     await this.page.getByLabel('Email').fill(user.email);
@@ -77,7 +99,7 @@ export class TestHelpers {
     await expect(this.page.getByRole('button', { name: 'Get Started', exact: true })).toBeVisible();
   }
 
-  async createRecipe(recipe: typeof testRecipe) {
+  async createRecipe(recipe: E2ERecipe) {
     await this.page.getByRole('button', { name: 'New Recipe' }).click();
     await this.page.getByRole('button', { name: 'Manual' }).click();
     await this.page.getByLabel('Title').fill(recipe.title);
@@ -104,13 +126,53 @@ export class TestHelpers {
     await this.page.getByRole('link', { name: 'My Recipes' }).click();
   }
 
-  async createCookbook(cookbook: typeof testCookbook) {
+  async createCookbook(cookbook: E2ECookbook) {
     await this.navigateToCookbooks();
     await this.page.getByRole('button', { name: 'New Cookbook' }).click();
     await this.page.getByLabel('Name').fill(cookbook.name);
-    await this.page.getByLabel('Description').fill(cookbook.description);
+    if (cookbook.description) {
+      await this.page.getByLabel('Description').fill(cookbook.description);
+    }
     await this.page.getByRole('button', { name: 'Create Cookbook' }).click();
     await expect(this.page.locator('.cookbook-card-link').filter({ hasText: cookbook.name })).toBeVisible({ timeout: 10000 });
+  }
+
+  async openAddToCookbookModal(recipeTitle?: string) {
+    const card = recipeTitle
+      ? this.page.locator('.recipe-card').filter({ hasText: recipeTitle })
+      : this.page.locator('.recipe-card').first();
+
+    await card.hover();
+    await card.locator('.card-action').first().click();
+    await expect(this.page.getByRole('heading', { name: 'Add to Cookbook' })).toBeVisible();
+  }
+
+  async selectCookbookInAddToCookbookModal(cookbookName: string) {
+    const cookbookOption = this.page.locator('.cookbook-checkbox-item').filter({ hasText: cookbookName });
+    await expect(cookbookOption).toBeVisible();
+    await cookbookOption.click();
+    await expect(cookbookOption).toHaveClass(/added/);
+  }
+
+  async deselectCookbookInAddToCookbookModal(cookbookName: string) {
+    const cookbookOption = this.page.locator('.cookbook-checkbox-item').filter({ hasText: cookbookName });
+    await expect(cookbookOption).toHaveClass(/added/);
+    await cookbookOption.click();
+    await expect(cookbookOption).not.toHaveClass(/added/);
+  }
+
+  async addRecipeToCookbook(recipeTitle: string, cookbookName: string) {
+    await this.openAddToCookbookModal(recipeTitle);
+    await this.selectCookbookInAddToCookbookModal(cookbookName);
+    await this.closeModal();
+    await expect(this.page.getByRole('heading', { name: 'Add to Cookbook' })).not.toBeVisible();
+  }
+
+  async removeRecipeFromCookbook(recipeTitle: string, cookbookName: string) {
+    await this.openAddToCookbookModal(recipeTitle);
+    await this.deselectCookbookInAddToCookbookModal(cookbookName);
+    await this.closeModal();
+    await expect(this.page.getByRole('heading', { name: 'Add to Cookbook' })).not.toBeVisible();
   }
 
   async openRecipeDetail(recipeTitle: string) {

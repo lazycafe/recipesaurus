@@ -348,7 +348,7 @@ test.describe('Recipes', () => {
         await card.hover();
         await card.locator('.card-delete').click();
         await page.locator('.confirm-modal').getByRole('button', { name: 'Delete', exact: true }).click();
-        await page.waitForTimeout(500);
+        await expect(page.locator('.recipe-card')).toHaveCount(2 - i, { timeout: 10000 });
       }
 
       await expect(page.getByText('No recipes yet')).toBeVisible();
