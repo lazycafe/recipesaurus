@@ -157,9 +157,6 @@ export function MealPlannerPage() {
     onSwipeLeft: historyPage < historyPageCount
       ? () => setHistoryPage(page => Math.min(historyPageCount, page + 1))
       : undefined,
-    onSwipeRight: historyPage > 1
-      ? () => setHistoryPage(page => Math.max(1, page - 1))
-      : undefined,
   });
 
   const quotaText = useMemo(() => {

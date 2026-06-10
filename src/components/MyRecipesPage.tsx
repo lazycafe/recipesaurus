@@ -173,9 +173,6 @@ export function MyRecipesPage() {
     onSwipeLeft: currentPage < pageCount
       ? () => setCurrentPage(page => Math.min(pageCount, page + 1))
       : undefined,
-    onSwipeRight: currentPage > 1
-      ? () => setCurrentPage(page => Math.max(1, page - 1))
-      : undefined,
   });
 
   useEffect(() => {

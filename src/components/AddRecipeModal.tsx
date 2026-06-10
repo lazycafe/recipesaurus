@@ -184,7 +184,6 @@ export function AddRecipeModal({ recipe, onClose, onSubmit }: AddRecipeModalProp
   const { swipeHandlers: tabSwipeHandlers } = useSwipeActions<HTMLDivElement>({
     enabled: !isEditing,
     onSwipeLeft: activeTab === 'manual' ? () => setActiveTab('url') : undefined,
-    onSwipeRight: activeTab === 'url' ? () => setActiveTab('manual') : undefined,
   });
 
   return (

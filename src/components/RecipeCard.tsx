@@ -19,7 +19,6 @@ export function RecipeCard({ recipe, onClick, onDelete, onAddToCookbook, addedBy
   const { swipeHandlers, shouldIgnoreSwipeClick } = useSwipeActions<HTMLElement>({
     enabled: hasActions,
     onSwipeLeft: () => setIsActionsOpen(true),
-    onSwipeRight: () => setIsActionsOpen(false),
   });
 
   const handleDelete = (e: MouseEvent) => {

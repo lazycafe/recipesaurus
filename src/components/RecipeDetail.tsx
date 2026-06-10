@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Clock, ChefHat, Users, ExternalLink, Trash2, PenLine, Heart, User, Share2, Download, Loader2, Check } from 'lucide-react';
 import { Recipe } from '../types/Recipe';
@@ -8,6 +8,8 @@ import { ModalOverlay } from './ModalOverlay';
 import { ShareRecipeModal } from './ShareRecipeModal';
 import { downloadRecipePdf } from '../utils/recipePdf';
 import { useSwipeActions } from '../hooks/useSwipeActions';
+
+const RECIPE_DETAIL_HISTORY_KEY = 'recipesaurusRecipeDetailModal';
 
 interface RecipeDetailProps {
   recipe: Recipe | ClientRecipe;
@@ -37,9 +39,49 @@ export function RecipeDetail({
   const [showShareModal, setShowShareModal] = useState(false);
   const navigate = useNavigate();
   const publicSaveLabel = isSaved ? 'Saved to My Recipes' : saveLabel;
+  const onCloseRef = useRef(onClose);
+  const modalHistoryIdRef = useRef(`recipe-detail-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const { swipeHandlers: closeSwipeHandlers } = useSwipeActions<HTMLDivElement>({
-    onSwipeDown: onClose,
+    onSwipeDown: requestClose,
   });
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const modalHistoryId = modalHistoryIdRef.current;
+    const currentState = window.history.state;
+
+    if (currentState?.[RECIPE_DETAIL_HISTORY_KEY] !== modalHistoryId) {
+      window.history.pushState(
+        {
+          ...(currentState && typeof currentState === 'object' ? currentState : {}),
+          [RECIPE_DETAIL_HISTORY_KEY]: modalHistoryId,
+        },
+        '',
+        window.location.href
+      );
+    }
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (event.state?.[RECIPE_DETAIL_HISTORY_KEY] !== modalHistoryId) {
+        onCloseRef.current();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  function requestClose() {
+    if (window.history.state?.[RECIPE_DETAIL_HISTORY_KEY] === modalHistoryIdRef.current) {
+      window.history.back();
+      return;
+    }
+
+    onClose();
+  }
 
   const handleDelete = () => {
     onDelete?.();
@@ -50,9 +92,9 @@ export function RecipeDetail({
   const ownerId = 'ownerId' in recipe ? recipe.ownerId : null;
 
   return (
-    <ModalOverlay onClose={onClose}>
+    <ModalOverlay onClose={requestClose}>
       <div className="modal-content modal-detail">
-        <button className="modal-close" onClick={onClose} aria-label="Close">
+        <button className="modal-close" onClick={requestClose} aria-label="Close">
           <X size={20} strokeWidth={2} />
         </button>
 

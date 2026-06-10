@@ -26,6 +26,7 @@ describe('RecipeDetail', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/');
   });
 
   it('downloads the recipe PDF from the modal action row', () => {
@@ -79,5 +80,19 @@ describe('RecipeDetail', () => {
     const savedButton = screen.getByRole('button', { name: 'Saved to My Recipes' }) as HTMLButtonElement;
     expect(savedButton.disabled).toBe(true);
     expect(screen.queryByRole('button', { name: /download pdf/i })).toBeNull();
+  });
+
+  it('closes when browser history goes back from the detail entry', () => {
+    const onClose = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <RecipeDetail recipe={recipe} onClose={onClose} />
+      </MemoryRouter>
+    );
+
+    window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
