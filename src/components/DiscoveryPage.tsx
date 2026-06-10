@@ -322,7 +322,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
         type: 'success',
         action: {
           label: 'View',
-          onClick: () => navigate('/my-recipes'),
+          onClick: () => navigate('/my-recipes', { replace: true }),
         },
       });
     } else {
@@ -381,7 +381,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
         type: 'success',
         action: {
           label: 'View',
-          onClick: () => navigate('/cookbooks'),
+          onClick: () => navigate('/cookbooks', { replace: true }),
         },
       });
     } else {
@@ -543,7 +543,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
   });
   const { swipeHandlers: discoverySwipeHandlers } = useSwipeActions<HTMLDivElement>({
     ignoreSelectors: ['.discovery-card', '.tag-btn', '.tag-clear', '.search-input-wrapper'],
-    onSwipeLeft: tab === 'recipes' ? () => navigate('/discover/cookbooks') : undefined,
+    onSwipeLeft: tab === 'recipes' ? () => navigate('/discover/cookbooks', { replace: true }) : undefined,
   });
 
   return (
@@ -613,6 +613,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
         <div className="discovery-tabs">
           <NavLink
             to="/discover/recipes"
+            replace
             className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
           >
             <ChefHat size={18} />
@@ -621,6 +622,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
           </NavLink>
           <NavLink
             to="/discover/cookbooks"
+            replace
             className={({ isActive }) => `tab-btn ${isActive ? 'active' : ''}`}
           >
             <BookOpen size={18} />

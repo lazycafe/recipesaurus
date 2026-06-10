@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { Header } from './Header';
 import * as AuthContext from '../context/AuthContext';
 import * as NotificationContext from '../context/NotificationContext';
@@ -36,8 +36,25 @@ describe('Header', () => {
     name: 'Test User',
   };
 
-  const renderWithRouter = (ui: React.ReactElement) => {
-    return render(<MemoryRouter>{ui}</MemoryRouter>);
+  function RouterProbe() {
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    return (
+      <>
+        <span data-testid="location">{location.pathname}</span>
+        <button onClick={() => navigate(-1)}>Back</button>
+      </>
+    );
+  }
+
+  const renderWithRouter = (ui: React.ReactElement, initialEntries: string[] = ['/']) => {
+    return render(
+      <MemoryRouter initialEntries={initialEntries}>
+        {ui}
+        <RouterProbe />
+      </MemoryRouter>
+    );
   };
 
   beforeEach(() => {
@@ -164,6 +181,35 @@ describe('Header', () => {
 
     expect(desktopItems).toEqual(['My Recipes', 'Cookbooks', 'Discover', 'Meal Plan']);
     expect(mobileItems).toEqual(['My Recipes', 'Cookbooks', 'Discover', 'Meal Plan']);
+  });
+
+  it.each([
+    '/my-recipes',
+    '/cookbooks',
+    '/discover/recipes',
+    '/meal-planner',
+  ])('replaces history when switching to %s from the main navigation', (targetPath) => {
+    vi.mocked(AuthContext.useAuth).mockReturnValue({
+      user: mockUser,
+      isLoading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateProfile: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
+      devLogin: vi.fn(),
+    });
+
+    const { container } = renderWithRouter(<Header />, ['/profiles/1']);
+    const navLink = container.querySelector<HTMLAnchorElement>(`.header-nav a[href="${targetPath}"]`);
+    expect(navLink).toBeTruthy();
+
+    fireEvent.click(navLink!);
+    expect(screen.getByTestId('location').textContent).toBe(targetPath);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('location').textContent).toBe(targetPath);
   });
 
   it('shows user name when logged in', () => {

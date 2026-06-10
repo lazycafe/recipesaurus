@@ -213,14 +213,14 @@ export function CookbookDetailPage() {
   const handleDeleteCookbook = async () => {
     if (cookbook) {
       await deleteCookbook(cookbook.id);
-      navigate('/cookbooks');
+      navigate('/cookbooks', { replace: true });
     }
   };
 
   const handleLeaveCookbook = async () => {
     if (cookbook) {
       await leaveCookbook(cookbook.id);
-      navigate('/cookbooks');
+      navigate('/cookbooks', { replace: true });
     }
   };
 
@@ -303,7 +303,7 @@ export function CookbookDetailPage() {
           <DinoMascot size={80} />
           <h3>Cookbook not found</h3>
           <p>This cookbook may have been deleted or you don't have access to it.</p>
-          <Link to="/cookbooks" className="btn-primary">
+          <Link to="/cookbooks" replace className="btn-primary">
             <ArrowLeft size={16} />
             Back to Cookbooks
           </Link>
@@ -314,7 +314,7 @@ export function CookbookDetailPage() {
 
   return (
     <div className="cookbook-detail-page">
-      <Link to="/cookbooks" className="back-link">
+      <Link to="/cookbooks" replace className="back-link">
         <ArrowLeft size={18} />
         Back to Cookbooks
       </Link>

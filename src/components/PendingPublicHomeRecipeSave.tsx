@@ -42,7 +42,7 @@ export function PendingPublicHomeRecipeSave() {
           type: 'success',
           action: {
             label: 'View',
-            onClick: () => navigate('/my-recipes'),
+            onClick: () => navigate('/my-recipes', { replace: true }),
           },
         });
       } catch (error) {

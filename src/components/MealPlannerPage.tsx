@@ -427,7 +427,7 @@ export function MealPlannerPage() {
       </section>
 
       <section className="meal-planner-toolbar" aria-label="Meal planner status">
-        <Link className="meal-planner-status-item meal-planner-status-link" to="/my-recipes">
+        <Link className="meal-planner-status-item meal-planner-status-link" to="/my-recipes" replace>
           <UtensilsCrossed size={18} />
           <span>{recipesLoading ? 'Loading recipes...' : `${recipes.length} saved recipes available`}</span>
         </Link>

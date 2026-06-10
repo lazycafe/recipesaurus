@@ -60,6 +60,7 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
             <nav className="header-nav desktop-only">
               <NavLink
                 to="/my-recipes"
+                replace
                 className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
               >
                 <UtensilsCrossed size={18} />
@@ -67,6 +68,7 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
               </NavLink>
               <NavLink
                 to="/cookbooks"
+                replace
                 className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
               >
                 <Book size={18} />
@@ -74,6 +76,7 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
               </NavLink>
               <NavLink
                 to="/discover/recipes"
+                replace
                 className={() => `nav-tab ${isDiscoverPage ? 'active' : ''}`}
               >
                 <Compass size={18} />
@@ -81,6 +84,7 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
               </NavLink>
               <NavLink
                 to="/meal-planner"
+                replace
                 className={({ isActive }) => `nav-tab ${isActive ? 'active' : ''}`}
               >
                 <Sparkles size={18} />
@@ -147,6 +151,7 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
           <div className="mobile-nav-container">
             <NavLink
               to="/my-recipes"
+              replace
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
             >
               <UtensilsCrossed size={20} />
@@ -154,6 +159,7 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
             </NavLink>
             <NavLink
               to="/cookbooks"
+              replace
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
             >
               <Book size={20} />
@@ -161,6 +167,7 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
             </NavLink>
             <NavLink
               to="/discover/recipes"
+              replace
               className={() => `mobile-nav-item ${isDiscoverPage ? 'active' : ''}`}
             >
               <Compass size={20} />
@@ -168,6 +175,7 @@ export function Header({ onCreateRecipe, onCreateCookbook }: HeaderProps) {
             </NavLink>
             <NavLink
               to="/meal-planner"
+              replace
               className={({ isActive }) => `mobile-nav-item ${isActive ? 'active' : ''}`}
             >
               <Sparkles size={20} />

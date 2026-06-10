@@ -65,7 +65,7 @@ export function PublicCookbookDetailPage() {
         type: 'success',
         action: {
           label: 'View',
-          onClick: () => navigate('/my-recipes'),
+          onClick: () => navigate('/my-recipes', { replace: true }),
         },
       });
     }
@@ -94,7 +94,7 @@ export function PublicCookbookDetailPage() {
         type: 'success',
         action: {
           label: 'View',
-          onClick: () => navigate('/cookbooks'),
+          onClick: () => navigate('/cookbooks', { replace: true }),
         },
       });
     }
@@ -153,7 +153,7 @@ export function PublicCookbookDetailPage() {
           <DinoMascot size={80} />
           <h2>Cookbook not found</h2>
           <p>This cookbook may have been removed or made private.</p>
-          <button className="btn btn-primary" onClick={() => navigate('/')}>
+          <button className="btn btn-primary" onClick={() => navigate('/discover/recipes', { replace: true })}>
             Back to Discover
           </button>
         </div>
@@ -163,7 +163,7 @@ export function PublicCookbookDetailPage() {
 
   return (
     <div className="public-cookbook-page">
-      <button className="back-btn" onClick={() => navigate('/')}>
+      <button className="back-btn" onClick={() => navigate('/discover/recipes', { replace: true })}>
         <ArrowLeft size={20} />
         Back to Discover
       </button>

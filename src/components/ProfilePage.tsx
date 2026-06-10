@@ -319,7 +319,7 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
       <div className="profile-page profile-empty">
         <DinoMascot size={84} />
         <h1>Profile not found</h1>
-        <button className="btn-secondary" onClick={() => navigate('/discover/recipes')}>
+        <button className="btn-secondary" onClick={() => navigate('/discover/recipes', { replace: true })}>
           <ChefHat size={16} />
           Discover recipes
         </button>
