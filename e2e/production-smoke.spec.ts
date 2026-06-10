@@ -361,9 +361,10 @@ test.describe('Production smoke coverage', () => {
       has: page.getByRole('button', { name: 'Save recipe' }),
     }).first();
     const publicRecipeTitle = (await recipeCard.locator('.discovery-card-title').innerText()).trim();
-    const publicRecipeCard = page.locator('.discovery-card').filter({ hasText: publicRecipeTitle });
-    await publicRecipeCard.getByRole('button', { name: 'Save recipe' }).click();
-    await expect(publicRecipeCard.getByRole('button', { name: 'Unsave recipe' })).toBeVisible({ timeout: 10000 });
+    await recipeCard.locator('.discovery-card-title').click();
+    await expect(page.locator('.modal-detail').getByRole('heading', { name: publicRecipeTitle })).toBeVisible();
+    await page.locator('.modal-detail').getByRole('button', { name: /Save Recipe|Save to My Recipes/ }).click();
+    await expect(page.getByText('Saved to My Recipes')).toBeVisible({ timeout: 10000 });
 
     await page.goto('/my-recipes');
     await expect(page.getByText(publicRecipeTitle)).toBeVisible({ timeout: 10000 });
@@ -374,9 +375,10 @@ test.describe('Production smoke coverage', () => {
       has: page.getByRole('button', { name: 'Save cookbook' }),
     }).first();
     const publicCookbookName = (await cookbookCard.locator('.discovery-card-title').innerText()).trim();
-    const publicCookbookCard = page.locator('.discovery-card').filter({ hasText: publicCookbookName });
-    await publicCookbookCard.getByRole('button', { name: 'Save cookbook' }).click();
-    await expect(publicCookbookCard.getByRole('button', { name: 'Unsave cookbook' })).toBeVisible({ timeout: 10000 });
+    await cookbookCard.locator('.discovery-card-title').click();
+    await expect(page.locator('.public-cookbook-header h1')).toHaveText(publicCookbookName, { timeout: 10000 });
+    await page.getByRole('button', { name: 'Save Cookbook' }).click();
+    await expect(page.getByRole('button', { name: 'Saved' })).toBeVisible({ timeout: 10000 });
 
     await page.goto('/cookbooks');
     await expect(page.locator('.cookbook-card-link').filter({ hasText: publicCookbookName }).first()).toBeVisible({ timeout: 10000 });

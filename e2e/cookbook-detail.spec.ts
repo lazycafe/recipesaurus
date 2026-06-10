@@ -161,37 +161,29 @@ test.describe('Cookbook Detail Features', () => {
   });
 
   test.describe('In-App Delete Confirmation Modal', () => {
-    test('should show in-app confirmation modal when deleting recipe', async ({ page }) => {
-      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await recipeCard.hover();
-      await recipeCard.locator('.card-delete').click();
+    test('should show in-app confirmation modal when deleting recipe', async ({ page, helpers }) => {
+      await helpers.clickRecipeCardButton('Delete recipe', 'Herb-Crusted Chicken');
 
       await expect(page.locator('.confirm-modal')).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Delete Recipe' })).toBeVisible();
     });
 
-    test('should show recipe name in confirmation modal', async ({ page }) => {
-      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await recipeCard.hover();
-      await recipeCard.locator('.card-delete').click();
+    test('should show recipe name in confirmation modal', async ({ page, helpers }) => {
+      await helpers.clickRecipeCardButton('Delete recipe', 'Herb-Crusted Chicken');
 
       await expect(page.locator('.confirm-modal').getByText('Herb-Crusted Chicken')).toBeVisible();
     });
 
-    test('should delete recipe when clicking Delete button', async ({ page }) => {
-      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await recipeCard.hover();
-      await recipeCard.locator('.card-delete').click();
+    test('should delete recipe when clicking Delete button', async ({ page, helpers }) => {
+      await helpers.clickRecipeCardButton('Delete recipe', 'Herb-Crusted Chicken');
 
       await page.locator('.confirm-modal').getByRole('button', { name: 'Delete', exact: true }).click();
 
       await expect(page.getByText('2 recipes')).toBeVisible({ timeout: 5000 });
     });
 
-    test('should cancel delete when clicking Cancel button', async ({ page }) => {
-      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await recipeCard.hover();
-      await recipeCard.locator('.card-delete').click();
+    test('should cancel delete when clicking Cancel button', async ({ page, helpers }) => {
+      await helpers.clickRecipeCardButton('Delete recipe', 'Herb-Crusted Chicken');
 
       await page.getByRole('button', { name: 'Cancel' }).click();
 
@@ -199,10 +191,8 @@ test.describe('Cookbook Detail Features', () => {
       await expect(page.getByText('3 recipes')).toBeVisible();
     });
 
-    test('should close confirmation modal when clicking overlay', async ({ page }) => {
-      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await recipeCard.hover();
-      await recipeCard.locator('.card-delete').click();
+    test('should close confirmation modal when clicking overlay', async ({ page, helpers }) => {
+      await helpers.clickRecipeCardButton('Delete recipe', 'Herb-Crusted Chicken');
 
       await page.locator('.confirm-modal-overlay').click({ position: { x: 10, y: 10 } });
 

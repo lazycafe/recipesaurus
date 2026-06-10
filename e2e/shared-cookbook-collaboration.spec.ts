@@ -120,9 +120,7 @@ test.describe('Shared Cookbook Collaboration', () => {
 
     test('should show shared cookbook in add to cookbook modal', async ({ page, helpers }) => {
       await helpers.navigateToRecipes();
-      const card = page.locator('.recipe-card').filter({ hasText: 'Classic Buttermilk Pancakes' });
-      await card.hover();
-      await card.locator('.card-action').first().click();
+      await helpers.openAddToCookbookModal('Classic Buttermilk Pancakes');
 
       const sharedOption = page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name });
       await expect(sharedOption).toBeVisible();
@@ -131,9 +129,7 @@ test.describe('Shared Cookbook Collaboration', () => {
 
     test('should allow shared user to add recipe to shared cookbook', async ({ page, helpers }) => {
       await helpers.navigateToRecipes();
-      const card = page.locator('.recipe-card').filter({ hasText: 'Classic Buttermilk Pancakes' });
-      await card.hover();
-      await card.locator('.card-action').first().click();
+      await helpers.openAddToCookbookModal('Classic Buttermilk Pancakes');
 
       await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
       await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible({ timeout: 5000 });
@@ -206,9 +202,7 @@ test.describe('Shared Cookbook Collaboration', () => {
       await helpers.navigateToCookbooks();
       await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
 
-      const collabRecipe = page.locator('.recipe-card').filter({ hasText: 'Chocolate Fondant' });
-      await collabRecipe.hover();
-      await collabRecipe.locator('.card-delete').click();
+      await helpers.clickRecipeCardButton('Delete recipe', 'Chocolate Fondant');
 
       await page.locator('.confirm-modal').getByRole('button', { name: 'Delete', exact: true }).click();
 

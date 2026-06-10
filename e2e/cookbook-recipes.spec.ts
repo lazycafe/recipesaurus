@@ -22,22 +22,16 @@ test.describe('Cookbook Recipes', () => {
       await card.hover();
 
       // The BookPlus icon button should be visible
-      await expect(card.locator('.card-action').first()).toBeVisible();
+      await expect(card.getByRole('button', { name: 'Add to cookbook' })).toBeVisible();
     });
 
-    test('should open add to cookbook modal when clicking button', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should open add to cookbook modal when clicking button', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       await expect(page.getByRole('heading', { name: 'Add to Cookbook' })).toBeVisible();
     });
 
-    test('should show recipe title in modal', async ({ page }) => {
-      const card = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should show recipe title in modal', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal('Herb-Crusted Chicken');
       await expect(page.getByText('Add "Herb-Crusted Chicken" to a cookbook')).toBeVisible();
     });
   });
@@ -48,46 +42,31 @@ test.describe('Cookbook Recipes', () => {
       await helpers.navigateToRecipes();
     });
 
-    test('should list available cookbooks', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should list available cookbooks', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
-    test('should show cookbook recipe count', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should show cookbook recipe count', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).getByText('0 recipes')).toBeVisible();
     });
 
-    test('should show Create New Cookbook button', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should show Create New Cookbook button', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       await expect(page.getByRole('button', { name: 'Create New Cookbook' })).toBeVisible();
     });
 
-    test('should add recipe to cookbook when clicking cookbook item', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should add recipe to cookbook when clicking cookbook item', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
 
       // Should show checkmark indicating it was added
       await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
-    test('should show loading state while adding', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should show loading state while adding', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       // Click to add
       await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
 
@@ -95,11 +74,8 @@ test.describe('Cookbook Recipes', () => {
       await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).locator('.cookbook-checkbox-status svg')).toBeVisible();
     });
 
-    test('should prevent adding same recipe twice', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should prevent adding same recipe twice', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       // Add recipe
       await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
       await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();
@@ -108,10 +84,8 @@ test.describe('Cookbook Recipes', () => {
       await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
-    test('should close modal when clicking X', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
+    test('should close modal when clicking X', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       await expect(page.getByRole('heading', { name: 'Add to Cookbook' })).toBeVisible();
 
       await page.locator('.modal-close').click();
@@ -119,11 +93,8 @@ test.describe('Cookbook Recipes', () => {
       await expect(page.getByRole('heading', { name: 'Add to Cookbook' })).not.toBeVisible();
     });
 
-    test('should open create cookbook modal from add to cookbook modal', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should open create cookbook modal from add to cookbook modal', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       await page.getByRole('button', { name: 'Create New Cookbook' }).click();
 
       await expect(page.getByRole('heading', { name: 'Create Cookbook' })).toBeVisible();
@@ -131,19 +102,13 @@ test.describe('Cookbook Recipes', () => {
   });
 
   test.describe('Default Cookbook Options', () => {
-    test('should show existing default cookbook options', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should show existing default cookbook options', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       await expect(page.locator('.cookbook-checkbox-item').first()).toBeVisible();
     });
 
-    test('should show create cookbook button alongside default options', async ({ page }) => {
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-
+    test('should show create cookbook button alongside default options', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal();
       await expect(page.getByRole('button', { name: 'Create New Cookbook' })).toBeVisible();
     });
   });
@@ -196,11 +161,8 @@ test.describe('Cookbook Recipes', () => {
       await helpers.addRecipeToCookbook('Herb-Crusted Chicken', testCookbook.name);
     });
 
-    test('should show selected cookbook in add-to-cookbook modal', async ({ page }) => {
-      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await recipeCard.hover();
-      await recipeCard.locator('.card-action').first().click();
-
+    test('should show selected cookbook in add-to-cookbook modal', async ({ page, helpers }) => {
+      await helpers.openAddToCookbookModal('Herb-Crusted Chicken');
       await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();
     });
 
@@ -215,9 +177,7 @@ test.describe('Cookbook Recipes', () => {
     });
 
     test('should keep recipe in cookbook when modal is closed without toggling', async ({ page, helpers }) => {
-      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await recipeCard.hover();
-      await recipeCard.locator('.card-action').first().click();
+      await helpers.openAddToCookbookModal('Herb-Crusted Chicken');
       await page.locator('.modal-close').click();
 
       await helpers.navigateToCookbooks();

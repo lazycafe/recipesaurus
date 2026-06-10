@@ -102,6 +102,7 @@ export class TestHelpers {
   async createRecipe(recipe: E2ERecipe) {
     await this.page.getByRole('button', { name: 'New Recipe' }).click();
     await this.page.getByRole('button', { name: 'Manual' }).click();
+    await expect(this.page.getByLabel('Title')).toBeVisible();
     await this.page.getByLabel('Title').fill(recipe.title);
     await this.page.getByLabel('Description').fill(recipe.description);
     await this.page.getByLabel('Ingredients').fill(recipe.ingredients);
@@ -137,13 +138,20 @@ export class TestHelpers {
     await expect(this.page.locator('.cookbook-card-link').filter({ hasText: cookbook.name })).toBeVisible({ timeout: 10000 });
   }
 
-  async openAddToCookbookModal(recipeTitle?: string) {
+  async clickRecipeCardButton(buttonName: string | RegExp, recipeTitle?: string) {
     const card = recipeTitle
       ? this.page.locator('.recipe-card').filter({ hasText: recipeTitle })
       : this.page.locator('.recipe-card').first();
 
     await card.hover();
-    await card.locator('.card-action').first().click();
+    const button = card.getByRole('button', { name: buttonName });
+    await expect(button).toBeVisible();
+    await button.focus();
+    await this.page.keyboard.press('Enter');
+  }
+
+  async openAddToCookbookModal(recipeTitle?: string) {
+    await this.clickRecipeCardButton('Add to cookbook', recipeTitle);
     await expect(this.page.getByRole('heading', { name: 'Add to Cookbook' })).toBeVisible();
   }
 

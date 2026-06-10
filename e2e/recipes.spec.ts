@@ -145,20 +145,16 @@ test.describe('Recipes', () => {
       await expect(card.locator('.card-delete')).toBeVisible();
     });
 
-    test('should delete recipe after confirmation', async ({ page }) => {
-      const card = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await card.hover();
-      await card.locator('.card-delete').click();
+    test('should delete recipe after confirmation', async ({ page, helpers }) => {
+      await helpers.clickRecipeCardButton('Delete recipe', 'Herb-Crusted Chicken');
       await page.locator('.confirm-modal').getByRole('button', { name: 'Delete', exact: true }).click();
 
       await expect(page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' })).not.toBeVisible({ timeout: 10000 });
       await expect(page.locator('.recipe-card')).toHaveCount(2);
     });
 
-    test('should not delete recipe when confirmation is cancelled', async ({ page }) => {
-      const card = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await card.hover();
-      await card.locator('.card-delete').click();
+    test('should not delete recipe when confirmation is cancelled', async ({ page, helpers }) => {
+      await helpers.clickRecipeCardButton('Delete recipe', 'Herb-Crusted Chicken');
       await page.locator('.confirm-modal').getByRole('button', { name: 'Cancel' }).click();
 
       await expect(page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' })).toBeVisible();
@@ -341,12 +337,10 @@ test.describe('Recipes', () => {
   });
 
   test.describe('Empty State', () => {
-    test('should show empty state when all recipes are deleted', async ({ page }) => {
+    test('should show empty state when all recipes are deleted', async ({ page, helpers }) => {
       // Delete all sample recipes
       for (let i = 0; i < 3; i++) {
-        const card = page.locator('.recipe-card').first();
-        await card.hover();
-        await card.locator('.card-delete').click();
+        await helpers.clickRecipeCardButton('Delete recipe');
         await page.locator('.confirm-modal').getByRole('button', { name: 'Delete', exact: true }).click();
         await expect(page.locator('.recipe-card')).toHaveCount(2 - i, { timeout: 10000 });
       }

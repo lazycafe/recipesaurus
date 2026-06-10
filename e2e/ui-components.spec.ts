@@ -75,8 +75,7 @@ test.describe('UI Components', () => {
 
       for (const title of ['Herb-Crusted Chicken', 'Classic Buttermilk Pancakes', 'Chocolate Fondant']) {
         const card = page.locator('.recipe-card').filter({ hasText: title });
-        await card.hover();
-        await card.locator('.card-delete').click();
+        await helpers.clickRecipeCardButton('Delete recipe', title);
         await page.locator('.confirm-modal').getByRole('button', { name: 'Delete', exact: true }).click();
         await expect(card).not.toBeVisible({ timeout: 10000 });
       }
