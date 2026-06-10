@@ -56,7 +56,7 @@ function isIgnoredTarget(
   currentTarget: HTMLElement,
   selectors: string[]
 ): boolean {
-  if (!(target instanceof HTMLElement)) return false;
+  if (!(target instanceof Element)) return false;
 
   return selectors.some(selector => {
     const closest = target.closest(selector);

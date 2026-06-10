@@ -88,7 +88,7 @@ export function PublicCookbookDetailPage() {
       setCookbook(currentCookbook =>
         currentCookbook ? { ...currentCookbook, isSaved: true, savedCopyId: savedId } : currentCookbook
       );
-      await refreshCookbooks();
+      void refreshCookbooks();
       showToast({
         message: 'Cookbook saved to your collection',
         type: 'success',

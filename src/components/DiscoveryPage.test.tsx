@@ -50,6 +50,7 @@ describe('DiscoveryPage', () => {
   const mockRefreshCookbooks = vi.fn();
   const mockUnsaveRecipe = vi.fn();
   const mockUnsaveCookbook = vi.fn();
+  const mockShowToast = vi.fn();
 
   const mockRecipe = {
     id: 'recipe-1',
@@ -84,7 +85,7 @@ describe('DiscoveryPage', () => {
     mockUnsaveCookbook.mockResolvedValue(true);
 
     vi.mocked(ToastContext.useToast).mockReturnValue({
-      showToast: vi.fn(),
+      showToast: mockShowToast,
       hideToast: vi.fn(),
     });
 
@@ -412,6 +413,47 @@ describe('DiscoveryPage', () => {
       expect(mockSaveCookbook).toHaveBeenCalledWith('cookbook-1');
     });
     expect(mockRefreshCookbooks).toHaveBeenCalled();
+  });
+
+  it('shows cookbook save feedback without waiting for the cookbook list refresh', async () => {
+    let resolveRefresh: () => void = () => {};
+    mockRefreshCookbooks.mockReturnValueOnce(new Promise<void>(resolve => {
+      resolveRefresh = resolve;
+    }));
+
+    vi.mocked(DiscoveryContext.useDiscovery).mockReturnValue({
+      recipes: [],
+      cookbooks: [mockCookbook],
+      recipesTotal: 0,
+      cookbooksTotal: 1,
+      isLoadingRecipes: false,
+      isLoadingCookbooks: false,
+      selectedTags: [],
+      loadRecipes: mockLoadRecipes,
+      loadCookbooks: mockLoadCookbooks,
+      loadMoreRecipes: mockLoadMoreRecipes,
+      loadMoreCookbooks: mockLoadMoreCookbooks,
+      setSelectedTags: mockSetSelectedTags,
+      saveRecipe: mockSaveRecipe,
+      saveCookbook: mockSaveCookbook,
+      unsaveRecipe: mockUnsaveRecipe,
+      unsaveCookbook: mockUnsaveCookbook,
+      getPublicRecipe: vi.fn(),
+      getPublicCookbook: vi.fn(),
+    });
+
+    renderWithRouter(<DiscoveryPage tab="cookbooks" />);
+    fireEvent.click(screen.getByLabelText('Save cookbook'));
+
+    await waitFor(() => {
+      expect(mockShowToast).toHaveBeenCalledWith(expect.objectContaining({
+        message: 'Cookbook saved to your collection',
+        type: 'success',
+      }));
+    });
+
+    expect(mockRefreshCookbooks).toHaveBeenCalled();
+    resolveRefresh();
   });
 
   it('renders duplicate cookbooks only once', () => {

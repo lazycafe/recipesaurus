@@ -335,6 +335,44 @@ function isSavedRecipeMatch(candidate: DbRecipe, source: DbRecipe, includeOrigin
   return (includeOriginal && candidate.id === source.id) || isUneditedRecipeCopy(candidate, source);
 }
 
+const MAX_SQL_BIND_PARAMS = 90;
+
+interface RecipeCopyInsert {
+  id: string;
+  source: DbRecipe;
+}
+
+interface CookbookRecipeLinkInsert {
+  cookbookId: string;
+  recipeId: string;
+  userId: string;
+  addedAt: number;
+}
+
+function chunkBySqlParams<T>(items: T[], paramsPerItem: number, baseParams = 0): T[][] {
+  const maxItemsPerChunk = Math.max(1, Math.floor((MAX_SQL_BIND_PARAMS - baseParams) / paramsPerItem));
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += maxItemsPerChunk) {
+    chunks.push(items.slice(index, index + maxItemsPerChunk));
+  }
+  return chunks;
+}
+
+function sqlPlaceholders(count: number): string {
+  return Array.from({ length: count }, () => '?').join(', ');
+}
+
+function sqlRows(rowCount: number, paramsPerRow: number): string {
+  const row = `(${sqlPlaceholders(paramsPerRow)})`;
+  return Array.from({ length: rowCount }, () => row).join(', ');
+}
+
+function savedRecipeCandidateRank(candidate: DbRecipe, sourceId: string): number {
+  if (candidate.id === sourceId) return 0;
+  if (candidate.source_recipe_id === sourceId) return 1;
+  return 2;
+}
+
 function cookbooksHaveSameSavedContent(candidate: DbCookbook, source: DbCookbook): boolean {
   return candidate.user_id !== source.user_id &&
     candidate.name === source.name &&
@@ -3266,6 +3304,110 @@ export class CoreHandlers {
     return existing?.id || null;
   }
 
+  private async findExistingSavedRecipeIds(
+    userId: string,
+    recipes: DbRecipe[],
+    includeOriginal = true
+  ): Promise<Map<string, string>> {
+    const uniqueRecipes = Array.from(new Map(recipes.map(recipe => [recipe.id, recipe])).values());
+    const matches = new Map<string, string>();
+    if (uniqueRecipes.length === 0) {
+      return matches;
+    }
+
+    const sourceIds = uniqueRecipes.map(recipe => recipe.id);
+    const candidates: DbRecipe[] = [];
+    for (const chunk of chunkBySqlParams(sourceIds, 2, 1)) {
+      const placeholders = sqlPlaceholders(chunk.length);
+      const result = await this.db.all<DbRecipe>(
+        `SELECT * FROM recipes
+         WHERE user_id = ?
+           AND (id IN (${placeholders}) OR source_recipe_id IN (${placeholders}))
+         ORDER BY created_at ASC`,
+        userId,
+        ...chunk,
+        ...chunk
+      );
+      candidates.push(...result.results);
+    }
+
+    for (const source of uniqueRecipes) {
+      const sourceCandidates = new Map<string, DbRecipe>();
+      for (const candidate of candidates) {
+        if (candidate.id === source.id || candidate.source_recipe_id === source.id) {
+          sourceCandidates.set(candidate.id, candidate);
+        }
+      }
+
+      const existing = [...sourceCandidates.values()]
+        .sort((a, b) => {
+          const rankDiff = savedRecipeCandidateRank(a, source.id) - savedRecipeCandidateRank(b, source.id);
+          return rankDiff || a.created_at - b.created_at;
+        })
+        .find(candidate => isSavedRecipeMatch(candidate, source, includeOriginal));
+
+      if (existing) {
+        matches.set(source.id, existing.id);
+      }
+    }
+
+    return matches;
+  }
+
+  private async insertRecipeCopies(
+    userId: string,
+    recipeCopies: RecipeCopyInsert[],
+    now: number
+  ): Promise<void> {
+    for (const chunk of chunkBySqlParams(recipeCopies, 16)) {
+      const params = chunk.flatMap(({ id, source }) => [
+        id,
+        userId,
+        source.owner_id,
+        source.title,
+        source.description,
+        source.ingredients,
+        source.instructions,
+        source.tags,
+        source.image_url,
+        source.source_url,
+        source.prep_time,
+        source.cook_time,
+        source.servings,
+        source.id,
+        0,
+        now,
+      ]);
+
+      await this.db.run(
+        `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
+         VALUES ${sqlRows(chunk.length, 16)}`,
+        ...params
+      );
+    }
+  }
+
+  private async insertCookbookRecipeLinks(
+    links: CookbookRecipeLinkInsert[],
+    ignoreDuplicates = false
+  ): Promise<void> {
+    const insertVerb = ignoreDuplicates ? 'INSERT OR IGNORE' : 'INSERT';
+    for (const chunk of chunkBySqlParams(links, 4)) {
+      const params = chunk.flatMap(link => [
+        link.cookbookId,
+        link.recipeId,
+        link.userId,
+        link.addedAt,
+      ]);
+
+      await this.db.run(
+        `${insertVerb} INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at)
+         VALUES ${sqlRows(chunk.length, 4)}`,
+        ...params
+      );
+    }
+  }
+
   private async copyCookbookRecipesToUserCollection(userId: string, cookbookId: string): Promise<void> {
     const cookbookRecipes = await this.db.all<DbRecipe>(
       `SELECT r.* FROM recipes r
@@ -3276,44 +3418,28 @@ export class CoreHandlers {
 
     const now = Date.now();
     const collectionId = await this.getOrCreateRecipeCollection(userId);
+    const savedRecipeIdsBySourceId = await this.findExistingSavedRecipeIds(userId, cookbookRecipes.results);
+    const recipeCopies: RecipeCopyInsert[] = [];
+    const collectionLinks: CookbookRecipeLinkInsert[] = [];
 
     for (const recipe of cookbookRecipes.results) {
-      let savedRecipeId = await this.findExistingSavedRecipeId(userId, recipe);
-
+      let savedRecipeId = savedRecipeIdsBySourceId.get(recipe.id);
       if (!savedRecipeId) {
         savedRecipeId = this.crypto.generateId();
-
-        await this.db.run(
-          `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          savedRecipeId,
-          userId,
-          recipe.owner_id,
-          recipe.title,
-          recipe.description,
-          recipe.ingredients,
-          recipe.instructions,
-          recipe.tags,
-          recipe.image_url,
-          recipe.source_url,
-          recipe.prep_time,
-          recipe.cook_time,
-          recipe.servings,
-          recipe.id,
-          0,
-          now
-        );
+        savedRecipeIdsBySourceId.set(recipe.id, savedRecipeId);
+        recipeCopies.push({ id: savedRecipeId, source: recipe });
       }
 
-      await this.db.run(
-        'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
-        collectionId,
-        savedRecipeId,
+      collectionLinks.push({
+        cookbookId: collectionId,
+        recipeId: savedRecipeId,
         userId,
-        now
-      );
+        addedAt: now,
+      });
     }
 
+    await this.insertRecipeCopies(userId, recipeCopies, now);
+    await this.insertCookbookRecipeLinks(collectionLinks, true);
     await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, collectionId);
   }
 
@@ -3513,54 +3639,37 @@ export class CoreHandlers {
 
     // Get user's recipe collection for adding recipes there too
     const collectionId = await this.getOrCreateRecipeCollection(user.id);
+    const savedRecipeIdsBySourceId = await this.findExistingSavedRecipeIds(user.id, cookbookRecipes.results);
+    const recipeCopies: RecipeCopyInsert[] = [];
+    const cookbookLinks: CookbookRecipeLinkInsert[] = [];
+    const collectionLinks: CookbookRecipeLinkInsert[] = [];
 
     // Copy each recipe and add to both the new cookbook and user's collection
     for (const recipe of cookbookRecipes.results) {
-      let savedRecipeId = await this.findExistingSavedRecipeId(user.id, recipe);
-
+      let savedRecipeId = savedRecipeIdsBySourceId.get(recipe.id);
       if (!savedRecipeId) {
         savedRecipeId = this.crypto.generateId();
-
-        await this.db.run(
-          `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          savedRecipeId,
-          user.id,
-          recipe.owner_id,
-          recipe.title,
-          recipe.description,
-          recipe.ingredients,
-          recipe.instructions,
-          recipe.tags,
-          recipe.image_url,
-          recipe.source_url,
-          recipe.prep_time,
-          recipe.cook_time,
-          recipe.servings,
-          recipe.id,
-          0, // private
-          now
-        );
+        savedRecipeIdsBySourceId.set(recipe.id, savedRecipeId);
+        recipeCopies.push({ id: savedRecipeId, source: recipe });
       }
 
-      // Add to new cookbook
-      await this.db.run(
-        'INSERT INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
-        newCookbookId,
-        savedRecipeId,
-        user.id,
-        now
-      );
-
-      // Add to user's recipe collection
-      await this.db.run(
-        'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
-        collectionId,
-        savedRecipeId,
-        user.id,
-        now
-      );
+      cookbookLinks.push({
+        cookbookId: newCookbookId,
+        recipeId: savedRecipeId,
+        userId: user.id,
+        addedAt: now,
+      });
+      collectionLinks.push({
+        cookbookId: collectionId,
+        recipeId: savedRecipeId,
+        userId: user.id,
+        addedAt: now,
+      });
     }
+
+    await this.insertRecipeCopies(user.id, recipeCopies, now);
+    await this.insertCookbookRecipeLinks(cookbookLinks);
+    await this.insertCookbookRecipeLinks(collectionLinks, true);
 
     return { data: { id: newCookbookId }, status: 201 };
   }

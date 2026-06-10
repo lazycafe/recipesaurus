@@ -374,8 +374,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     setSavingCookbookId(null);
 
     if (savedId) {
-      // Refresh the cookbooks list so it shows the new cookbook
-      await refreshCookbooks();
+      void refreshCookbooks();
       showToast({
         message: 'Cookbook saved to your collection',
         type: 'success',
@@ -402,7 +401,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     setSavingCookbookId(null);
 
     if (didUnsave) {
-      await refreshCookbooks();
+      void refreshCookbooks();
       showToast({
         message: 'Cookbook removed from your collection',
         type: 'success',
