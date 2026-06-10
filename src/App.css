@@ -1269,7 +1269,12 @@ img {
 
 @media (max-width: 480px) {
   .modal-detail {
+    height: 100vh;
+    height: 100dvh;
     max-width: 100%;
+    max-height: none;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -1341,7 +1346,7 @@ img {
 }
 
 .swipe-close-region {
-  touch-action: pan-x;
+  touch-action: pan-y;
 }
 
 .tab-btn {
