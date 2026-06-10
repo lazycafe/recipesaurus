@@ -18,7 +18,7 @@ describe('registration Worker routes', () => {
     const waitUntil = vi.fn();
 
     const response = await worker.fetch(
-      new Request('https://recipesaurus-api.andreay226.workers.dev/api/auth/register', {
+      new Request('https://api.recipesaurus.ai/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,7 +62,7 @@ describe('friend request Worker routes', () => {
       }),
     };
 
-    const request = new Request('https://recipesaurus-api.andreay226.workers.dev/api/friend-requests/accept', {
+    const request = new Request('https://api.recipesaurus.ai/api/friend-requests/accept', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

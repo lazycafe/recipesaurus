@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { HttpClient, HttpTransport } from './HttpClient';
+import { createHttpClient, HttpClient, HttpTransport } from './HttpClient';
 import type { ITokenStorage, ITransport } from './types';
 
 const tokenStorage: ITokenStorage = {
@@ -90,5 +90,19 @@ describe('HttpClient', () => {
     await transport.request('GET', '/api/auth/session');
 
     expect((capturedInit?.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it('uses the Recipesaurus API subdomain by default', async () => {
+    vi.stubEnv('VITE_API_URL', '');
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ user: null }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createHttpClient();
+
+    await client.auth.getSession();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.recipesaurus.ai/api/auth/session',
+      expect.objectContaining({ credentials: 'include' })
+    );
   });
 });

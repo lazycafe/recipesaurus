@@ -1,4 +1,5 @@
 // Utility functions for extracting recipe data from HTML
+import { PRODUCTION_API_BASE_URL } from '../client/apiBaseUrl';
 
 export interface ExtractedRecipeImage {
   url: string;
@@ -597,10 +598,11 @@ export async function fetchAndExtractRecipe(url: string): Promise<ExtractedRecip
     ? `${configuredApiUrl}/api/proxy-fetch`
     : import.meta.env.DEV
       ? '/api/proxy-fetch'
-      : 'https://recipesaurus-api.andreay226.workers.dev/api/proxy-fetch';
+      : `${PRODUCTION_API_BASE_URL}/api/proxy-fetch`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url: url.trim() }),
   });

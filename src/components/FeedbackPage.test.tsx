@@ -135,6 +135,7 @@ describe('FeedbackPage', () => {
     });
 
     const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toBe('https://api.recipesaurus.ai/api/feedback');
     expect(url).not.toContain('discord.com');
     expect(JSON.parse(options.body)).toEqual({
       type: 'bug',

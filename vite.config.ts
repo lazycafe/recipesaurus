@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/proxy-fetch': {
-        target: 'https://recipesaurus-api.andreay226.workers.dev',
+        target: 'https://api.recipesaurus.ai',
         changeOrigin: true,
       },
     },

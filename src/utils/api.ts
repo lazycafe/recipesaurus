@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'https://recipesaurus-api.andreay226.workers.dev';
+import { getApiBaseUrl } from '../client/apiBaseUrl';
+
+const API_BASE = getApiBaseUrl();
 const TOKEN_KEY = 'recipesaurus_token';
 
 // Token management
