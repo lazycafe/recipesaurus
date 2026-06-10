@@ -170,11 +170,14 @@ export function MealPlannerPage() {
     return map;
   }, [recipes]);
 
-  const mentionedRecipeDetails = useMemo(() => (
-    mealPlan?.mentionedRecipes
-      .map(recipe => recipeById.get(recipe.id))
-      .filter((recipe): recipe is Recipe => Boolean(recipe)) ?? []
-  ), [mealPlan, recipeById]);
+  const linkedRecipeRefs = useMemo(() => {
+    if (!mealPlan) return [];
+
+    const recipesById = new Map<string, MealPlanMentionedRecipe>();
+    mealPlan.mentionedRecipes.forEach(recipe => recipesById.set(recipe.id, recipe));
+    return Array.from(recipesById.values());
+  }, [mealPlan]);
+  const linkedRecipeCount = linkedRecipeRefs.length;
 
   const renderSuggestion = (plan: MealPlanHistoryItem | MealPlanResult): ReactNode[] => {
     if (!plan) return [];
@@ -298,7 +301,7 @@ export function MealPlannerPage() {
   };
 
   const handleCreateCookbook = async () => {
-    if (!mealPlan || mentionedRecipeDetails.length === 0) return;
+    if (!mealPlan || linkedRecipeRefs.length === 0) return;
 
     setIsCreatingCookbook(true);
     setError('');
@@ -314,15 +317,43 @@ export function MealPlannerPage() {
       return;
     }
 
-    const addResults = await Promise.all(
-      mentionedRecipeDetails.map(recipe => client.cookbooks.addRecipe(cookbookId, recipe.id))
+    const recipeIdResults = await Promise.all(
+      linkedRecipeRefs.map(async recipe => {
+        const savedRecipe = recipeById.get(recipe.id);
+        if (savedRecipe) {
+          return {
+            recipeId: savedRecipe.id,
+            savedPublicRecipe: false,
+            error: null,
+          };
+        }
+
+        const saveResult = await client.discover.saveRecipe(recipe.id);
+        return {
+          recipeId: saveResult.data?.id || null,
+          savedPublicRecipe: Boolean(saveResult.data?.id),
+          error: saveResult.data?.id ? null : (saveResult.error || 'Unable to save recipe'),
+        };
+      })
     );
+    const recipeIdsToAdd = Array.from(new Set(
+      recipeIdResults
+        .map(result => result.recipeId)
+        .filter((recipeId): recipeId is string => Boolean(recipeId))
+    ));
+    const addResults = await Promise.all(
+      recipeIdsToAdd.map(recipeId => client.cookbooks.addRecipe(cookbookId, recipeId))
+    );
+    const failedSaves = recipeIdResults.filter(result => result.error);
     const failedAdds = addResults.filter(result => result.error);
 
+    if (recipeIdResults.some(result => result.savedPublicRecipe)) {
+      await refreshRecipes();
+    }
     await refreshCookbooks();
     setIsCreatingCookbook(false);
 
-    if (failedAdds.length > 0) {
+    if (failedSaves.length > 0 || failedAdds.length > 0) {
       setError('The cookbook was created, but some recipes could not be added.');
       return;
     }
@@ -527,12 +558,12 @@ export function MealPlannerPage() {
           </div>
           <div className="meal-planner-result-text">{renderSuggestion(mealPlan)}</div>
 
-          {mentionedRecipeDetails.length > 0 && (
+          {linkedRecipeCount > 0 && (
             <div className="meal-planner-cookbook-action">
               <div>
                 <h3>{mealPlan.cookbookName}</h3>
                 <p>
-                  Create a cookbook with {mentionedRecipeDetails.length} saved recipe{mentionedRecipeDetails.length !== 1 ? 's' : ''} from this plan.
+                  Create a cookbook with {linkedRecipeCount} linked recipe{linkedRecipeCount !== 1 ? 's' : ''} from this plan.
                 </p>
               </div>
               <button
@@ -556,11 +587,11 @@ export function MealPlannerPage() {
             </div>
           )}
 
-          {mentionedRecipeDetails.length > 0 && (
+          {linkedRecipeCount > 0 && (
             <div className="meal-planner-mentioned">
               <CheckCircle size={16} />
               <span>
-                Linked {mentionedRecipeDetails.length} recipe{mentionedRecipeDetails.length !== 1 ? 's' : ''} from your collection.
+                Linked {linkedRecipeCount} recipe{linkedRecipeCount !== 1 ? 's' : ''} from this plan.
               </span>
             </div>
           )}

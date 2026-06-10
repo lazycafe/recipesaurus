@@ -405,4 +405,45 @@ describe('MealPlannerPage', () => {
       expect(mockAddRecipe).toHaveBeenCalledWith('cookbook-1', 'recipe-1');
     });
   });
+
+  it('saves public starter recipes before adding them to a created cookbook', async () => {
+    mockCreateMealPlan.mockResolvedValue({
+      data: {
+        id: 'meal-plan-1',
+        prompt: samplePrompt,
+        suggestion: [
+          'Monday: From your recipes: Herb-Crusted Chicken',
+          'Tuesday: New idea: Vegetable Stir-Fry - flexible vegetables over rice',
+        ].join('\n'),
+        mentionedRecipes: [
+          { id: 'recipe-1', title: 'Herb-Crusted Chicken' },
+          { id: 'starter-1', title: 'Vegetable Stir-Fry' },
+        ],
+        cookbookName: 'Healthy Dinner Meal Plan',
+        createdAt: Date.now(),
+        usage: usage(1),
+        recipeCount: 2,
+      },
+    });
+
+    renderMealPlanner();
+
+    await waitFor(() => {
+      expect(screen.getByText(/2 requests remaining this week/)).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Get Suggestions/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Create a cookbook with 2 linked recipes/i)).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Create Cookbook/i }));
+
+    await waitFor(() => {
+      expect(mockSaveDiscoverRecipe).toHaveBeenCalledWith('starter-1');
+      expect(mockAddRecipe).toHaveBeenCalledWith('cookbook-1', 'recipe-1');
+      expect(mockAddRecipe).toHaveBeenCalledWith('cookbook-1', 'saved-starter-1');
+      expect(mockRefreshRecipes).toHaveBeenCalled();
+    });
+  });
 });

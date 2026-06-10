@@ -226,6 +226,29 @@ describe('AI meal planner API', () => {
     expect(drafts[0].instructions.join(' ')).not.toMatch(/ai meal planner/i);
   });
 
+  it('uses cropped, unique images for starter recipes in the same meal plan', () => {
+    const drafts = buildMealPlanGeneratedRecipeDrafts(
+      'Plan easy healthy dinners.',
+      [
+        '1. New idea: Flexible Grain Bowl - vegetables, grains, and sauce',
+        '2. New idea: Sheet-Pan Vegetable Dinner - roasted vegetables and protein',
+        '3. New idea: Lentil Soup - cozy weeknight soup',
+        '4. New idea: Pasta Primavera - fast pasta with vegetables',
+      ].join('\n'),
+      []
+    );
+
+    const imageUrls = drafts.map(draft => draft.imageUrl);
+    expect(drafts).toHaveLength(4);
+    expect(new Set(imageUrls).size).toBe(imageUrls.length);
+    imageUrls.forEach(imageUrl => {
+      expect(imageUrl).toContain('images.unsplash.com');
+      expect(imageUrl).toContain('fit=crop');
+      expect(imageUrl).toContain('w=900');
+      expect(imageUrl).toContain('h=650');
+    });
+  });
+
   it('detects OpenAI responses that need continuation', () => {
     const incompleteResponse = {
       id: 'resp_123',

@@ -505,62 +505,170 @@ function findGeneratedRecipeTemplate(title: string, tags: string[]): GeneratedRe
   ) || DEFAULT_GENERATED_RECIPE_TEMPLATE;
 }
 
-function selectGeneratedRecipeImageUrl(title: string, tags: string[]): string {
-  const searchable = `${title} ${tags.join(' ')}`.toLowerCase();
-  const imageMatches = [
-    {
-      keywords: ['stir fry', 'stir-fry', 'fried rice', 'rice', 'asian'],
-      url: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=800&q=80',
-    },
-    {
-      keywords: ['bowl', 'grain', 'quinoa', 'vegetarian', 'vegan', 'healthy'],
-      url: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=80',
-    },
-    {
-      keywords: ['sheet pan', 'sheet-pan', 'roasted', 'vegetable'],
-      url: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?w=800&q=80',
-    },
-    {
-      keywords: ['soup', 'stew'],
-      url: 'https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=800&q=80',
-    },
-    {
-      keywords: ['pasta', 'noodle', 'noodles'],
-      url: 'https://images.unsplash.com/photo-1563379926898-05f4575a45d8?w=800&q=80',
-    },
-    {
-      keywords: ['taco', 'tacos', 'mexican'],
-      url: 'https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?w=800&q=80',
-    },
-    {
-      keywords: ['curry', 'indian'],
-      url: 'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=800&q=80',
-    },
-    {
-      keywords: ['chicken'],
-      url: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=800&q=80',
-    },
-    {
-      keywords: ['fish', 'salmon', 'seafood', 'shrimp'],
-      url: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=800&q=80',
-    },
-    {
-      keywords: ['breakfast', 'pancake', 'pancakes', 'brunch'],
-      url: 'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800&q=80',
-    },
-    {
-      keywords: ['dessert', 'cake', 'chocolate', 'sweet'],
-      url: 'https://images.unsplash.com/photo-1624353365286-3f8d62daad51?w=800&q=80',
-    },
-  ];
-
-  return imageMatches.find(match => match.keywords.some(keyword => searchable.includes(keyword)))?.url
-    || 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800&q=80';
+interface GeneratedRecipeImageMatch {
+  keywords: string[];
+  urls: string[];
 }
 
-function buildGeneratedRecipeDraft(request: string, title: string): MealPlanGeneratedRecipeDraft {
+function generatedRecipeImageUrl(photoId: string): string {
+  return `https://images.unsplash.com/${photoId}?auto=format&fit=crop&w=900&h=650&q=80`;
+}
+
+const GENERATED_RECIPE_IMAGE_FALLBACK_URLS = [
+  'photo-1504674900247-0877df9cc836',
+  'photo-1490645935967-10de6ba17061',
+  'photo-1498837167922-ddd27525d352',
+  'photo-1543353071-10c8ba85a904',
+  'photo-1476224203421-9ac39bcb3327',
+  'photo-1482049016688-2d3e1b311543',
+  'photo-1504754524776-8f4f37790ca0',
+  'photo-1555939594-58d7cb561ad1',
+].map(generatedRecipeImageUrl);
+
+const GENERATED_RECIPE_IMAGE_MATCHES: GeneratedRecipeImageMatch[] = [
+  {
+    keywords: ['stir fry', 'stir-fry', 'fried rice', 'rice', 'asian'],
+    urls: [
+      'photo-1603133872878-684f208fb84b',
+      'photo-1512058564366-18510be2db19',
+      'photo-1559847844-5315695dadae',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['bowl', 'grain', 'quinoa', 'vegetarian', 'vegan', 'healthy'],
+    urls: [
+      'photo-1512621776951-a57141f2eefd',
+      'photo-1540420773420-3366772f4999',
+      'photo-1546069901-ba9599a7e63c',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['sheet pan', 'sheet-pan', 'roasted', 'vegetable'],
+    urls: [
+      'photo-1540189549336-e6e99c3679fe',
+      'photo-1505576399279-565b52d4ac71',
+      'photo-1518843875459-f738682238a6',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['soup', 'stew'],
+    urls: [
+      'photo-1476124369491-e7addf5db371',
+      'photo-1547592166-23ac45744acd',
+      'photo-1604152135912-04a022e23696',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['pasta', 'noodle', 'noodles'],
+    urls: [
+      'photo-1563379926898-05f4575a45d8',
+      'photo-1621996346565-e3dbc646d9a9',
+      'photo-1473093295043-cdd812d0e601',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['taco', 'tacos', 'mexican'],
+    urls: [
+      'photo-1551504734-5ee1c4a1479b',
+      'photo-1565299585323-38d6b0865b47',
+      'photo-1613514785940-daed07799d9b',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['curry', 'indian'],
+    urls: [
+      'photo-1455619452474-d2be8b1e70cd',
+      'photo-1585937421612-70a008356fbe',
+      'photo-1603894584373-5ac82b2ae398',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['chicken'],
+    urls: [
+      'photo-1604908176997-125f25cc6f3d',
+      'photo-1598103442097-8b74394b95c6',
+      'photo-1532550907401-a500c9a57435',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['fish', 'salmon', 'seafood', 'shrimp'],
+    urls: [
+      'photo-1467003909585-2f8a72700288',
+      'photo-1580476262798-bddd9f4b7369',
+      'photo-1604909052743-94e838986d24',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['breakfast', 'pancake', 'pancakes', 'brunch'],
+    urls: [
+      'photo-1567620905732-2d1ec7ab7445',
+      'photo-1525351484163-7529414344d8',
+      'photo-1528207776546-365bb710ee93',
+    ].map(generatedRecipeImageUrl),
+  },
+  {
+    keywords: ['dessert', 'cake', 'chocolate', 'sweet'],
+    urls: [
+      'photo-1624353365286-3f8d62daad51',
+      'photo-1563729784474-d77dbb933a9e',
+      'photo-1578985545062-69928b1d9587',
+    ].map(generatedRecipeImageUrl),
+  },
+];
+
+function stableStringHash(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
+}
+
+function uniqueImageUrls(urls: string[]): string[] {
+  return Array.from(new Set(urls));
+}
+
+function rotateImageUrls(urls: string[], seed: string): string[] {
+  if (urls.length <= 1) return urls;
+
+  const startIndex = stableStringHash(seed) % urls.length;
+  return [
+    ...urls.slice(startIndex),
+    ...urls.slice(0, startIndex),
+  ];
+}
+
+function selectGeneratedRecipeImageUrl(
+  title: string,
+  tags: string[],
+  usedImageUrls: Set<string>
+): string {
+  const searchable = `${title} ${tags.join(' ')}`.toLowerCase();
+  const matchedUrls = GENERATED_RECIPE_IMAGE_MATCHES
+    .filter(match => match.keywords.some(keyword => searchable.includes(keyword)))
+    .flatMap(match => match.urls);
+  const allCategorizedUrls = GENERATED_RECIPE_IMAGE_MATCHES.flatMap(match => match.urls);
+  const candidateUrls = uniqueImageUrls([
+    ...matchedUrls,
+    ...GENERATED_RECIPE_IMAGE_FALLBACK_URLS,
+    ...allCategorizedUrls,
+  ]);
+  const rotatedUrls = rotateImageUrls(candidateUrls, `${title} ${tags.join(' ')}`);
+
+  return rotatedUrls.find(url => !usedImageUrls.has(url))
+    || rotatedUrls[0]
+    || GENERATED_RECIPE_IMAGE_FALLBACK_URLS[0];
+}
+
+function buildGeneratedRecipeDraft(
+  request: string,
+  title: string,
+  usedImageUrls: Set<string>
+): MealPlanGeneratedRecipeDraft {
   const tags = inferGeneratedRecipeTags(request, title);
   const template = findGeneratedRecipeTemplate(title, tags);
+  const imageUrl = selectGeneratedRecipeImageUrl(title, tags, usedImageUrls);
 
   return {
     title,
@@ -568,7 +676,7 @@ function buildGeneratedRecipeDraft(request: string, title: string): MealPlanGene
     ingredients: template.ingredients(title),
     instructions: template.instructions(title),
     tags,
-    imageUrl: selectGeneratedRecipeImageUrl(title, tags),
+    imageUrl,
     prepTime: template.prepTime || '15 minutes',
     cookTime: template.cookTime || '25 minutes',
     servings: template.servings || '4',
@@ -599,9 +707,14 @@ export function buildMealPlanGeneratedRecipeDrafts(
     selectedTitles.set(normalizedTitle, title);
   });
 
+  const usedImageUrls = new Set<string>();
   return Array.from(selectedTitles.values())
     .slice(0, MEAL_PLAN_MAX_GENERATED_RECIPES)
-    .map(title => buildGeneratedRecipeDraft(request, title));
+    .map(title => {
+      const draft = buildGeneratedRecipeDraft(request, title, usedImageUrls);
+      usedImageUrls.add(draft.imageUrl);
+      return draft;
+    });
 }
 
 export function suggestMealPlanCookbookName(request: string): string {
