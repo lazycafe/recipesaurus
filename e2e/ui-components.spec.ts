@@ -302,7 +302,7 @@ test.describe('UI Components', () => {
       const card = page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name });
       await card.hover();
       await expect(card.locator('.cookbook-book')).toBeVisible();
-      await expect(card).toHaveAttribute('href', /\/cookbooks\/.+/);
+      await expect(card).toHaveAttribute('data-href', /\/cookbooks\/.+/);
     });
   });
 });

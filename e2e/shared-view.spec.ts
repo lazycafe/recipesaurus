@@ -29,12 +29,7 @@ test.describe('Public Shared Cookbook View', () => {
 
     // Add a recipe to the cookbook
     await helpers.navigateToRecipes();
-    const card = page.locator('.recipe-card').first();
-    await card.hover();
-    await card.locator('.card-action').first().click();
-    await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
-    await page.waitForTimeout(500);
-    await page.locator('.modal-close').click();
+    await helpers.addRecipeToCookbook('Herb-Crusted Chicken', testCookbook.name);
 
     // Generate share link
     await helpers.navigateToCookbooks();

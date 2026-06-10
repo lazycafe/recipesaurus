@@ -15,12 +15,7 @@ test.describe('Cookbook Detail Features', () => {
     // Add multiple recipes to the cookbook
     const recipes = ['Herb-Crusted Chicken', 'Classic Buttermilk Pancakes', 'Chocolate Fondant'];
     for (const recipeName of recipes) {
-      const card = page.locator('.recipe-card').filter({ hasText: recipeName });
-      await card.hover();
-      await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
+      await helpers.addRecipeToCookbook(recipeName, testCookbook.name);
     }
 
     await helpers.navigateToCookbooks();

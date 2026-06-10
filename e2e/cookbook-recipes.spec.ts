@@ -149,17 +149,12 @@ test.describe('Cookbook Recipes', () => {
   });
 
   test.describe('Recipe in Cookbook', () => {
-    test.beforeEach(async ({ page, helpers }) => {
+    test.beforeEach(async ({ helpers }) => {
       await helpers.createCookbook(testCookbook);
       await helpers.navigateToRecipes();
 
       // Add a recipe to the cookbook
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
+      await helpers.addRecipeToCookbook('Herb-Crusted Chicken', testCookbook.name);
     });
 
     test('should show recipe in cookbook detail', async ({ page, helpers }) => {
@@ -193,17 +188,12 @@ test.describe('Cookbook Recipes', () => {
   });
 
   test.describe('Remove Recipe from Cookbook', () => {
-    test.beforeEach(async ({ page, helpers }) => {
+    test.beforeEach(async ({ helpers }) => {
       await helpers.createCookbook(testCookbook);
       await helpers.navigateToRecipes();
 
       // Add a recipe to the cookbook
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
+      await helpers.addRecipeToCookbook('Herb-Crusted Chicken', testCookbook.name);
     });
 
     test('should show selected cookbook in add-to-cookbook modal', async ({ page }) => {
@@ -215,12 +205,7 @@ test.describe('Cookbook Recipes', () => {
     });
 
     test('should remove recipe from cookbook when toggling selected cookbook', async ({ page, helpers }) => {
-      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await recipeCard.hover();
-      await recipeCard.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name }).click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
+      await helpers.removeRecipeFromCookbook('Herb-Crusted Chicken', testCookbook.name);
 
       await helpers.navigateToCookbooks();
       await page.locator('.cookbook-card-link').filter({ hasText: testCookbook.name }).click();
@@ -242,12 +227,7 @@ test.describe('Cookbook Recipes', () => {
     });
 
     test('should not delete the actual recipe when removing from cookbook', async ({ page, helpers }) => {
-      const recipeCard = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await recipeCard.hover();
-      await recipeCard.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name }).click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
+      await helpers.removeRecipeFromCookbook('Herb-Crusted Chicken', testCookbook.name);
 
       await helpers.navigateToRecipes();
 
@@ -264,20 +244,10 @@ test.describe('Cookbook Recipes', () => {
 
     test('should add multiple recipes to same cookbook', async ({ page, helpers }) => {
       // Add first recipe
-      let card = page.locator('.recipe-card').filter({ hasText: 'Herb-Crusted Chicken' });
-      await card.hover();
-      await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
+      await helpers.addRecipeToCookbook('Herb-Crusted Chicken', testCookbook.name);
 
       // Add second recipe
-      card = page.locator('.recipe-card').filter({ hasText: 'Classic Buttermilk Pancakes' });
-      await card.hover();
-      await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
+      await helpers.addRecipeToCookbook('Classic Buttermilk Pancakes', testCookbook.name);
 
       // Check cookbook has both recipes
       await helpers.navigateToCookbooks();
@@ -293,12 +263,7 @@ test.describe('Cookbook Recipes', () => {
       const recipes = ['Herb-Crusted Chicken', 'Classic Buttermilk Pancakes', 'Chocolate Fondant'];
 
       for (const recipeName of recipes) {
-        const card = page.locator('.recipe-card').filter({ hasText: recipeName });
-        await card.hover();
-        await card.locator('.card-action').first().click();
-        await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
-        await page.waitForTimeout(500);
-        await page.locator('.modal-close').click();
+        await helpers.addRecipeToCookbook(recipeName, testCookbook.name);
       }
 
       await helpers.navigateToCookbooks();
@@ -315,21 +280,17 @@ test.describe('Cookbook Recipes', () => {
       await helpers.navigateToRecipes();
 
       // Open add to cookbook modal
-      const card = page.locator('.recipe-card').first();
-      await card.hover();
-      await card.locator('.card-action').first().click();
+      await helpers.openAddToCookbookModal();
 
       // Should see both cookbooks
       await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name })).toBeVisible();
       await expect(page.locator('.cookbook-checkbox-item').filter({ hasText: cookbook2.name })).toBeVisible();
 
       // Add to first cookbook
-      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
-      await page.waitForTimeout(500);
+      await helpers.selectCookbookInAddToCookbookModal(testCookbook.name);
 
       // Add to second cookbook
-      await page.locator('.cookbook-checkbox-item').filter({ hasText: cookbook2.name }).click();
-      await page.waitForTimeout(500);
+      await helpers.selectCookbookInAddToCookbookModal(cookbook2.name);
 
       // Both selected cookbooks should show as added, even if default collections are also selected.
       await expect(page.locator('.cookbook-checkbox-item.added').filter({ hasText: testCookbook.name })).toBeVisible();

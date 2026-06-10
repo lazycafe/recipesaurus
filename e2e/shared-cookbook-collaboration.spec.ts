@@ -142,12 +142,7 @@ test.describe('Shared Cookbook Collaboration', () => {
     test('should show recipe added by collaborator in cookbook', async ({ page, helpers }) => {
       // Add a recipe as collaborator
       await helpers.navigateToRecipes();
-      const card = page.locator('.recipe-card').filter({ hasText: 'Classic Buttermilk Pancakes' });
-      await card.hover();
-      await card.locator('.card-action').first().click();
-      await page.locator('.cookbook-checkbox-item').filter({ hasText: testCookbook.name }).click();
-      await page.waitForTimeout(500);
-      await page.locator('.modal-close').click();
+      await helpers.addRecipeToCookbook('Classic Buttermilk Pancakes', testCookbook.name);
 
       // View the shared cookbook
       await helpers.navigateToCookbooks();

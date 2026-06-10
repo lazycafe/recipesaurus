@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import type { KeyboardEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useCookbooks } from '../context/CookbookContext';
 import { CookbookCard } from './CookbookCard';
@@ -10,11 +11,21 @@ interface CookbookListProps {
 
 export function CookbookList({ onCreateCookbook }: CookbookListProps) {
   const { ownedCookbooks, sharedCookbooks } = useCookbooks();
+  const navigate = useNavigate();
 
   // Filter out system cookbooks (like "My Recipe Collection")
   const filteredOwned = ownedCookbooks.filter(c => !c.isSystem);
   const filteredShared = sharedCookbooks.filter(c => !c.isSystem);
   const cookbooks = [...filteredOwned, ...filteredShared].sort((a, b) => b.updatedAt - a.updatedAt);
+  const openCookbook = (cookbookId: string) => {
+    navigate(`/cookbooks/${cookbookId}`);
+  };
+  const handleCookbookKeyDown = (event: KeyboardEvent<HTMLDivElement>, cookbookId: string) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+
+    event.preventDefault();
+    openCookbook(cookbookId);
+  };
 
   return (
     <div className="cookbook-list">
@@ -32,9 +43,17 @@ export function CookbookList({ onCreateCookbook }: CookbookListProps) {
       {cookbooks.length > 0 ? (
         <div className="cookbook-grid">
           {cookbooks.map(cookbook => (
-            <Link key={cookbook.id} to={`/cookbooks/${cookbook.id}`} className="cookbook-card-link">
+            <div
+              key={cookbook.id}
+              className="cookbook-card-link"
+              role="link"
+              tabIndex={0}
+              data-href={`/cookbooks/${cookbook.id}`}
+              onClick={() => openCookbook(cookbook.id)}
+              onKeyDown={(event) => handleCookbookKeyDown(event, cookbook.id)}
+            >
               <CookbookCard cookbook={cookbook} />
-            </Link>
+            </div>
           ))}
         </div>
       ) : (

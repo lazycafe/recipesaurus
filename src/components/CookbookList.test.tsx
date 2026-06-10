@@ -130,7 +130,7 @@ describe('CookbookList', () => {
     expect(screen.queryByText('Shared with Me')).toBeNull();
   });
 
-  it('links to cookbook detail page when cookbook clicked', () => {
+  it('marks cookbook cards with their detail target', () => {
     vi.mocked(CookbookContext.useCookbooks).mockReturnValue({
       ownedCookbooks: [mockCookbook],
       sharedCookbooks: [],
@@ -149,7 +149,7 @@ describe('CookbookList', () => {
     );
 
     const link = screen.getByRole('link');
-    expect(link.getAttribute('href')).toBe('/cookbooks/1');
+    expect(link.getAttribute('data-href')).toBe('/cookbooks/1');
   });
 
   it('does not show cookbook section tabs', () => {
