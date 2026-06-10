@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Send, CheckCircle, Loader2 } from 'lucide-react';
+import { getApiBaseUrl } from '../client/apiBaseUrl';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://recipesaurus-api.andreay226.workers.dev';
+const API_BASE_URL = getApiBaseUrl();
 const FEEDBACK_STORAGE_KEY = 'recipesaurus_feedback_timestamps';
 const MAX_FEEDBACK_PER_DAY = 3;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;

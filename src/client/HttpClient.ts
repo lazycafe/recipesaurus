@@ -23,6 +23,7 @@ import type {
   ProfileUser,
   UserProfile,
 } from './types';
+import { getApiBaseUrl } from './apiBaseUrl';
 
 // Cookie-only sessions do not expose bearer tokens to browser JavaScript.
 export class CookieSessionTokenStorage implements ITokenStorage {
@@ -421,7 +422,7 @@ export class HttpClient implements IClient {
 
 // Factory function to create HTTP client with default configuration
 export function createHttpClient(
-  baseUrl: string = import.meta.env.VITE_API_URL || 'https://recipesaurus-api.andreay226.workers.dev',
+  baseUrl: string = getApiBaseUrl(),
   tokenStorage: ITokenStorage = new CookieSessionTokenStorage()
 ): IClient {
   const transport = new HttpTransport(baseUrl, tokenStorage);

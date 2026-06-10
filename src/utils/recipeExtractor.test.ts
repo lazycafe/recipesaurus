@@ -172,6 +172,7 @@ describe('recipeExtractor image extraction', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/proxy-fetch', expect.objectContaining({
       method: 'POST',
+      credentials: 'include',
       body: JSON.stringify({ url: 'https://example.com/recipe' }),
     }));
     expect(recipe.title).toBe('Imported Recipe');
