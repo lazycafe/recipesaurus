@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Loader2, User, ChefHat } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import type { Recipe as ClientRecipe } from '../client/types';
@@ -6,6 +6,7 @@ import { Recipe } from '../types/Recipe';
 import { DinoMascot } from './DinoMascot';
 import { RecipeCard } from './RecipeCard';
 import { RecipeDetail } from './RecipeDetail';
+import { getRecipeDetailRouteId } from '../utils/recipeDetailRoute';
 
 interface SharedCookbook {
   id: string;
@@ -19,7 +20,12 @@ interface SharedCookbookViewProps {
   token: string;
 }
 
-function mapRecipeResponse(r: ClientRecipe): Recipe {
+interface SharedRecipe extends Recipe {
+  isSaved?: boolean;
+  savedCopyId?: string | null;
+}
+
+function mapRecipeResponse(r: ClientRecipe): SharedRecipe {
   return {
     id: r.id,
     title: r.title,
@@ -32,17 +38,26 @@ function mapRecipeResponse(r: ClientRecipe): Recipe {
     prepTime: r.prepTime || undefined,
     cookTime: r.cookTime || undefined,
     servings: r.servings || undefined,
+    isPublic: r.isPublic,
     createdAt: r.createdAt,
+    ownerId: r.ownerId,
+    ownerName: r.ownerName,
+    isOwner: r.isOwner,
+    isSaved: r.isSaved,
+    savedCopyId: r.savedCopyId,
   };
 }
 
 export function SharedCookbookView({ token }: SharedCookbookViewProps) {
   const client = useClient();
   const [cookbook, setCookbook] = useState<SharedCookbook | null>(null);
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const [recipes, setRecipes] = useState<SharedRecipe[]>([]);
+  const [selectedRecipe, setSelectedRecipe] = useState<SharedRecipe | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
+  const [routeSearch, setRouteSearch] = useState(() => window.location.search);
+  const requestedRecipeId = useMemo(() => getRecipeDetailRouteId(routeSearch), [routeSearch]);
 
   useEffect(() => {
     async function fetchSharedCookbook() {
@@ -68,6 +83,45 @@ export function SharedCookbookView({ token }: SharedCookbookViewProps) {
 
     fetchSharedCookbook();
   }, [client, token]);
+
+  useEffect(() => {
+    const handlePopState = () => setRouteSearch(window.location.search);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!requestedRecipeId || recipes.length === 0) return;
+
+    const recipe = recipes.find(item => item.id === requestedRecipeId);
+    if (recipe) {
+      setSelectedRecipe(current => (current?.id === recipe.id ? current : recipe));
+    }
+  }, [requestedRecipeId, recipes]);
+
+  const canSaveRecipe = (recipe: SharedRecipe) => recipe.isOwner === false && recipe.isPublic === true;
+
+  const handleSaveRecipe = async (recipe: SharedRecipe) => {
+    if (!canSaveRecipe(recipe) || recipe.isSaved) return;
+
+    setSavingRecipeId(recipe.id);
+    const result = await client.discover.saveRecipe(recipe.id);
+    setSavingRecipeId(null);
+
+    if (!result.data?.id) return;
+
+    const savedCopyId = result.data.id;
+    setRecipes(currentRecipes => currentRecipes.map(currentRecipe =>
+      currentRecipe.id === recipe.id
+        ? { ...currentRecipe, isSaved: true, savedCopyId }
+        : currentRecipe
+    ));
+    setSelectedRecipe(currentRecipe =>
+      currentRecipe?.id === recipe.id
+        ? { ...currentRecipe, isSaved: true, savedCopyId }
+        : currentRecipe
+    );
+  };
 
   if (isLoading) {
     return (
@@ -143,7 +197,11 @@ export function SharedCookbookView({ token }: SharedCookbookViewProps) {
         <RecipeDetail
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
+          onSave={canSaveRecipe(selectedRecipe) ? () => handleSaveRecipe(selectedRecipe) : undefined}
+          isSaving={savingRecipeId === selectedRecipe.id}
+          isSaved={Boolean(selectedRecipe.isSaved)}
           readOnly
+          isPublicView={canSaveRecipe(selectedRecipe)}
         />
       )}
     </div>

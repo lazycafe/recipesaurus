@@ -23,6 +23,7 @@ import { useSwipeActions } from '../hooks/useSwipeActions';
 import type { MealPlanHistoryItem, MealPlanMentionedRecipe, MealPlanResult, MealPlanUsage, Recipe as ClientRecipe } from '../client/types';
 import type { Recipe } from '../types/Recipe';
 import type { FormEvent, ReactNode } from 'react';
+import { getRecipeDetailRouteId } from '../utils/recipeDetailRoute';
 
 const MAX_REQUEST_LENGTH = 1000;
 const PAID_WEEKLY_LIMIT = 50;
@@ -139,6 +140,7 @@ export function MealPlannerPage() {
   const [selectedRecipeIsPublicView, setSelectedRecipeIsPublicView] = useState(false);
   const [isSavingSelectedRecipe, setIsSavingSelectedRecipe] = useState(false);
   const [highlightedMealPlanId, setHighlightedMealPlanId] = useState<string | null>(null);
+  const [routeSearch, setRouteSearch] = useState(() => window.location.search);
   const isSubmittingRef = useRef(false);
 
   const charactersRemaining = MAX_REQUEST_LENGTH - request.length;
@@ -152,6 +154,7 @@ export function MealPlannerPage() {
       historyPage * HISTORY_ITEMS_PER_PAGE
     )
   ), [history, historyPage]);
+  const requestedRecipeId = useMemo(() => getRecipeDetailRouteId(routeSearch), [routeSearch]);
   const { swipeHandlers: historyPaginationSwipeHandlers } = useSwipeActions<HTMLElement>({
     enabled: historyPageCount > 1,
     onSwipeLeft: historyPage < historyPageCount
@@ -243,6 +246,41 @@ export function MealPlannerPage() {
       isMounted = false;
     };
   }, [client]);
+
+  useEffect(() => {
+    const handlePopState = () => setRouteSearch(window.location.search);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!requestedRecipeId || selectedRecipe?.id === requestedRecipeId) return;
+
+    const savedRecipe = recipeById.get(requestedRecipeId);
+    if (savedRecipe) {
+      setSelectedRecipe(savedRecipe);
+      setSelectedRecipeIsPublicView(false);
+      return;
+    }
+
+    let isMounted = true;
+    client.discover.getRecipe(requestedRecipeId)
+      .then(result => {
+        if (!isMounted || !result.data?.recipe) return;
+
+        setSelectedRecipe(current => (
+          current?.id === result.data!.recipe.id ? current : result.data!.recipe
+        ));
+        setSelectedRecipeIsPublicView(true);
+      })
+      .catch(() => {
+        // An invalid route should not block the meal planner itself.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [client, recipeById, requestedRecipeId, selectedRecipe?.id]);
 
   useEffect(() => {
     setHistoryPage(prev => Math.min(prev, historyPageCount));

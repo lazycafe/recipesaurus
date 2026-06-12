@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { MyRecipesPage } from './MyRecipesPage';
 import * as RecipeContext from '../context/RecipeContext';
@@ -36,6 +36,7 @@ describe('MyRecipesPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/');
 
     vi.mocked(RecipeContext.useRecipes).mockReturnValue({
       recipes: [],
@@ -141,6 +142,32 @@ describe('MyRecipesPage', () => {
 
     render(<MyRecipesPage />);
     expect(screen.getByText('Test Recipe')).toBeDefined();
+  });
+
+  it('opens recipe details from the recipe route param', async () => {
+    window.history.replaceState({}, '', '/my-recipes?recipe=recipe-1');
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [mockRecipe],
+      isLoading: false,
+      addRecipe: mockAddRecipe,
+      updateRecipe: mockUpdateRecipe,
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: mockGetAllTags.mockReturnValue(['dinner', 'quick']),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    render(
+      <MemoryRouter>
+        <MyRecipesPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(document.body.querySelector('.modal-detail .detail-title')?.textContent).toBe('Test Recipe');
+    });
+    expect(screen.getByRole('button', { name: 'Share' })).toBeDefined();
+    expect(screen.getByRole('button', { name: /download pdf/i })).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Save Recipe' })).toBeNull();
   });
 
   it('allows editing a saved reference attributed to another chef', () => {

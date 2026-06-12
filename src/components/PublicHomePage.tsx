@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { Link2, Download, Share2, Loader2, ChefHat, ArrowRight, Sparkles, Users, Book } from 'lucide-react';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
@@ -10,6 +10,7 @@ import { defaultClient } from '../client/defaultClient';
 import type { Recipe } from '../client/types';
 import { SAMPLE_RECIPES } from '../data/sampleRecipes';
 import { storePendingPublicHomeRecipeSave } from '../utils/pendingPublicHomeRecipeSave';
+import { getRecipeDetailRouteId } from '../utils/recipeDetailRoute';
 
 interface ExtractedRecipe {
   title: string;
@@ -45,8 +46,10 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
   const [isSharing, setIsSharing] = useState(false);
   const [discoverRecipes, setDiscoverRecipes] = useState<Recipe[]>(() => buildDiscoverPreview([]));
   const [selectedDiscoverRecipe, setSelectedDiscoverRecipe] = useState<Recipe | null>(null);
+  const [routeSearch, setRouteSearch] = useState(() => window.location.search);
   const providedClient = useOptionalClient();
   const client = providedClient ?? defaultClient;
+  const requestedRecipeId = useMemo(() => getRecipeDetailRouteId(routeSearch), [routeSearch]);
 
   useEffect(() => {
     if (!providedClient) return;
@@ -67,6 +70,40 @@ export function PublicHomePage({ onSignUp, onSignIn }: PublicHomePageProps) {
       isMounted = false;
     };
   }, [providedClient]);
+
+  useEffect(() => {
+    const handlePopState = () => setRouteSearch(window.location.search);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (!requestedRecipeId) return;
+
+    const recipe = discoverRecipes.find(item => item.id === requestedRecipeId) ||
+      SAMPLE_RECIPES.find(item => item.id === requestedRecipeId);
+    if (recipe) {
+      setSelectedDiscoverRecipe(current => (current?.id === recipe.id ? current : recipe));
+      return;
+    }
+
+    let isMounted = true;
+    client.discover.getRecipe(requestedRecipeId)
+      .then(result => {
+        if (isMounted && result.data?.recipe) {
+          setSelectedDiscoverRecipe(current => (
+            current?.id === result.data!.recipe.id ? current : result.data!.recipe
+          ));
+        }
+      })
+      .catch(() => {
+        // Keep the public page usable if an old or unavailable recipe link is opened.
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [client, discoverRecipes, requestedRecipeId]);
 
   const handleExtract = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Heart, ChefHat, BookOpen, Loader2, TrendingUp, Compass } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
@@ -14,6 +14,7 @@ import { AddRecipeModal } from './AddRecipeModal';
 import { ConfirmModal } from './ConfirmModal';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { useSwipeActions } from '../hooks/useSwipeActions';
+import { getRecipeDetailRouteId } from '../utils/recipeDetailRoute';
 
 interface RecipeCardCompactProps {
   recipe: Recipe;
@@ -262,6 +263,7 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     saveCookbook,
     unsaveRecipe,
     unsaveCookbook,
+    getPublicRecipe,
   } = useDiscovery();
 
   const { updateRecipe, deleteRecipe, refreshRecipes } = useRecipes();
@@ -491,8 +493,9 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     await loadMoreCookbooks({ query: cookbookSearchQuery });
   };
 
-  const uniqueRecipes = uniqueById(recipes);
-  const uniqueCookbooks = uniqueById(cookbooks);
+  const uniqueRecipes = useMemo(() => uniqueById(recipes), [recipes]);
+  const uniqueCookbooks = useMemo(() => uniqueById(cookbooks), [cookbooks]);
+  const requestedRecipeId = getRecipeDetailRouteId(searchParams);
   const normalizedRecipeSearchQuery = recipeSearchQuery.trim().toLowerCase();
   const normalizedCookbookSearchQuery = cookbookSearchQuery.trim().toLowerCase();
   const activeSearchQuery = tab === 'recipes' ? recipeSearchQuery : cookbookSearchQuery;
@@ -544,6 +547,27 @@ export function DiscoveryPage({ tab = 'recipes' }: DiscoveryPageProps) {
     ignoreSelectors: ['.discovery-card', '.tag-btn', '.tag-clear', '.search-input-wrapper'],
     onSwipeLeft: tab === 'recipes' ? () => navigate('/discover/cookbooks', { replace: true }) : undefined,
   });
+
+  useEffect(() => {
+    if (tab !== 'recipes' || !requestedRecipeId) return;
+
+    const recipe = uniqueRecipes.find(item => item.id === requestedRecipeId);
+    if (recipe) {
+      setSelectedRecipe(current => (current?.id === recipe.id ? current : recipe));
+      return;
+    }
+
+    let isMounted = true;
+    getPublicRecipe(requestedRecipeId).then(publicRecipe => {
+      if (isMounted && publicRecipe) {
+        setSelectedRecipe(current => (current?.id === publicRecipe.id ? current : publicRecipe));
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [getPublicRecipe, requestedRecipeId, tab, uniqueRecipes]);
 
   return (
     <div className="discovery-page" {...discoverySwipeHandlers}>

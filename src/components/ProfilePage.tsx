@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ChefHat, Edit3, Loader2, UserPlus, Users, X, Check, UserMinus, BookOpen, Upload, Trash2, Share2, Sparkles, Trophy } from 'lucide-react';
 import { useClient } from '../client/ClientContext';
 import type { Cookbook as ClientCookbook, ProfileBadge, ProfileUser, Recipe, UserProfile } from '../client/types';
@@ -13,6 +13,7 @@ import { ModalOverlay } from './ModalOverlay';
 import { RecipeCardCompact } from './RecipeCardCompact';
 import { RecipeDetail } from './RecipeDetail';
 import { UserAvatar } from './UserAvatar';
+import { getRecipeDetailRouteId } from '../utils/recipeDetailRoute';
 
 function mapCookbook(cookbook: ClientCookbook): Cookbook {
   return {
@@ -56,10 +57,12 @@ interface ProfilePageProps {
 export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const client = useClient();
   const { user, updateProfile } = useAuth();
   const { showToast } = useToast();
   const targetUserId = userId || user?.id;
+  const requestedRecipeId = getRecipeDetailRouteId(searchParams);
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,6 +75,7 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
   const [profileEditFeedback, setProfileEditFeedback] = useState<ModalFeedback | null>(null);
   const [friendEmail, setFriendEmail] = useState('');
   const [isFriendActionLoading, setIsFriendActionLoading] = useState(false);
+  const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
   const [showFriends, setShowFriends] = useState(false);
   const [friends, setFriends] = useState<ProfileUser[]>([]);
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
@@ -100,6 +104,15 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (!requestedRecipeId || !profile) return;
+
+    const recipe = profile.recipes.find(item => item.id === requestedRecipeId && item.isPublic);
+    if (recipe) {
+      setSelectedRecipe(current => (current?.id === recipe.id ? current : recipe));
+    }
+  }, [profile, requestedRecipeId]);
 
   const loadFriends = async () => {
     if (!profile) return;
@@ -306,6 +319,54 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
     }
   };
 
+  const handleSaveRecipe = async (recipe: Recipe) => {
+    if (recipe.isSaved) return;
+
+    if (!user) {
+      if (onSignIn) {
+        onSignIn();
+      } else {
+        showToast({ message: 'Please sign in to save recipes', type: 'info' });
+      }
+      return;
+    }
+
+    setSavingRecipeId(recipe.id);
+    const result = await client.discover.saveRecipe(recipe.id);
+    setSavingRecipeId(null);
+
+    if (!result.data?.id) {
+      showToast({ message: result.error || 'Could not save recipe', type: 'error' });
+      return;
+    }
+
+    const savedCopyId = result.data.id;
+    setProfile(current => current
+      ? {
+          ...current,
+          recipes: current.recipes.map(item =>
+            item.id === recipe.id
+              ? { ...item, isSaved: true, savedCopyId }
+              : item
+          ),
+        }
+      : current
+    );
+    setSelectedRecipe(current =>
+      current?.id === recipe.id
+        ? { ...current, isSaved: true, savedCopyId }
+        : current
+    );
+    showToast({
+      message: 'Saved to My Recipes',
+      type: 'success',
+      action: {
+        label: 'View',
+        onClick: () => navigate('/my-recipes', { replace: true }),
+      },
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="profile-page profile-loading">
@@ -330,6 +391,7 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
   const publicRecipes = profile.recipes.filter(recipe => recipe.isPublic);
   const publicCookbooks = profile.cookbooks.filter(cookbook => cookbook.isPublic).map(mapCookbook);
   const profileBadges = profile.user.badges || [];
+  const selectedRecipeIsOwner = selectedRecipe ? (selectedRecipe.isOwner ?? profile.isCurrentUser) : false;
 
   return (
     <div className="profile-page">
@@ -630,8 +692,11 @@ export function ProfilePage({ onSignIn }: ProfilePageProps = {}) {
         <RecipeDetail
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
-          readOnly={!profile.isCurrentUser}
-          isPublicView={!selectedRecipe.isOwner}
+          onSave={!selectedRecipeIsOwner ? () => handleSaveRecipe(selectedRecipe) : undefined}
+          isSaving={savingRecipeId === selectedRecipe.id}
+          isSaved={Boolean(selectedRecipe.isSaved)}
+          readOnly={!selectedRecipeIsOwner}
+          isPublicView={!selectedRecipeIsOwner}
         />
       )}
     </div>

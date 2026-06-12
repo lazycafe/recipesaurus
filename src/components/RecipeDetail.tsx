@@ -8,6 +8,11 @@ import { ModalOverlay } from './ModalOverlay';
 import { ShareRecipeModal } from './ShareRecipeModal';
 import { downloadRecipePdf } from '../utils/recipePdf';
 import { useSwipeActions } from '../hooks/useSwipeActions';
+import {
+  LEGACY_RECIPE_DETAIL_ROUTE_PARAM,
+  RECIPE_DETAIL_ROUTE_PARAM,
+  clearRecipeDetailRouteParams,
+} from '../utils/recipeDetailRoute';
 
 const RECIPE_DETAIL_HISTORY_KEY = 'recipesaurusRecipeDetailModal';
 
@@ -32,7 +37,7 @@ export function RecipeDetail({
   onSave,
   isSaving = false,
   isSaved = false,
-  saveLabel = 'Save to My Recipes',
+  saveLabel = 'Save Recipe',
   readOnly = false,
   isPublicView = false,
 }: RecipeDetailProps) {
@@ -41,6 +46,9 @@ export function RecipeDetail({
   const publicSaveLabel = isSaved ? 'Saved to My Recipes' : saveLabel;
   const onCloseRef = useRef(onClose);
   const modalHistoryIdRef = useRef(`recipe-detail-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const modalRouteWasPushedRef = useRef(false);
+  const modalBaseUrlRef = useRef<string | null>(null);
+  const hasSaveAction = Boolean(onSave) && (isPublicView || ('isOwner' in recipe && recipe.isOwner === false));
   const { swipeHandlers: closeSwipeHandlers } = useSwipeActions<HTMLDivElement>({
     onSwipeDown: requestClose,
   });
@@ -51,16 +59,39 @@ export function RecipeDetail({
 
   useEffect(() => {
     const modalHistoryId = modalHistoryIdRef.current;
+    const currentUrl = new URL(window.location.href);
+    const baseUrl = new URL(currentUrl.href);
+    baseUrl.search = clearRecipeDetailRouteParams(baseUrl.searchParams).toString();
+    modalBaseUrlRef.current = `${baseUrl.pathname}${baseUrl.search}${baseUrl.hash}`;
+
+    const nextUrl = new URL(currentUrl.href);
+    nextUrl.searchParams.set(RECIPE_DETAIL_ROUTE_PARAM, recipe.id);
+    nextUrl.searchParams.delete(LEGACY_RECIPE_DETAIL_ROUTE_PARAM);
+    const nextPath = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+    const currentRecipeRouteId = currentUrl.searchParams.get(RECIPE_DETAIL_ROUTE_PARAM);
+    const legacyRecipeRouteId = currentUrl.searchParams.get(LEGACY_RECIPE_DETAIL_ROUTE_PARAM);
+    const currentPath = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+    const isAlreadyOnRecipeRoute = currentRecipeRouteId === recipe.id || legacyRecipeRouteId === recipe.id;
     const currentState = window.history.state;
 
-    if (currentState?.[RECIPE_DETAIL_HISTORY_KEY] !== modalHistoryId) {
+    if (!isAlreadyOnRecipeRoute) {
+      modalRouteWasPushedRef.current = true;
       window.history.pushState(
         {
           ...(currentState && typeof currentState === 'object' ? currentState : {}),
           [RECIPE_DETAIL_HISTORY_KEY]: modalHistoryId,
         },
         '',
-        window.location.href
+        nextPath
+      );
+    } else if (currentState?.[RECIPE_DETAIL_HISTORY_KEY] !== modalHistoryId || currentPath !== nextPath) {
+      window.history.replaceState(
+        {
+          ...(currentState && typeof currentState === 'object' ? currentState : {}),
+          [RECIPE_DETAIL_HISTORY_KEY]: modalHistoryId,
+        },
+        '',
+        nextPath
       );
     }
 
@@ -71,13 +102,39 @@ export function RecipeDetail({
     };
 
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      const activeUrl = new URL(window.location.href);
+      if (
+        activeUrl.searchParams.get(RECIPE_DETAIL_ROUTE_PARAM) === recipe.id &&
+        window.history.state?.[RECIPE_DETAIL_HISTORY_KEY] === modalHistoryId &&
+        modalBaseUrlRef.current
+      ) {
+        const cleanupState = window.history.state && typeof window.history.state === 'object'
+          ? { ...window.history.state }
+          : {};
+        delete cleanupState[RECIPE_DETAIL_HISTORY_KEY];
+        window.history.replaceState(cleanupState, '', modalBaseUrlRef.current);
+      }
+    };
+  }, [recipe.id]);
 
   function requestClose() {
-    if (window.history.state?.[RECIPE_DETAIL_HISTORY_KEY] === modalHistoryIdRef.current) {
+    if (
+      modalRouteWasPushedRef.current &&
+      window.history.state?.[RECIPE_DETAIL_HISTORY_KEY] === modalHistoryIdRef.current
+    ) {
       window.history.back();
       return;
+    }
+
+    if (modalBaseUrlRef.current) {
+      const currentState = window.history.state;
+      const nextState = currentState && typeof currentState === 'object'
+        ? { ...currentState }
+        : {};
+      delete nextState[RECIPE_DETAIL_HISTORY_KEY];
+      window.history.replaceState(nextState, '', modalBaseUrlRef.current);
     }
 
     onClose();
@@ -176,7 +233,7 @@ export function RecipeDetail({
                 <Share2 size={16} strokeWidth={2} />
                 <span>Share</span>
               </button>
-              {isPublicView && onSave ? (
+              {hasSaveAction && onSave ? (
                 <button
                   className="btn-primary detail-icon-action"
                   onClick={onSave}

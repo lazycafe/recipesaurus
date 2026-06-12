@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { SharedCookbookView } from './SharedCookbookView';
 import * as ClientContext from '../client/ClientContext';
 import type { IClient } from '../client/types';
@@ -10,9 +11,11 @@ vi.mock('../client/ClientContext', () => ({
 
 describe('SharedCookbookView', () => {
   const mockGetShared = vi.fn();
+  const mockSaveRecipe = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/');
 
     mockGetShared.mockResolvedValue({
       data: {
@@ -53,9 +56,12 @@ describe('SharedCookbookView', () => {
       invites: {} as IClient['invites'],
       ai: {} as IClient['ai'],
       billing: {} as IClient['billing'],
-      discover: {} as IClient['discover'],
+      discover: {
+        saveRecipe: mockSaveRecipe,
+      } as unknown as IClient['discover'],
       profile: {} as IClient['profile'],
     });
+    mockSaveRecipe.mockResolvedValue({ data: { id: 'recipe-1' } });
   });
 
   it('loads a shared cookbook through the configured client', async () => {
@@ -74,5 +80,48 @@ describe('SharedCookbookView', () => {
 
     await screen.findByRole('heading', { name: 'Shared Favorites' });
     expect(screen.getByRole('link', { name: /recipesaurus home/i }).getAttribute('href')).toBe('/');
+  });
+
+  it('saves a public recipe from the shared cookbook detail modal', async () => {
+    mockGetShared.mockResolvedValueOnce({
+      data: {
+        cookbook: {
+          id: 'cookbook-1',
+          name: 'Shared Favorites',
+          description: 'Recipes for friends',
+          recipeCount: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          isOwner: false,
+          ownerName: 'Dev User',
+        },
+        recipes: [{
+          id: 'recipe-1',
+          title: 'Shared Noodles',
+          description: 'A public shared recipe',
+          ingredients: ['noodles'],
+          instructions: ['Cook noodles'],
+          tags: ['dinner'],
+          isPublic: true,
+          isOwner: false,
+          isSaved: false,
+          createdAt: 1,
+        }],
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <SharedCookbookView token="share-token" />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByText('Shared Noodles'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Recipe' }));
+
+    await waitFor(() => {
+      expect(mockSaveRecipe).toHaveBeenCalledWith('recipe-1');
+    });
+    expect(screen.getByRole('button', { name: 'Saved to My Recipes' })).toBeDefined();
   });
 });

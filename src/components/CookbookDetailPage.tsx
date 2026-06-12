@@ -15,12 +15,19 @@ import { AddRecipeModal } from './AddRecipeModal';
 import { AddToCookbookModal } from './AddToCookbookModal';
 import { useCookbooks } from '../context/CookbookContext';
 import { useRecipes } from '../context/RecipeContext';
+import { useOptionalToast } from '../context/ToastContext';
+import {
+  clearRecipeDetailRouteParams,
+  getRecipeDetailRouteId,
+} from '../utils/recipeDetailRoute';
 
 interface CookbookRecipe extends Recipe {
   addedByUserId?: string;
   addedByUserName?: string | null;
   ownerId?: string;
   isOwner?: boolean;
+  isSaved?: boolean;
+  savedCopyId?: string | null;
 }
 
 function mapRecipeResponse(r: ClientRecipe): CookbookRecipe {
@@ -42,6 +49,8 @@ function mapRecipeResponse(r: ClientRecipe): CookbookRecipe {
     addedByUserName: r.addedByUserName,
     ownerId: r.ownerId,
     isOwner: r.isOwner,
+    isSaved: r.isSaved,
+    savedCopyId: r.savedCopyId,
   };
 }
 
@@ -91,8 +100,9 @@ export function CookbookDetailPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const client = useClient();
+  const toast = useOptionalToast();
   const { createCookbook, updateCookbook, deleteCookbook, leaveCookbook } = useCookbooks();
-  const { updateRecipe, deleteRecipe } = useRecipes();
+  const { updateRecipe, deleteRecipe, refreshRecipes } = useRecipes();
 
   const [cookbook, setCookbook] = useState<Cookbook | null>(null);
   const [recipes, setRecipes] = useState<CookbookRecipe[]>([]);
@@ -109,6 +119,7 @@ export function CookbookDetailPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showCreateCookbookModal, setShowCreateCookbookModal] = useState(false);
   const [showAddRecipeModal, setShowAddRecipeModal] = useState(false);
+  const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchCookbook() {
@@ -131,7 +142,7 @@ export function CookbookDetailPage() {
     fetchCookbook();
   }, [id, client]);
 
-  const requestedRecipeId = searchParams.get('recipeId') ?? searchParams.get('recipe');
+  const requestedRecipeId = getRecipeDetailRouteId(searchParams);
 
   useEffect(() => {
     if (!requestedRecipeId || recipes.length === 0) return;
@@ -180,13 +191,12 @@ export function CookbookDetailPage() {
   };
 
   const canEditRecipe = (recipe: CookbookRecipe) => recipe.isOwner !== false;
+  const canSaveRecipe = (recipe: CookbookRecipe) => recipe.isOwner === false && recipe.isPublic === true;
 
   const clearRecipeParam = () => {
-    if (!searchParams.has('recipeId') && !searchParams.has('recipe')) return;
+    if (!requestedRecipeId) return;
 
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.delete('recipeId');
-    nextParams.delete('recipe');
+    const nextParams = clearRecipeDetailRouteParams(searchParams);
     setSearchParams(nextParams, { replace: true });
   };
 
@@ -239,6 +249,40 @@ export function CookbookDetailPage() {
     } catch (error) {
       console.error('Failed to update recipe:', error);
     }
+  };
+
+  const handleSaveRecipe = async (recipe: CookbookRecipe) => {
+    if (!canSaveRecipe(recipe) || recipe.isSaved) return;
+
+    setSavingRecipeId(recipe.id);
+    const result = await client.discover.saveRecipe(recipe.id);
+    setSavingRecipeId(null);
+
+    if (!result.data?.id) {
+      toast?.showToast({ message: result.error || 'Could not save recipe', type: 'error' });
+      return;
+    }
+
+    const savedCopyId = result.data.id;
+    setRecipes(currentRecipes => currentRecipes.map(currentRecipe =>
+      currentRecipe.id === recipe.id
+        ? { ...currentRecipe, isSaved: true, savedCopyId }
+        : currentRecipe
+    ));
+    setSelectedRecipe(currentRecipe =>
+      currentRecipe?.id === recipe.id
+        ? { ...currentRecipe, isSaved: true, savedCopyId }
+        : currentRecipe
+    );
+    await refreshRecipes();
+    toast?.showToast({
+      message: 'Saved to My Recipes',
+      type: 'success',
+      action: {
+        label: 'View',
+        onClick: () => navigate('/my-recipes', { replace: true }),
+      },
+    });
   };
 
   const handleDeleteRecipe = async () => {
@@ -442,6 +486,9 @@ export function CookbookDetailPage() {
         <RecipeDetail
           recipe={selectedRecipe}
           onClose={handleCloseRecipeDetail}
+          onSave={canSaveRecipe(selectedRecipe) ? () => handleSaveRecipe(selectedRecipe) : undefined}
+          isSaving={savingRecipeId === selectedRecipe.id}
+          isSaved={Boolean(selectedRecipe.isSaved)}
           onEdit={canEditRecipe(selectedRecipe) ? () => {
             setEditingRecipe(selectedRecipe);
             handleCloseRecipeDetail();
@@ -449,6 +496,8 @@ export function CookbookDetailPage() {
           onDelete={selectedRecipe.isOwner ? () => {
             setRecipeToDelete(selectedRecipe);
           } : undefined}
+          readOnly={!canEditRecipe(selectedRecipe)}
+          isPublicView={canSaveRecipe(selectedRecipe)}
         />
       )}
 

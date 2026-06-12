@@ -21,6 +21,7 @@ import { useSwipeActions } from '../hooks/useSwipeActions';
 import { useCookbooks } from '../context/CookbookContext';
 import { Recipe, RecipeFormData } from '../types/Recipe';
 import { dedupeRecipes } from '../utils/recipeDedupe';
+import { getRecipeDetailRouteId } from '../utils/recipeDetailRoute';
 
 interface ExtendedRecipe extends Recipe {
   ownerName?: string;
@@ -67,9 +68,11 @@ export function MyRecipesPage() {
   const [showCreateCookbookModal, setShowCreateCookbookModal] = useState(false);
   const [showAddRecipeModal, setShowAddRecipeModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [routeSearch, setRouteSearch] = useState(() => window.location.search);
 
   const filterMenuRef = useRef<HTMLDivElement>(null);
   const uniqueRecipes = useMemo(() => dedupeRecipes(recipes), [recipes]);
+  const requestedRecipeId = useMemo(() => getRecipeDetailRouteId(routeSearch), [routeSearch]);
 
   // Close filter menu when clicking outside
   useEffect(() => {
@@ -80,6 +83,12 @@ export function MyRecipesPage() {
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => setRouteSearch(window.location.search);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const allTags = getAllTags();
@@ -182,6 +191,15 @@ export function MyRecipesPage() {
   useEffect(() => {
     setCurrentPage(prev => Math.min(prev, pageCount));
   }, [pageCount]);
+
+  useEffect(() => {
+    if (!requestedRecipeId || uniqueRecipes.length === 0) return;
+
+    const recipe = uniqueRecipes.find(item => item.id === requestedRecipeId) as ExtendedRecipe | undefined;
+    if (recipe) {
+      setSelectedRecipe(current => (current?.id === recipe.id ? current : recipe));
+    }
+  }, [requestedRecipeId, uniqueRecipes]);
 
   if (isLoading) {
     return (

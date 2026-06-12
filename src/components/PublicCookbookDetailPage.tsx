@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Heart, Loader2, User, Check, Share2 } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
@@ -8,10 +8,12 @@ import { useCookbooks } from '../context/CookbookContext';
 import { Recipe, Cookbook } from '../client/types';
 import { DinoMascot } from './DinoMascot';
 import { RecipeDetail } from './RecipeDetail';
+import { getRecipeDetailRouteId } from '../utils/recipeDetailRoute';
 
 export function PublicCookbookDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const { showToast } = useToast();
   const { refreshCookbooks } = useCookbooks();
@@ -24,6 +26,7 @@ export function PublicCookbookDetailPage() {
   const [savingRecipeId, setSavingRecipeId] = useState<string | null>(null);
   const [isSavingCookbook, setIsSavingCookbook] = useState(false);
   const [isCookbookSaved, setIsCookbookSaved] = useState(false);
+  const requestedRecipeId = getRecipeDetailRouteId(searchParams);
 
   useEffect(() => {
     async function load() {
@@ -39,6 +42,15 @@ export function PublicCookbookDetailPage() {
     }
     load();
   }, [id, getPublicCookbook]);
+
+  useEffect(() => {
+    if (!requestedRecipeId || recipes.length === 0) return;
+
+    const recipe = recipes.find(item => item.id === requestedRecipeId);
+    if (recipe) {
+      setSelectedRecipe(current => (current?.id === recipe.id ? current : recipe));
+    }
+  }, [requestedRecipeId, recipes]);
 
   const handleSaveRecipe = async (recipe: Recipe) => {
     if (!user) {

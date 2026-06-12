@@ -23,9 +23,9 @@ vi.mock('../context/CookbookContext', () => ({
   useCookbooks: vi.fn(),
 }));
 
-function renderCookbookDetail() {
+function renderCookbookDetail(entry = '/discover/cookbooks/cookbook-1') {
   return render(
-    <MemoryRouter initialEntries={['/discover/cookbooks/cookbook-1']}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/discover/cookbooks/:id" element={<PublicCookbookDetailPage />} />
         <Route path="/cookbooks" element={<div>Cookbooks route</div>} />
@@ -67,6 +67,7 @@ describe('PublicCookbookDetailPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/');
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: mockClipboardWriteText },
@@ -201,5 +202,17 @@ describe('PublicCookbookDetailPage', () => {
       expect(mockSaveRecipe).toHaveBeenCalledWith('recipe-1');
     });
     expect(screen.getByLabelText('Unsave recipe')).toBeDefined();
+  });
+
+  it('opens a recipe detail modal from the recipe route param', async () => {
+    renderCookbookDetail('/discover/cookbooks/cookbook-1?recipe=recipe-1');
+
+    await waitFor(() => {
+      expect(document.body.querySelector('.modal-detail .detail-title')?.textContent).toBe('Test Recipe');
+    });
+
+    expect(screen.getByRole('button', { name: 'Share' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Save Recipe' })).toBeDefined();
+    expect(screen.getByRole('button', { name: /download pdf/i })).toBeDefined();
   });
 });
