@@ -287,6 +287,25 @@ describe('MyRecipesPage', () => {
     expect(screen.getByText('Tags')).toBeDefined();
   });
 
+  it('closes filter menu when close button clicked', () => {
+    vi.mocked(RecipeContext.useRecipes).mockReturnValue({
+      recipes: [mockRecipe],
+      isLoading: false,
+      addRecipe: mockAddRecipe,
+      updateRecipe: mockUpdateRecipe,
+      deleteRecipe: mockDeleteRecipe,
+      getAllTags: mockGetAllTags.mockReturnValue(['dinner', 'quick']),
+      refreshRecipes: mockRefreshRecipes,
+    });
+
+    render(<MyRecipesPage />);
+    fireEvent.click(screen.getByText('Filter'));
+    expect(screen.getByText('Filters')).toBeDefined();
+
+    fireEvent.click(screen.getByLabelText('Close filters'));
+    expect(screen.queryByText('Filters')).toBeNull();
+  });
+
   it('filters recipes by search query', () => {
     vi.mocked(RecipeContext.useRecipes).mockReturnValue({
       recipes: [mockRecipe, { ...mockRecipe, id: 'recipe-2', title: 'Pasta Dish' }],

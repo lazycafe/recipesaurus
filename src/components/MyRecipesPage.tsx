@@ -259,11 +259,21 @@ export function MyRecipesPage() {
                 <div className="filter-menu">
                   <div className="filter-menu-header">
                     <h3>Filters</h3>
-                    {hasFilters && (
-                      <button className="btn-clear-filters" onClick={handleClearFilters}>
-                        Clear all
+                    <div className="filter-menu-actions">
+                      {hasFilters && (
+                        <button className="btn-clear-filters" onClick={handleClearFilters}>
+                          Clear all
+                        </button>
+                      )}
+                      <button
+                        className="btn-close-filter"
+                        type="button"
+                        aria-label="Close filters"
+                        onClick={() => setShowFilterMenu(false)}
+                      >
+                        <X size={18} strokeWidth={2.5} />
                       </button>
-                    )}
+                    </div>
                   </div>
 
                   {allTags.length > 0 && (

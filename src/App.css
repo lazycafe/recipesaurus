@@ -8902,6 +8902,13 @@ img {
   margin: 0;
 }
 
+.filter-menu-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
 .btn-clear-filters {
   font-size: var(--text-sm);
   font-weight: 600;
@@ -8917,6 +8924,28 @@ img {
 .btn-clear-filters:hover {
   background: var(--color-terracotta);
   color: white;
+  transform: translateY(-1px);
+}
+
+.btn-close-filter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  background: var(--color-cream);
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+}
+
+.btn-close-filter:hover {
+  background: var(--color-cream-dark);
+  color: var(--color-text);
   transform: translateY(-1px);
 }
 
