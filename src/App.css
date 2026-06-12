@@ -9120,10 +9120,17 @@ img {
   }
 
   .filter-menu {
-    width: calc(100vw - var(--space-8));
-    left: 50%;
-    transform: translateX(-50%);
-    right: auto;
+    position: fixed;
+    top: auto;
+    right: max(var(--space-4), env(safe-area-inset-right));
+    bottom: calc(var(--mobile-nav-offset) + var(--space-3));
+    left: max(var(--space-4), env(safe-area-inset-left));
+    width: auto;
+    max-height: min(70dvh, calc(100dvh - var(--mobile-nav-offset) - var(--space-8)));
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
+    overscroll-behavior: contain;
+    transform: none;
   }
 
   .recipe-pagination {
