@@ -5,6 +5,7 @@ import type {
   DbUser,
   DbSession,
   DbRecipe,
+  DbRecipeSave,
   DbCookbook,
   UserInfo,
   ProfileUserInfo,
@@ -33,19 +34,14 @@ import {
   MEAL_PLAN_WEEK_MS,
   MEAL_PLAN_INVALID_REQUEST_CODE,
   MEAL_PLAN_LIMIT_CODE,
-  MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL,
-  MEAL_PLAN_STARTER_RECIPE_OWNER_NAME,
   MEAL_PLAN_UNAUTHORIZED_CODE,
   type MealPlanRecipeContext,
-  type MealPlanGeneratedRecipeDraft,
   type MealPlanHistoryItem,
   type MealPlanUsageInfo,
-  buildMealPlanGeneratedRecipeDrafts,
   buildMealPlanHistoryItem,
   buildMealPlanSuggestionDetails,
   buildFallbackMealPlan,
   mergeMealPlanRecipeContexts,
-  normalizeMealPlanRecipeTitle,
   normalizeMealPlanRequest,
 } from './mealPlanner';
 import {
@@ -281,7 +277,7 @@ function formatRecipe(
   r: DbRecipe & { owner_name?: string | null },
   currentUserId?: string,
   addedByUserName?: string | null,
-  options?: { savedCopyId?: string | null }
+  options?: { savedCopyId?: string | null; isOwner?: boolean; isPublic?: boolean; createdAt?: number }
 ): RecipeInfo {
   const recipe: RecipeInfo = {
     id: r.id,
@@ -295,11 +291,11 @@ function formatRecipe(
     prepTime: r.prep_time,
     cookTime: r.cook_time,
     servings: r.servings,
-    isPublic: r.is_public === 1,
+    isPublic: options?.isPublic ?? r.is_public === 1,
     ownerId: r.owner_id,
     ownerName: r.owner_name,
-    isOwner: currentUserId ? r.user_id === currentUserId : undefined,
-    createdAt: r.created_at,
+    isOwner: options?.isOwner ?? (currentUserId ? r.user_id === currentUserId : undefined),
+    createdAt: options?.createdAt ?? r.created_at,
     addedByUserName,
   };
 
@@ -336,11 +332,6 @@ function isSavedRecipeMatch(candidate: DbRecipe, source: DbRecipe, includeOrigin
 }
 
 const MAX_SQL_BIND_PARAMS = 90;
-
-interface RecipeCopyInsert {
-  id: string;
-  source: DbRecipe;
-}
 
 interface CookbookRecipeLinkInsert {
   cookbookId: string;
@@ -1344,17 +1335,32 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401 };
     }
 
-    const result = await this.db.all<DbRecipe & { owner_name: string | null }>(
-      `SELECT r.*, u.name as owner_name
-       FROM recipes r
-       LEFT JOIN users u ON r.owner_id = u.id
-       WHERE r.user_id = ?
-       ORDER BY r.created_at DESC`,
+    const result = await this.db.all<DbRecipe & { owner_name: string | null; saved_reference: number; sort_at: number }>(
+      `SELECT *
+       FROM (
+         SELECT r.*, u.name as owner_name, 0 as saved_reference, r.created_at as sort_at
+         FROM recipes r
+         LEFT JOIN users u ON r.owner_id = u.id
+         WHERE r.user_id = ?
+         UNION ALL
+         SELECT r.*, u.name as owner_name, 1 as saved_reference, rs.saved_at as sort_at
+         FROM recipe_saves rs
+         JOIN recipes r ON r.id = rs.recipe_id
+         LEFT JOIN users u ON r.owner_id = u.id
+         WHERE rs.user_id = ?
+       )
+       ORDER BY sort_at DESC`,
+      user.id,
       user.id
     );
 
     return {
-      data: { recipes: dedupeRecipeRows(result.results, user.id).map(r => formatRecipe(r, user.id)) },
+      data: {
+        recipes: dedupeRecipeRows(result.results, user.id).map(r => formatRecipe(r, user.id, null, r.saved_reference === 1
+          ? { isOwner: true, isPublic: false, createdAt: r.sort_at }
+          : undefined
+        )),
+      },
       status: 200,
     };
   }
@@ -1448,12 +1454,21 @@ export class CoreHandlers {
   }
 
   private async getMealPlanRecipes(userId: string): Promise<MealPlanRecipeContext[]> {
-    const recipes = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
-      `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings
-       FROM recipes
-       WHERE user_id = ?
-       ORDER BY created_at DESC
+    const recipes = await this.db.all<Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'> & { sort_at: number }>(
+      `SELECT id, title, description, ingredients, tags, prep_time, cook_time, servings, sort_at
+       FROM (
+         SELECT r.id, r.title, r.description, r.ingredients, r.tags, r.prep_time, r.cook_time, r.servings, r.created_at as sort_at
+         FROM recipes r
+         WHERE r.user_id = ?
+         UNION ALL
+         SELECT r.id, r.title, r.description, r.ingredients, r.tags, r.prep_time, r.cook_time, r.servings, rs.saved_at as sort_at
+         FROM recipe_saves rs
+         JOIN recipes r ON r.id = rs.recipe_id
+         WHERE rs.user_id = ?
+       )
+       ORDER BY sort_at DESC
        LIMIT ?`,
+      userId,
       userId,
       MEAL_PLAN_MAX_RECIPES
     );
@@ -1485,39 +1500,6 @@ export class CoreHandlers {
     return recipes.results.map(recipe => this.toMealPlanRecipeContext(recipe, 'public'));
   }
 
-  private async getMealPlanStarterRecipeOwner(): Promise<{ id: string } | null> {
-    return this.db.get<{ id: string }>(
-      'SELECT id FROM users WHERE email = ?',
-      MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL
-    );
-  }
-
-  private async getOrCreateMealPlanStarterRecipeOwner(now: number): Promise<{ id: string }> {
-    const existing = await this.getMealPlanStarterRecipeOwner();
-    if (existing) {
-      await this.db.run(
-        'UPDATE users SET name = ? WHERE id = ?',
-        MEAL_PLAN_STARTER_RECIPE_OWNER_NAME,
-        existing.id
-      );
-      return existing;
-    }
-
-    const userId = this.crypto.generateId();
-    await this.db.run(
-      'INSERT INTO users (id, email, name, avatar_url, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      userId,
-      MEAL_PLAN_STARTER_RECIPE_OWNER_EMAIL,
-      MEAL_PLAN_STARTER_RECIPE_OWNER_NAME,
-      null,
-      'recipesaurus-system-user',
-      'recipesaurus-system-user',
-      now
-    );
-
-    return { id: userId };
-  }
-
   private toMealPlanRecipeContext(
     recipe: Pick<DbRecipe, 'id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>,
     source: 'user' | 'public' = 'user'
@@ -1533,104 +1515,6 @@ export class CoreHandlers {
       servings: recipe.servings,
       source,
     };
-  }
-
-  private async createMealPlanGeneratedRecipes(
-    userId: string,
-    request: string,
-    suggestion: string,
-    recipes: MealPlanRecipeContext[],
-    now: number
-  ): Promise<MealPlanRecipeContext[]> {
-    const drafts = buildMealPlanGeneratedRecipeDrafts(request, suggestion, recipes);
-    if (drafts.length === 0) {
-      return [];
-    }
-
-    const existingRows = await this.db.all<Pick<DbRecipe, 'id' | 'user_id' | 'title' | 'description' | 'ingredients' | 'tags' | 'prep_time' | 'cook_time' | 'servings'>>(
-      `SELECT id, user_id, title, description, ingredients, tags, prep_time, cook_time, servings
-       FROM recipes
-       WHERE user_id = ? OR is_public = 1
-       ORDER BY
-         CASE WHEN user_id = ? THEN 0 ELSE 1 END,
-         created_at DESC`,
-      userId,
-      userId
-    );
-    const existingRecipesByTitle = new Map<string, MealPlanRecipeContext>();
-    const rememberExistingRecipe = (recipe: MealPlanRecipeContext) => {
-      const normalizedTitle = normalizeMealPlanRecipeTitle(recipe.title);
-      if (!existingRecipesByTitle.has(normalizedTitle)) {
-        existingRecipesByTitle.set(normalizedTitle, recipe);
-      }
-    };
-
-    recipes.forEach(recipe => rememberExistingRecipe(recipe));
-    existingRows.results.forEach(recipe => {
-      rememberExistingRecipe(this.toMealPlanRecipeContext(recipe, recipe.user_id === userId ? 'user' : 'public'));
-    });
-
-    const generatedRecipes: MealPlanRecipeContext[] = [];
-    let starterOwner: { id: string } | null = null;
-
-    for (const draft of drafts) {
-      const normalizedTitle = normalizeMealPlanRecipeTitle(draft.title);
-      const existingRecipe = existingRecipesByTitle.get(normalizedTitle);
-      if (existingRecipe) {
-        generatedRecipes.push(existingRecipe);
-        continue;
-      }
-
-      if (!starterOwner) {
-        starterOwner = await this.getOrCreateMealPlanStarterRecipeOwner(now);
-      }
-
-      const recipeId = this.crypto.generateId();
-      await this.insertMealPlanGeneratedRecipe(starterOwner.id, recipeId, draft, now);
-      const recipeContext: MealPlanRecipeContext = {
-        id: recipeId,
-        title: draft.title,
-        description: draft.description,
-        ingredients: draft.ingredients,
-        tags: draft.tags,
-        prepTime: draft.prepTime,
-        cookTime: draft.cookTime,
-        servings: draft.servings,
-        source: 'public',
-      };
-
-      existingRecipesByTitle.set(normalizedTitle, recipeContext);
-      generatedRecipes.push(recipeContext);
-    }
-
-    return generatedRecipes;
-  }
-
-  private async insertMealPlanGeneratedRecipe(
-    starterOwnerId: string,
-    recipeId: string,
-    draft: MealPlanGeneratedRecipeDraft,
-    now: number
-  ): Promise<void> {
-    await this.db.run(
-      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, is_public, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      recipeId,
-      starterOwnerId,
-      starterOwnerId,
-      draft.title,
-      draft.description,
-      JSON.stringify(draft.ingredients),
-      JSON.stringify(draft.instructions),
-      JSON.stringify(draft.tags),
-      draft.imageUrl,
-      null,
-      draft.prepTime,
-      draft.cookTime,
-      draft.servings,
-      1,
-      now
-    );
   }
 
   async createMealPlan(
@@ -1663,9 +1547,7 @@ export class CoreHandlers {
     const recipeContext = mergeMealPlanRecipeContexts(recipes, publicRecipes);
     const suggestion = buildFallbackMealPlan(request, recipeContext);
     const now = Date.now();
-    const generatedRecipes = await this.createMealPlanGeneratedRecipes(user.id, request, suggestion, recipeContext, now);
-    const recipesForLinks = mergeMealPlanRecipeContexts(recipeContext, generatedRecipes);
-    const details = buildMealPlanSuggestionDetails(request, suggestion, recipesForLinks);
+    const details = buildMealPlanSuggestionDetails(request, suggestion, recipeContext);
     const id = this.crypto.generateId();
 
     await this.db.run(
@@ -1685,7 +1567,7 @@ export class CoreHandlers {
         createdAt: now,
         ...details,
         usage: await this.getMealPlanUsageForUser(user.id, now),
-        recipeCount: recipesForLinks.length,
+        recipeCount: recipeContext.length,
       },
       status: 200,
     };
@@ -1752,53 +1634,121 @@ export class CoreHandlers {
       servings?: string;
       isPublic?: boolean;
     }
-  ): Promise<ApiResult<{ success: boolean }>> {
+  ): Promise<ApiResult<{ success: boolean; id?: string }>> {
     const user = await this.getSessionUser(ctx);
     if (!user) {
       return { error: 'Unauthorized', status: 401 };
     }
 
     // Only the owner can update a recipe
-    const existing = await this.db.get<{ id: string; owner_id: string }>(
-      'SELECT id, owner_id FROM recipes WHERE id = ? AND user_id = ?',
+    const existing = await this.db.get<DbRecipe>(
+      'SELECT * FROM recipes WHERE id = ? AND user_id = ?',
       recipeId,
       user.id
     );
-    if (!existing) {
+
+    if (existing) {
+      await this.db.run(
+        `UPDATE recipes SET
+          title = COALESCE(?, title),
+          description = COALESCE(?, description),
+          ingredients = COALESCE(?, ingredients),
+          instructions = COALESCE(?, instructions),
+          tags = COALESCE(?, tags),
+          image_url = ?,
+          source_url = ?,
+          prep_time = ?,
+          cook_time = ?,
+          servings = ?,
+          source_recipe_id = NULL,
+          is_public = COALESCE(?, is_public)
+        WHERE id = ? AND user_id = ?`,
+        data.title || null,
+        data.description || null,
+        data.ingredients ? JSON.stringify(data.ingredients) : null,
+        data.instructions ? JSON.stringify(data.instructions) : null,
+        data.tags ? JSON.stringify(data.tags) : null,
+        data.imageUrl ?? null,
+        data.sourceUrl ?? null,
+        data.prepTime ?? null,
+        data.cookTime ?? null,
+        data.servings ?? null,
+        data.isPublic !== undefined ? (data.isPublic ? 1 : 0) : null,
+        recipeId,
+        user.id
+      );
+
+      return { data: { success: true, id: recipeId }, status: 200 };
+    }
+
+    const savedRecipe = await this.db.get<DbRecipe>(
+      `SELECT r.*
+       FROM recipe_saves rs
+       JOIN recipes r ON r.id = rs.recipe_id
+       WHERE rs.user_id = ? AND rs.recipe_id = ?`,
+      user.id,
+      recipeId
+    );
+    if (!savedRecipe) {
       return { error: 'Recipe not found', status: 404 };
     }
 
+    const newRecipeId = this.crypto.generateId();
+    const now = Date.now();
     await this.db.run(
-      `UPDATE recipes SET
-        title = COALESCE(?, title),
-        description = COALESCE(?, description),
-        ingredients = COALESCE(?, ingredients),
-        instructions = COALESCE(?, instructions),
-        tags = COALESCE(?, tags),
-        image_url = ?,
-        source_url = ?,
-        prep_time = ?,
-        cook_time = ?,
-        servings = ?,
-        source_recipe_id = NULL,
-        is_public = COALESCE(?, is_public)
-      WHERE id = ? AND user_id = ?`,
-      data.title || null,
-      data.description || null,
-      data.ingredients ? JSON.stringify(data.ingredients) : null,
-      data.instructions ? JSON.stringify(data.instructions) : null,
-      data.tags ? JSON.stringify(data.tags) : null,
-      data.imageUrl ?? null,
-      data.sourceUrl ?? null,
-      data.prepTime ?? null,
-      data.cookTime ?? null,
-      data.servings ?? null,
-      data.isPublic !== undefined ? (data.isPublic ? 1 : 0) : null,
+      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      newRecipeId,
+      user.id,
+      user.id,
+      data.title !== undefined ? data.title : savedRecipe.title,
+      data.description !== undefined ? data.description : savedRecipe.description,
+      data.ingredients !== undefined ? JSON.stringify(data.ingredients) : savedRecipe.ingredients,
+      data.instructions !== undefined ? JSON.stringify(data.instructions) : savedRecipe.instructions,
+      data.tags !== undefined ? JSON.stringify(data.tags) : savedRecipe.tags,
+      data.imageUrl !== undefined ? (data.imageUrl || null) : savedRecipe.image_url,
+      data.sourceUrl !== undefined ? (data.sourceUrl || null) : savedRecipe.source_url,
+      data.prepTime !== undefined ? data.prepTime : savedRecipe.prep_time,
+      data.cookTime !== undefined ? data.cookTime : savedRecipe.cook_time,
+      data.servings !== undefined ? data.servings : savedRecipe.servings,
+      null,
+      data.isPublic !== undefined ? (data.isPublic ? 1 : 0) : 0,
+      now
+    );
+
+    const links = await this.db.all<{ cookbook_id: string; added_by_user_id: string | null; added_at: number }>(
+      `SELECT cr.cookbook_id, cr.added_by_user_id, cr.added_at
+       FROM cookbook_recipes cr
+       JOIN cookbooks c ON c.id = cr.cookbook_id
+       WHERE c.user_id = ? AND cr.recipe_id = ?`,
+      user.id,
+      recipeId
+    );
+    for (const link of links.results) {
+      await this.db.run(
+        'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
+        link.cookbook_id,
+        newRecipeId,
+        link.added_by_user_id || user.id,
+        link.added_at || now
+      );
+    }
+    await this.db.run(
+      `DELETE FROM cookbook_recipes
+       WHERE recipe_id = ?
+         AND cookbook_id IN (SELECT id FROM cookbooks WHERE user_id = ?)`,
       recipeId,
       user.id
     );
+    await this.db.run('DELETE FROM recipe_saves WHERE user_id = ? AND recipe_id = ?', user.id, recipeId);
+    await this.db.run(
+      `UPDATE cookbooks SET source_cookbook_id = NULL, updated_at = ?
+       WHERE id IN (SELECT cookbook_id FROM cookbook_recipes WHERE recipe_id = ?)`,
+      now,
+      newRecipeId
+    );
 
-    return { data: { success: true }, status: 200 };
+    return { data: { success: true, id: newRecipeId }, status: 200 };
   }
 
   async deleteRecipe(ctx: RequestContext, recipeId: string): Promise<ApiResult<{ success: boolean }>> {
@@ -1807,7 +1757,35 @@ export class CoreHandlers {
       return { error: 'Unauthorized', status: 401 };
     }
 
-    await this.db.run('DELETE FROM recipes WHERE id = ? AND user_id = ?', recipeId, user.id);
+    const ownedRecipe = await this.db.get<{ id: string }>(
+      'SELECT id FROM recipes WHERE id = ? AND user_id = ?',
+      recipeId,
+      user.id
+    );
+    if (ownedRecipe) {
+      await this.db.run('DELETE FROM cookbook_recipes WHERE recipe_id = ?', recipeId);
+      await this.db.run('DELETE FROM recipe_saves WHERE recipe_id = ?', recipeId);
+      await this.db.run('DELETE FROM recipes WHERE id = ? AND user_id = ?', recipeId, user.id);
+      return { data: { success: true }, status: 200 };
+    }
+
+    const now = Date.now();
+    await this.db.run(
+      `UPDATE cookbooks SET source_cookbook_id = NULL, updated_at = ?
+       WHERE user_id = ?
+         AND id IN (SELECT cookbook_id FROM cookbook_recipes WHERE recipe_id = ?)`,
+      now,
+      user.id,
+      recipeId
+    );
+    await this.db.run(
+      `DELETE FROM cookbook_recipes
+       WHERE recipe_id = ?
+         AND cookbook_id IN (SELECT id FROM cookbooks WHERE user_id = ?)`,
+      recipeId,
+      user.id
+    );
+    await this.db.run('DELETE FROM recipe_saves WHERE user_id = ? AND recipe_id = ?', user.id, recipeId);
     return { data: { success: true }, status: 200 };
   }
 
@@ -3279,6 +3257,19 @@ export class CoreHandlers {
     recipe: DbRecipe,
     includeOriginal = true
   ): Promise<string | null> {
+    if (includeOriginal && recipe.user_id === userId) {
+      return recipe.id;
+    }
+
+    const savedReference = await this.db.get<Pick<DbRecipeSave, 'recipe_id'>>(
+      'SELECT recipe_id FROM recipe_saves WHERE user_id = ? AND recipe_id = ?',
+      userId,
+      recipe.id
+    );
+    if (savedReference) {
+      return savedReference.recipe_id;
+    }
+
     const candidates = await this.db.all<DbRecipe>(
       `SELECT * FROM recipes
        WHERE user_id = ?
@@ -3316,6 +3307,26 @@ export class CoreHandlers {
     }
 
     const sourceIds = uniqueRecipes.map(recipe => recipe.id);
+    if (includeOriginal) {
+      uniqueRecipes.forEach(recipe => {
+        if (recipe.user_id === userId) {
+          matches.set(recipe.id, recipe.id);
+        }
+      });
+    }
+
+    for (const chunk of chunkBySqlParams(sourceIds, 1, 1)) {
+      const placeholders = sqlPlaceholders(chunk.length);
+      const savedReferences = await this.db.all<Pick<DbRecipeSave, 'recipe_id'>>(
+        `SELECT recipe_id FROM recipe_saves
+         WHERE user_id = ?
+           AND recipe_id IN (${placeholders})`,
+        userId,
+        ...chunk
+      );
+      savedReferences.results.forEach(save => matches.set(save.recipe_id, save.recipe_id));
+    }
+
     const candidates: DbRecipe[] = [];
     for (const chunk of chunkBySqlParams(sourceIds, 2, 1)) {
       const placeholders = sqlPlaceholders(chunk.length);
@@ -3332,6 +3343,10 @@ export class CoreHandlers {
     }
 
     for (const source of uniqueRecipes) {
+      if (matches.has(source.id)) {
+        continue;
+      }
+
       const sourceCandidates = new Map<string, DbRecipe>();
       for (const candidate of candidates) {
         if (candidate.id === source.id || candidate.source_recipe_id === source.id) {
@@ -3354,34 +3369,14 @@ export class CoreHandlers {
     return matches;
   }
 
-  private async insertRecipeCopies(
-    userId: string,
-    recipeCopies: RecipeCopyInsert[],
-    now: number
-  ): Promise<void> {
-    for (const chunk of chunkBySqlParams(recipeCopies, 16)) {
-      const params = chunk.flatMap(({ id, source }) => [
-        id,
-        userId,
-        source.owner_id,
-        source.title,
-        source.description,
-        source.ingredients,
-        source.instructions,
-        source.tags,
-        source.image_url,
-        source.source_url,
-        source.prep_time,
-        source.cook_time,
-        source.servings,
-        source.id,
-        0,
-        now,
-      ]);
+  private async insertRecipeSaves(userId: string, recipeIds: string[], now: number): Promise<void> {
+    const uniqueRecipeIds = Array.from(new Set(recipeIds));
+    for (const chunk of chunkBySqlParams(uniqueRecipeIds, 3)) {
+      const params = chunk.flatMap(recipeId => [userId, recipeId, now]);
 
       await this.db.run(
-        `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
-         VALUES ${sqlRows(chunk.length, 16)}`,
+        `INSERT OR IGNORE INTO recipe_saves (user_id, recipe_id, saved_at)
+         VALUES ${sqlRows(chunk.length, 3)}`,
         ...params
       );
     }
@@ -3419,15 +3414,15 @@ export class CoreHandlers {
     const now = Date.now();
     const collectionId = await this.getOrCreateRecipeCollection(userId);
     const savedRecipeIdsBySourceId = await this.findExistingSavedRecipeIds(userId, cookbookRecipes.results);
-    const recipeCopies: RecipeCopyInsert[] = [];
+    const recipeSaveIds: string[] = [];
     const collectionLinks: CookbookRecipeLinkInsert[] = [];
 
     for (const recipe of cookbookRecipes.results) {
       let savedRecipeId = savedRecipeIdsBySourceId.get(recipe.id);
       if (!savedRecipeId) {
-        savedRecipeId = this.crypto.generateId();
+        savedRecipeId = recipe.id;
         savedRecipeIdsBySourceId.set(recipe.id, savedRecipeId);
-        recipeCopies.push({ id: savedRecipeId, source: recipe });
+        recipeSaveIds.push(recipe.id);
       }
 
       collectionLinks.push({
@@ -3438,7 +3433,7 @@ export class CoreHandlers {
       });
     }
 
-    await this.insertRecipeCopies(userId, recipeCopies, now);
+    await this.insertRecipeSaves(userId, recipeSaveIds, now);
     await this.insertCookbookRecipeLinks(collectionLinks, true);
     await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, collectionId);
   }
@@ -3524,7 +3519,8 @@ export class CoreHandlers {
     return null;
   }
 
-  // Save a public recipe to user's collection (creates a copy)
+  // Save a public recipe to user's collection by reference. A private copy is
+  // materialized only when the user edits the saved recipe.
   async saveRecipe(
     ctx: RequestContext,
     recipeId: string
@@ -3549,44 +3545,24 @@ export class CoreHandlers {
       return { data: { id: existingRecipeId }, status: 200 };
     }
 
-    // Create a copy of the recipe for the user
-    const newRecipeId = this.crypto.generateId();
-    await this.db.run(
-      `INSERT INTO recipes (id, user_id, owner_id, title, description, ingredients, instructions, tags, image_url, source_url, prep_time, cook_time, servings, source_recipe_id, is_public, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      newRecipeId,
-      user.id,
-      recipe.owner_id, // Keep original owner reference
-      recipe.title,
-      recipe.description,
-      recipe.ingredients,
-      recipe.instructions,
-      recipe.tags,
-      recipe.image_url,
-      recipe.source_url,
-      recipe.prep_time,
-      recipe.cook_time,
-      recipe.servings,
-      recipe.id,
-      0, // saved copies are private by default
-      Date.now()
-    );
+    const now = Date.now();
+    await this.insertRecipeSaves(user.id, [recipe.id], now);
 
     // Add to user's "My Recipe Collection" cookbook
     const collectionId = await this.getOrCreateRecipeCollection(user.id);
     await this.db.run(
       'INSERT OR IGNORE INTO cookbook_recipes (cookbook_id, recipe_id, added_by_user_id, added_at) VALUES (?, ?, ?, ?)',
       collectionId,
-      newRecipeId,
+      recipe.id,
       user.id,
-      Date.now()
+      now
     );
-    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', Date.now(), collectionId);
+    await this.db.run('UPDATE cookbooks SET updated_at = ? WHERE id = ?', now, collectionId);
 
-    return { data: { id: newRecipeId }, status: 201 };
+    return { data: { id: recipe.id }, status: 201 };
   }
 
-  // Save a public cookbook to user's collection (creates a copy with all recipes)
+  // Save a public cookbook to user's collection and reference its recipes until edited.
   async saveCookbook(
     ctx: RequestContext,
     cookbookId: string
@@ -3640,17 +3616,17 @@ export class CoreHandlers {
     // Get user's recipe collection for adding recipes there too
     const collectionId = await this.getOrCreateRecipeCollection(user.id);
     const savedRecipeIdsBySourceId = await this.findExistingSavedRecipeIds(user.id, cookbookRecipes.results);
-    const recipeCopies: RecipeCopyInsert[] = [];
+    const recipeSaveIds: string[] = [];
     const cookbookLinks: CookbookRecipeLinkInsert[] = [];
     const collectionLinks: CookbookRecipeLinkInsert[] = [];
 
-    // Copy each recipe and add to both the new cookbook and user's collection
+    // Reference each recipe and add it to both the new cookbook and user's collection.
     for (const recipe of cookbookRecipes.results) {
       let savedRecipeId = savedRecipeIdsBySourceId.get(recipe.id);
       if (!savedRecipeId) {
-        savedRecipeId = this.crypto.generateId();
+        savedRecipeId = recipe.id;
         savedRecipeIdsBySourceId.set(recipe.id, savedRecipeId);
-        recipeCopies.push({ id: savedRecipeId, source: recipe });
+        recipeSaveIds.push(recipe.id);
       }
 
       cookbookLinks.push({
@@ -3667,7 +3643,7 @@ export class CoreHandlers {
       });
     }
 
-    await this.insertRecipeCopies(user.id, recipeCopies, now);
+    await this.insertRecipeSaves(user.id, recipeSaveIds, now);
     await this.insertCookbookRecipeLinks(cookbookLinks);
     await this.insertCookbookRecipeLinks(collectionLinks, true);
 
@@ -3690,6 +3666,33 @@ export class CoreHandlers {
 
     if (!recipe) {
       return { error: 'Recipe not found or not public', status: 404 };
+    }
+
+    const savedReference = await this.db.get<Pick<DbRecipeSave, 'recipe_id'>>(
+      'SELECT recipe_id FROM recipe_saves WHERE user_id = ? AND recipe_id = ?',
+      user.id,
+      recipe.id
+    );
+    if (savedReference) {
+      const now = Date.now();
+      await this.db.run(
+        `UPDATE cookbooks SET source_cookbook_id = NULL, updated_at = ?
+         WHERE user_id = ?
+           AND id IN (SELECT cookbook_id FROM cookbook_recipes WHERE recipe_id = ?)`,
+        now,
+        user.id,
+        recipe.id
+      );
+      await this.db.run('DELETE FROM recipe_saves WHERE user_id = ? AND recipe_id = ?', user.id, recipe.id);
+      await this.db.run(
+        `DELETE FROM cookbook_recipes
+         WHERE recipe_id = ?
+           AND cookbook_id IN (SELECT id FROM cookbooks WHERE user_id = ?)`,
+        recipe.id,
+        user.id
+      );
+
+      return { data: { success: true, id: recipe.id }, status: 200 };
     }
 
     const savedCopyId = await this.findExistingSavedRecipeId(user.id, recipe, false);

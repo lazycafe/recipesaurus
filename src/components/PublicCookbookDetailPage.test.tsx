@@ -42,6 +42,7 @@ describe('PublicCookbookDetailPage', () => {
   const mockSaveCookbook = vi.fn();
   const mockRefreshCookbooks = vi.fn();
   const mockShowToast = vi.fn();
+  const mockClipboardWriteText = vi.fn();
 
   const mockCookbook = {
     id: 'cookbook-1',
@@ -66,11 +67,20 @@ describe('PublicCookbookDetailPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: mockClipboardWriteText },
+    });
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: undefined,
+    });
 
     mockGetPublicCookbook.mockResolvedValue({
       cookbook: mockCookbook,
       recipes: [mockRecipe],
     });
+    mockClipboardWriteText.mockResolvedValue(undefined);
     mockSaveRecipe.mockResolvedValue('saved-recipe-1');
     mockUnsaveRecipe.mockResolvedValue(true);
     mockUnsaveCookbook.mockResolvedValue(true);
@@ -151,6 +161,35 @@ describe('PublicCookbookDetailPage', () => {
       type: 'success',
     }));
     expect(screen.getByRole('button', { name: /saved/i })).toBeDefined();
+  });
+
+  it('shares the discoverable cookbook URL', async () => {
+    renderCookbookDetail();
+
+    fireEvent.click(await screen.findByRole('button', { name: /share cookbook/i }));
+
+    await waitFor(() => {
+      expect(mockClipboardWriteText).toHaveBeenCalledWith('http://localhost:3000/discover/cookbooks/cookbook-1');
+    });
+    expect(mockShowToast).toHaveBeenCalledWith({
+      message: 'Cookbook link copied',
+      type: 'success',
+    });
+  });
+
+  it('does not show save actions for cookbook content owned by the viewer', async () => {
+    mockGetPublicCookbook.mockResolvedValueOnce({
+      cookbook: { ...mockCookbook, isOwner: true },
+      recipes: [{ ...mockRecipe, isOwner: true }],
+    });
+
+    renderCookbookDetail();
+
+    await screen.findByRole('heading', { name: 'Test Cookbook' });
+
+    expect(screen.getByRole('button', { name: /share cookbook/i })).toBeDefined();
+    expect(screen.queryByRole('button', { name: /save cookbook/i })).toBeNull();
+    expect(screen.queryByLabelText('Save recipe')).toBeNull();
   });
 
   it('shows saved feedback after saving a recipe in the cookbook', async () => {

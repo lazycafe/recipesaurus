@@ -136,7 +136,7 @@ describe('public discovery visibility', () => {
     expect(new Set(cookbookIds).size).toBe(cookbookIds.length);
   });
 
-  it('reuses an existing My Recipes copy when saving the same public recipe again', async () => {
+  it('reuses an existing saved recipe reference when saving the same public recipe again', async () => {
     const ownerClient = harness.getClient();
     const recipeResult = await ownerClient.recipes.create({
       title: 'Shareable Lentil Soup',
@@ -153,11 +153,18 @@ describe('public discovery visibility', () => {
     const firstSave = await saverClient.discover.saveRecipe(recipeResult.data!.id);
     const secondSave = await saverClient.discover.saveRecipe(recipeResult.data!.id);
 
+    expect(firstSave.data!.id).toBe(recipeResult.data!.id);
     expect(secondSave.data!.id).toBe(firstSave.data!.id);
 
     const recipesResult = await saverClient.recipes.list();
-    const savedCopies = recipesResult.data!.recipes.filter(recipe => recipe.title === 'Shareable Lentil Soup');
-    expect(savedCopies).toHaveLength(1);
+    const savedRecipes = recipesResult.data!.recipes.filter(recipe => recipe.title === 'Shareable Lentil Soup');
+    expect(savedRecipes).toHaveLength(1);
+    expect(savedRecipes[0]).toMatchObject({
+      id: recipeResult.data!.id,
+      isOwner: true,
+      isPublic: false,
+      ownerName: 'Chef',
+    });
   });
 
   it('does not duplicate a user-owned public recipe when saved from Discover', async () => {
@@ -179,11 +186,11 @@ describe('public discovery visibility', () => {
     expect(matchingRecipes).toHaveLength(1);
   });
 
-  it('reports and removes only the unedited saved copy for public recipes', async () => {
+  it('references a saved public recipe until edit materializes a new row', async () => {
     const ownerClient = harness.getClient();
     const recipeResult = await ownerClient.recipes.create({
       title: 'Heart State Tomato Soup',
-      description: 'A recipe with a tracked saved copy',
+      description: 'A recipe with tracked saved state',
       ingredients: ['tomatoes', 'stock'],
       instructions: ['simmer'],
       tags: ['soup'],
@@ -199,6 +206,7 @@ describe('public discovery visibility', () => {
     expect(discoveredRecipe.savedCopyId).toBeNull();
 
     const saveResult = await saverClient.discover.saveRecipe(recipeResult.data!.id);
+    expect(saveResult.data!.id).toBe(recipeResult.data!.id);
 
     discoverResult = await saverClient.discover.recipes({ limit: 20 });
     discoveredRecipe = discoverResult.data!.recipes.find(recipe => recipe.id === recipeResult.data!.id)!;
@@ -206,11 +214,17 @@ describe('public discovery visibility', () => {
     expect(discoveredRecipe.savedCopyId).toBe(saveResult.data!.id);
 
     let recipesResult = await saverClient.recipes.list();
-    const savedCopy = recipesResult.data!.recipes.find(recipe => recipe.id === saveResult.data!.id)!;
-    expect(savedCopy.isOwner).toBe(true);
-    expect(savedCopy.ownerName).toBe('Chef');
+    const savedReference = recipesResult.data!.recipes.find(recipe => recipe.id === saveResult.data!.id)!;
+    expect(savedReference).toMatchObject({
+      id: recipeResult.data!.id,
+      isOwner: true,
+      isPublic: false,
+      ownerName: 'Chef',
+    });
 
-    await saverClient.recipes.update(saveResult.data!.id, { title: 'Edited Tomato Soup' });
+    const updateResult = await saverClient.recipes.update(saveResult.data!.id, { title: 'Edited Tomato Soup' });
+    const materializedRecipeId = updateResult.data!.id!;
+    expect(materializedRecipeId).not.toBe(recipeResult.data!.id);
 
     discoverResult = await saverClient.discover.recipes({ limit: 20 });
     discoveredRecipe = discoverResult.data!.recipes.find(recipe => recipe.id === recipeResult.data!.id)!;
@@ -218,7 +232,7 @@ describe('public discovery visibility', () => {
     expect(discoveredRecipe.savedCopyId).toBeNull();
 
     const secondSave = await saverClient.discover.saveRecipe(recipeResult.data!.id);
-    expect(secondSave.data!.id).not.toBe(saveResult.data!.id);
+    expect(secondSave.data!.id).toBe(recipeResult.data!.id);
 
     const unsaveResult = await saverClient.discover.unsaveRecipe(recipeResult.data!.id);
     expect(unsaveResult.data!.id).toBe(secondSave.data!.id);
@@ -229,11 +243,12 @@ describe('public discovery visibility', () => {
     expect(discoveredRecipe.savedCopyId).toBeNull();
 
     recipesResult = await saverClient.recipes.list();
-    expect(recipesResult.data!.recipes.some(recipe => recipe.id === saveResult.data!.id)).toBe(true);
+    expect(recipesResult.data!.recipes.some(recipe => recipe.id === materializedRecipeId)).toBe(true);
+    expect(recipesResult.data!.recipes.some(recipe => recipe.id === recipeResult.data!.id)).toBe(false);
     expect(recipesResult.data!.recipes.some(recipe => recipe.id === secondSave.data!.id)).toBe(false);
   });
 
-  it('reports and removes only the unedited saved copy for public cookbooks', async () => {
+  it('reports and removes only the unedited saved cookbook for public cookbooks', async () => {
     const ownerClient = harness.getClient();
     const recipeResult = await ownerClient.recipes.create({
       title: 'Cookbook Heart Beans',
@@ -288,7 +303,7 @@ describe('public discovery visibility', () => {
     expect(cookbooksResult.data!.owned.some(cookbook => cookbook.id === secondSave.data!.id)).toBe(false);
   });
 
-  it('saves large public cookbooks in batches without duplicating existing recipe copies', async () => {
+  it('saves large public cookbooks in batches without duplicating existing recipe references', async () => {
     const ownerClient = harness.getClient();
     const cookbookResult = await ownerClient.cookbooks.create({
       name: 'Batch Save Cookbook',
@@ -317,6 +332,7 @@ describe('public discovery visibility', () => {
     const saveResult = await saverClient.discover.saveCookbook(cookbookResult.data!.id);
     const savedCookbook = await saverClient.cookbooks.get(saveResult.data!.id);
     expect(savedCookbook.data!.recipes).toHaveLength(18);
+    expect(savedCookbook.data!.recipes.map(recipe => recipe.id).sort()).toEqual([...sourceRecipeIds].sort());
     expect(savedCookbook.data!.recipes.some(recipe => recipe.id === existingRecipeSave.data!.id)).toBe(true);
 
     const recipesResult = await saverClient.recipes.list();

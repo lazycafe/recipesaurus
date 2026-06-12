@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS recipes (
   FOREIGN KEY (source_recipe_id) REFERENCES recipes(id) ON DELETE SET NULL
 );
 
+-- Lightweight saves of existing recipes. A saved public recipe stays as a
+-- reference until the user edits it, then the API materializes a private row.
+CREATE TABLE IF NOT EXISTS recipe_saves (
+  user_id TEXT NOT NULL,
+  recipe_id TEXT NOT NULL,
+  saved_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, recipe_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (recipe_id) REFERENCES recipes(id) ON DELETE CASCADE
+);
+
 -- Cookbooks table
 CREATE TABLE IF NOT EXISTS cookbooks (
   id TEXT PRIMARY KEY,
@@ -215,6 +226,8 @@ CREATE INDEX IF NOT EXISTS idx_recipes_user_id ON recipes(user_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_owner_id ON recipes(owner_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_source_recipe_id ON recipes(source_recipe_id);
 CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
+CREATE INDEX IF NOT EXISTS idx_recipe_saves_recipe_id ON recipe_saves(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_saves_saved_at ON recipe_saves(saved_at);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_cookbooks_user_id ON cookbooks(user_id);
 CREATE INDEX IF NOT EXISTS idx_cookbooks_is_public ON cookbooks(is_public);

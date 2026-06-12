@@ -10,7 +10,6 @@ import {
   MEAL_PLAN_OPENAI_PERMISSION_DENIED_CODE,
   MEAL_PLAN_OPENAI_RATE_LIMITED_CODE,
   MEAL_PLAN_OPENAI_SERVER_ERROR_CODE,
-  buildMealPlanGeneratedRecipeDrafts,
   buildFallbackMealPlan,
   buildMealPlannerContinuationInput,
   buildMealPlannerInstructions,
@@ -39,29 +38,12 @@ describe('AI meal planner API', () => {
         id: expect.any(String),
         title: 'Herb-Crusted Chicken',
       });
-      expect(first.data?.mentionedRecipes).toContainEqual({
-        id: expect.any(String),
-        title: 'Vegetable Stir-Fry',
-      });
       expect(first.data?.cookbookName).toBe('Healthy Dinner Meal Plan');
       expect(first.data?.usage.remainingRequests).toBe(1);
 
       const recipesAfterPlan = await client.recipes.list();
       expect(recipesAfterPlan.data?.recipes.find(recipe => recipe.title === 'Vegetable Stir-Fry')).toBeUndefined();
-
-      const generatedMention = first.data?.mentionedRecipes.find(recipe => recipe.title === 'Vegetable Stir-Fry');
-      const generatedRecipe = await client.discover.getRecipe(generatedMention?.id || '');
-      expect(generatedRecipe.data?.recipe).toMatchObject({
-        title: 'Vegetable Stir-Fry',
-        ownerName: 'Recipesaurus',
-        isPublic: true,
-        imageUrl: expect.stringContaining('images.unsplash.com'),
-      });
-      expect(generatedRecipe.data?.recipe.description).not.toMatch(/ai meal planner/i);
-      expect(generatedRecipe.data?.recipe.instructions.join(' ')).not.toMatch(/ai meal planner/i);
-      expect(generatedRecipe.data?.recipe.tags.join(' ')).not.toMatch(/ai meal planner/i);
-      expect(generatedRecipe.data?.recipe.tags.join(' ')).not.toMatch(/recipesaurus starter/i);
-      expect(generatedRecipe.data?.recipe.tags.every(tag => tag === tag.toLowerCase())).toBe(true);
+      expect(first.data?.suggestion).not.toContain('New idea');
 
       const second = await client.ai.createMealPlan('Plan two quick lunches.');
       expect(second.error).toBeUndefined();
@@ -84,7 +66,7 @@ describe('AI meal planner API', () => {
     }
   });
 
-  it('uses exact public recipe matches before creating Recipesaurus starter recipes', async () => {
+  it('uses exact public recipe matches without creating starter recipes', async () => {
     const harness = await ReactTestHarness.create();
     try {
       const publicClient = harness.createClient();
@@ -187,66 +169,15 @@ describe('AI meal planner API', () => {
     expect(instructions).toContain('public Recipesaurus recipes');
     expect(instructions).toContain('From Recipesaurus');
     expect(instructions).toContain('avoid breakfast, brunch, sweet, and dessert recipes');
-    expect(instructions).toContain('fill the gaps with savory new ideas');
-    expect(instructions).toContain('Do not use "New idea" for a recipe title that already appears exactly');
-    expect(instructions).toContain('New idea: <specific recipe title>');
+    expect(instructions).toContain('Do not suggest new recipe ideas');
+    expect(instructions).toContain('Do not use "New idea"');
   });
 
-  it('builds starter recipe drafts for new meal ideas only', () => {
-    const drafts = buildMealPlanGeneratedRecipeDrafts(
-      'Plan easy dinners.',
-      [
-        '1. From your recipes: Tofu Rice Bowl',
-        '2. New idea: Vegetable Stir-Fry - fast vegetables and rice',
-        '3. New idea: Tofu Rice Bowl - already saved',
-      ].join('\n'),
-      [{
-        id: 'bowl',
-        title: 'Tofu Rice Bowl',
-        description: 'Saved bowl',
-        ingredients: ['tofu', 'rice'],
-        tags: ['dinner'],
-      }]
-    );
+  it('does not add new recipe ideas to fallback meal plans', () => {
+    const result = buildFallbackMealPlan('Plan easy dinners.', []);
 
-    expect(drafts).toHaveLength(1);
-    expect(drafts[0]).toMatchObject({
-      title: 'Vegetable Stir-Fry',
-      imageUrl: expect.stringContaining('images.unsplash.com'),
-      prepTime: '15 minutes',
-      cookTime: '25 minutes',
-      servings: '4',
-    });
-    expect(drafts[0].ingredients).toContain('1/4 cup soy sauce or tamari');
-    expect(drafts[0].instructions).toContain('Whisk soy sauce, rice vinegar, ginger, and 2 tbsp water in a small bowl.');
-    expect(drafts[0].instructions).toContain('Serve over rice or noodles with scallions, sesame seeds, or chili crisp.');
-    expect(drafts[0].tags.join(' ')).not.toMatch(/recipesaurus starter/i);
-    expect(drafts[0].tags.every(tag => tag === tag.toLowerCase())).toBe(true);
-    expect(drafts[0].description).not.toMatch(/ai meal planner/i);
-    expect(drafts[0].instructions.join(' ')).not.toMatch(/ai meal planner/i);
-  });
-
-  it('uses cropped, unique images for starter recipes in the same meal plan', () => {
-    const drafts = buildMealPlanGeneratedRecipeDrafts(
-      'Plan easy healthy dinners.',
-      [
-        '1. New idea: Flexible Grain Bowl - vegetables, grains, and sauce',
-        '2. New idea: Sheet-Pan Vegetable Dinner - roasted vegetables and protein',
-        '3. New idea: Lentil Soup - cozy weeknight soup',
-        '4. New idea: Pasta Primavera - fast pasta with vegetables',
-      ].join('\n'),
-      []
-    );
-
-    const imageUrls = drafts.map(draft => draft.imageUrl);
-    expect(drafts).toHaveLength(4);
-    expect(new Set(imageUrls).size).toBe(imageUrls.length);
-    imageUrls.forEach(imageUrl => {
-      expect(imageUrl).toContain('images.unsplash.com');
-      expect(imageUrl).toContain('fit=crop');
-      expect(imageUrl).toContain('w=900');
-      expect(imageUrl).toContain('h=650');
-    });
+    expect(result).not.toContain('New idea');
+    expect(result).toContain('No matching saved or public Recipesaurus recipes');
   });
 
   it('detects OpenAI responses that need continuation', () => {

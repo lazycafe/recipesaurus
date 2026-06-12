@@ -41,7 +41,7 @@ describe('RecipeDetail', () => {
     expect(downloadRecipePdf).toHaveBeenCalledWith(recipe);
   });
 
-  it('replaces the PDF download action with save on public recipes', () => {
+  it('keeps share and PDF download actions on public recipes with save', () => {
     const onSave = vi.fn();
 
     render(
@@ -56,8 +56,8 @@ describe('RecipeDetail', () => {
       </MemoryRouter>
     );
 
-    expect(screen.queryByRole('button', { name: /download pdf/i })).toBeNull();
-    expect(downloadRecipePdf).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Share' })).toBeDefined();
+    expect(screen.getByRole('button', { name: /download pdf/i })).toBeDefined();
 
     fireEvent.click(screen.getByRole('button', { name: 'Save Recipe' }));
 
@@ -79,7 +79,7 @@ describe('RecipeDetail', () => {
 
     const savedButton = screen.getByRole('button', { name: 'Saved to My Recipes' }) as HTMLButtonElement;
     expect(savedButton.disabled).toBe(true);
-    expect(screen.queryByRole('button', { name: /download pdf/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /download pdf/i })).toBeDefined();
   });
 
   it('closes when browser history goes back from the detail entry', () => {

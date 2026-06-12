@@ -19,7 +19,7 @@ vi.mock('../context/CookbookContext', () => ({
   useCookbooks: vi.fn(),
 }));
 
-const samplePrompt = 'Plan my lunches and dinners for this week using recipes I own and a few new easy recipes. Make them a mix of Asian and healthy dishes.';
+const samplePrompt = 'Plan my lunches and dinners for this week using my recipes and public Recipesaurus recipes. Make them a mix of Asian and healthy dishes.';
 
 function usage(remainingRequests: number): MealPlanUsage {
   return {
@@ -80,9 +80,9 @@ describe('MealPlannerPage', () => {
     mockGetDiscoverRecipe.mockResolvedValue({
       data: {
         recipe: {
-          id: 'starter-1',
+          id: 'public-1',
           title: 'Vegetable Stir-Fry',
-          description: 'A flexible Recipesaurus starter recipe for Vegetable Stir-Fry.',
+          description: 'Crisp vegetables tossed in a savory sauce.',
           ingredients: ['Vegetables', 'Rice'],
           instructions: ['Cook vegetables.', 'Serve over rice.'],
           tags: ['dinner', 'healthy'],
@@ -99,7 +99,7 @@ describe('MealPlannerPage', () => {
         },
       },
     });
-    mockSaveDiscoverRecipe.mockResolvedValue({ data: { id: 'saved-starter-1' } });
+    mockSaveDiscoverRecipe.mockResolvedValue({ data: { id: 'public-1' } });
     mockCreateCheckoutSession.mockResolvedValue({ data: { url: 'https://checkout.stripe.test/session' } });
     mockCreatePortalSession.mockResolvedValue({ data: { url: 'https://billing.stripe.test/session' } });
     Object.defineProperty(window, 'open', {
@@ -188,13 +188,13 @@ describe('MealPlannerPage', () => {
     expect(screen.queryByText('AI meal plan draft')).toBeNull();
   });
 
-  it('opens public starter recipes from suggestion links without refreshing user recipes', async () => {
+  it('opens public Recipesaurus recipes from suggestion links without refreshing user recipes', async () => {
     mockCreateMealPlan.mockResolvedValue({
       data: {
         id: 'meal-plan-1',
         prompt: samplePrompt,
-        suggestion: 'Monday: New idea: Vegetable Stir-Fry - flexible vegetables over rice',
-        mentionedRecipes: [{ id: 'starter-1', title: 'Vegetable Stir-Fry' }],
+        suggestion: 'Monday: From Recipesaurus: Vegetable Stir-Fry - flexible vegetables over rice',
+        mentionedRecipes: [{ id: 'public-1', title: 'Vegetable Stir-Fry' }],
         cookbookName: 'Healthy Dinner Meal Plan',
         createdAt: Date.now(),
         usage: usage(1),
@@ -218,8 +218,8 @@ describe('MealPlannerPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Vegetable Stir-Fry' }));
 
     await waitFor(() => {
-      expect(mockGetDiscoverRecipe).toHaveBeenCalledWith('starter-1');
-      expect(screen.getByText('A flexible Recipesaurus starter recipe for Vegetable Stir-Fry.')).toBeDefined();
+      expect(mockGetDiscoverRecipe).toHaveBeenCalledWith('public-1');
+      expect(screen.getByText('Crisp vegetables tossed in a savory sauce.')).toBeDefined();
     });
     expect(screen.getByText(/by Recipesaurus/i)).toBeDefined();
   });
@@ -406,18 +406,18 @@ describe('MealPlannerPage', () => {
     });
   });
 
-  it('saves public starter recipes before adding them to a created cookbook', async () => {
+  it('saves public Recipesaurus recipes before adding them to a created cookbook', async () => {
     mockCreateMealPlan.mockResolvedValue({
       data: {
         id: 'meal-plan-1',
         prompt: samplePrompt,
         suggestion: [
           'Monday: From your recipes: Herb-Crusted Chicken',
-          'Tuesday: New idea: Vegetable Stir-Fry - flexible vegetables over rice',
+          'Tuesday: From Recipesaurus: Vegetable Stir-Fry - flexible vegetables over rice',
         ].join('\n'),
         mentionedRecipes: [
           { id: 'recipe-1', title: 'Herb-Crusted Chicken' },
-          { id: 'starter-1', title: 'Vegetable Stir-Fry' },
+          { id: 'public-1', title: 'Vegetable Stir-Fry' },
         ],
         cookbookName: 'Healthy Dinner Meal Plan',
         createdAt: Date.now(),
@@ -440,9 +440,9 @@ describe('MealPlannerPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Create Cookbook/i }));
 
     await waitFor(() => {
-      expect(mockSaveDiscoverRecipe).toHaveBeenCalledWith('starter-1');
+      expect(mockSaveDiscoverRecipe).toHaveBeenCalledWith('public-1');
       expect(mockAddRecipe).toHaveBeenCalledWith('cookbook-1', 'recipe-1');
-      expect(mockAddRecipe).toHaveBeenCalledWith('cookbook-1', 'saved-starter-1');
+      expect(mockAddRecipe).toHaveBeenCalledWith('cookbook-1', 'public-1');
       expect(mockRefreshRecipes).toHaveBeenCalled();
     });
   });

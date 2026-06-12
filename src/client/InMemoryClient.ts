@@ -43,7 +43,7 @@ export interface ICoreHandlers {
   logout(ctx: RequestContext): Promise<ApiResult<{ success: boolean }>>;
   getRecipes(ctx: RequestContext): Promise<ApiResult<{ recipes: Recipe[] }>>;
   createRecipe(ctx: RequestContext, data: CreateRecipeData): Promise<ApiResult<{ id: string }>>;
-  updateRecipe(ctx: RequestContext, id: string, data: Partial<CreateRecipeData>): Promise<ApiResult<{ success: boolean }>>;
+  updateRecipe(ctx: RequestContext, id: string, data: Partial<CreateRecipeData>): Promise<ApiResult<{ success: boolean; id?: string }>>;
   deleteRecipe(ctx: RequestContext, id: string): Promise<ApiResult<{ success: boolean }>>;
   createRecipeShareLink(ctx: RequestContext, data: RecipeSharePayload): Promise<ApiResult<RecipeShareLink>>;
   shareRecipeWithUser(ctx: RequestContext, data: RecipeSharePayload, userId: string): Promise<ApiResult<{ success: boolean; sharedWith?: ProfileUser; shareLink?: RecipeShareLink }>>;
@@ -219,7 +219,7 @@ export class InMemoryClient implements IClient {
       return toApiResponse(result);
     },
 
-    update: async (id: string, data: UpdateRecipeData): Promise<ApiResponse<{ success: boolean }>> => {
+    update: async (id: string, data: UpdateRecipeData): Promise<ApiResponse<{ success: boolean; id?: string }>> => {
       const result = await this.handlers.updateRecipe(this.getContext(), id, data);
       return toApiResponse(result);
     },

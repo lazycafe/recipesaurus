@@ -167,17 +167,15 @@ export function RecipeDetail({
             )}
 
             <div className="detail-actions-row">
-              {!isPublicView && (
-                <button
-                  className="btn-secondary detail-icon-action"
-                  onClick={() => setShowShareModal(true)}
-                  aria-label="Share"
-                  title="Share"
-                >
-                  <Share2 size={16} strokeWidth={2} />
-                  <span>Share</span>
-                </button>
-              )}
+              <button
+                className="btn-secondary detail-icon-action"
+                onClick={() => setShowShareModal(true)}
+                aria-label="Share"
+                title="Share"
+              >
+                <Share2 size={16} strokeWidth={2} />
+                <span>Share</span>
+              </button>
               {isPublicView && onSave ? (
                 <button
                   className="btn-primary detail-icon-action"
@@ -195,17 +193,16 @@ export function RecipeDetail({
                   )}
                   <span>{publicSaveLabel}</span>
                 </button>
-              ) : !isPublicView ? (
-                <button
-                  className="btn-secondary detail-icon-action"
-                  onClick={() => downloadRecipePdf(recipe)}
-                  aria-label="Download PDF"
-                  title="Download PDF"
-                >
-                  <Download size={16} strokeWidth={2} />
-                  <span>Download PDF</span>
-                </button>
               ) : null}
+              <button
+                className="btn-secondary detail-icon-action"
+                onClick={() => downloadRecipePdf(recipe)}
+                aria-label="Download PDF"
+                title="Download PDF"
+              >
+                <Download size={16} strokeWidth={2} />
+                <span>Download PDF</span>
+              </button>
               {recipe.sourceUrl && (
                 <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="source-link">
                   <span>View Original</span>

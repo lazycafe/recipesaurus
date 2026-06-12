@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Heart, Loader2, User, Check } from 'lucide-react';
+import { ArrowLeft, BookOpen, Heart, Loader2, User, Check, Share2 } from 'lucide-react';
 import { useDiscovery } from '../context/DiscoveryContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -73,6 +73,7 @@ export function PublicCookbookDetailPage() {
 
   const handleSaveCookbook = async () => {
     if (!cookbook) return;
+    if (cookbook.isOwner) return;
     if (isCookbookSaved) return;
     if (!user) {
       showToast({ message: 'Please sign in to save cookbooks', type: 'info' });
@@ -97,6 +98,50 @@ export function PublicCookbookDetailPage() {
           onClick: () => navigate('/cookbooks', { replace: true }),
         },
       });
+    }
+  };
+
+  const copyCookbookLink = async (shareUrl: string) => {
+    if (!navigator.clipboard?.writeText) return false;
+    await navigator.clipboard.writeText(shareUrl);
+    return true;
+  };
+
+  const handleShareCookbook = async () => {
+    if (!cookbook) return;
+
+    const shareUrl = `${window.location.origin}/discover/cookbooks/${cookbook.id}`;
+    const shareData = {
+      title: cookbook.name,
+      text: `Check out "${cookbook.name}" on Recipesaurus.`,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+
+      if (await copyCookbookLink(shareUrl)) {
+        showToast({ message: 'Cookbook link copied', type: 'success' });
+        return;
+      }
+
+      showToast({ message: 'Copy this page URL to share the cookbook.', type: 'info' });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+
+      try {
+        if (await copyCookbookLink(shareUrl)) {
+          showToast({ message: 'Cookbook link copied', type: 'success' });
+          return;
+        }
+      } catch {
+        // Fall through to the user-facing error below.
+      }
+
+      showToast({ message: 'Could not share cookbook link. Please try again.', type: 'error' });
     }
   };
 
@@ -202,19 +247,29 @@ export function PublicCookbookDetailPage() {
           </div>
           <div className="public-cookbook-actions">
             <button
-              className="btn-primary"
-              onClick={handleSaveCookbook}
-              disabled={isSavingCookbook || isCookbookSaved}
+              className="btn-secondary"
+              onClick={handleShareCookbook}
+              aria-label="Share cookbook"
             >
-              {isSavingCookbook ? (
-                <Loader2 size={16} className="spin" />
-              ) : isCookbookSaved ? (
-                <Check size={16} />
-              ) : (
-                <Heart size={16} />
-              )}
-              <span>{isCookbookSaved ? 'Saved' : 'Save Cookbook'}</span>
+              <Share2 size={16} />
+              <span>Share</span>
             </button>
+            {!cookbook.isOwner && (
+              <button
+                className="btn-primary"
+                onClick={handleSaveCookbook}
+                disabled={isSavingCookbook || isCookbookSaved}
+              >
+                {isSavingCookbook ? (
+                  <Loader2 size={16} className="spin" />
+                ) : isCookbookSaved ? (
+                  <Check size={16} />
+                ) : (
+                  <Heart size={16} />
+                )}
+                <span>{isCookbookSaved ? 'Saved' : 'Save Cookbook'}</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -241,22 +296,24 @@ export function PublicCookbookDetailPage() {
                       <DinoMascot size={48} />
                     </div>
                   )}
-                  <button
-                    className={`save-btn ${recipe.isSaved ? 'saved' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleRecipeSave(recipe);
-                    }}
-                    disabled={savingRecipeId === recipe.id}
-                    aria-label={recipe.isSaved ? 'Unsave recipe' : 'Save recipe'}
-                    aria-pressed={recipe.isSaved ? 'true' : 'false'}
-                  >
-                    {savingRecipeId === recipe.id ? (
-                      <Loader2 size={16} className="spin" />
-                    ) : (
-                      <Heart size={16} fill={recipe.isSaved ? 'currentColor' : 'none'} />
-                    )}
-                  </button>
+                  {!recipe.isOwner && (
+                    <button
+                      className={`save-btn ${recipe.isSaved ? 'saved' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleRecipeSave(recipe);
+                      }}
+                      disabled={savingRecipeId === recipe.id}
+                      aria-label={recipe.isSaved ? 'Unsave recipe' : 'Save recipe'}
+                      aria-pressed={recipe.isSaved ? 'true' : 'false'}
+                    >
+                      {savingRecipeId === recipe.id ? (
+                        <Loader2 size={16} className="spin" />
+                      ) : (
+                        <Heart size={16} fill={recipe.isSaved ? 'currentColor' : 'none'} />
+                      )}
+                    </button>
+                  )}
                 </div>
                 <div className="public-recipe-card-body">
                   <h3>{recipe.title}</h3>
@@ -278,10 +335,10 @@ export function PublicCookbookDetailPage() {
         <RecipeDetail
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
-          onSave={() => handleSaveRecipe(selectedRecipe)}
+          onSave={!selectedRecipe.isOwner ? () => handleSaveRecipe(selectedRecipe) : undefined}
           isSaving={savingRecipeId === selectedRecipe.id}
           isSaved={Boolean(selectedRecipe.isSaved)}
-          isPublicView={true}
+          isPublicView={!selectedRecipe.isOwner}
         />
       )}
     </div>

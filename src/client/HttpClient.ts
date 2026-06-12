@@ -168,7 +168,7 @@ export class HttpClient implements IClient {
       return this.transport.request('POST', '/api/recipes', data);
     },
 
-    update: (id: string, data: UpdateRecipeData): Promise<ApiResponse<{ success: boolean }>> => {
+    update: (id: string, data: UpdateRecipeData): Promise<ApiResponse<{ success: boolean; id?: string }>> => {
       return this.transport.request('PUT', `/api/recipes/${id}`, data);
     },
 

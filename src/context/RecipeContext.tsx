@@ -111,7 +111,7 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
     // Optimistic update
     setRecipes(prev => prev.map(r => r.id === id ? { ...r, ...recipeData } : r));
 
-    const { error } = await client.recipes.update(id, {
+    const { data, error } = await client.recipes.update(id, {
       title: recipeData.title,
       description: recipeData.description,
       ingredients: recipeData.ingredients,
@@ -130,6 +130,10 @@ export function RecipeProvider({ children }: { children: ReactNode }) {
       showToast?.({ message: error, type: 'error' });
       await refreshRecipes();
       throw new Error(error);
+    }
+
+    if (data?.id && data.id !== id) {
+      setRecipes(prev => prev.map(r => r.id === id ? { ...r, id: data.id!, isPublic: recipeData.isPublic ?? false } : r));
     }
   };
 

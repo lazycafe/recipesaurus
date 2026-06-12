@@ -36,6 +36,12 @@ export interface DbRecipe {
   created_at: number;
 }
 
+export interface DbRecipeSave {
+  user_id: string;
+  recipe_id: string;
+  saved_at: number;
+}
+
 export interface DbCookbook {
   id: string;
   user_id: string;

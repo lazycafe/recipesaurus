@@ -221,7 +221,7 @@ export interface IClient {
   recipes: {
     list(): Promise<ApiResponse<{ recipes: Recipe[] }>>;
     create(data: CreateRecipeData): Promise<ApiResponse<{ id: string }>>;
-    update(id: string, data: UpdateRecipeData): Promise<ApiResponse<{ success: boolean }>>;
+    update(id: string, data: UpdateRecipeData): Promise<ApiResponse<{ success: boolean; id?: string }>>;
     delete(id: string): Promise<ApiResponse<{ success: boolean }>>;
     getCookbooksForRecipe(recipeId: string): Promise<ApiResponse<{ cookbookIds: string[] }>>;
     createShareLink(data: RecipeSharePayload): Promise<ApiResponse<RecipeShareLink>>;

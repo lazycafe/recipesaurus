@@ -29,7 +29,7 @@ const PAID_WEEKLY_LIMIT = 50;
 const HISTORY_ITEMS_PER_PAGE = 5;
 
 const SAMPLE_REQUESTS = [
-  'Plan my lunches and dinners for this week using recipes I own and a few new easy recipes. Make them a mix of Asian and healthy dishes.',
+  'Plan my lunches and dinners for this week using my recipes and public Recipesaurus recipes. Make them a mix of Asian and healthy dishes.',
   'Give me three high-protein dinners using my saved chicken recipes and quick vegetable sides.',
   'Build a low-effort Sunday meal prep plan with leftovers for work lunches.',
 ];
@@ -442,7 +442,7 @@ export function MealPlannerPage() {
           <Sparkles size={28} />
           <h1>AI Meal Planner</h1>
         </div>
-        <p>Tell Recipesaurus what you need: a full week, a dinner lineup, a meal-prep plan, or fresh ideas built around your saved recipes.</p>
+        <p>Tell Recipesaurus what you need: a full week, a dinner lineup, or a meal-prep plan using your saved recipes and public Recipesaurus recipes.</p>
       </section>
 
       <section className="meal-planner-toolbar" aria-label="Meal planner status">

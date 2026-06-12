@@ -1,6 +1,7 @@
 // Development client using InMemoryClient for local testing
-import type { IClient, ITokenStorage } from './types';
+import type { IClient, ITokenStorage, Recipe } from './types';
 import { InMemoryClient, ICoreHandlers } from './InMemoryClient';
+import { SAMPLE_RECIPES } from '../data/sampleRecipes';
 
 let devClientInstance: IClient | null = null;
 let devClientPromise: Promise<IClient> | null = null;
@@ -114,6 +115,10 @@ function logUnexpectedSeedError(label: string, error?: string): void {
   console.error(`Failed to seed ${label}:`, error);
 }
 
+type PublicSeedRecipe = Pick<Recipe, 'title' | 'description' | 'ingredients' | 'instructions' | 'tags' | 'imageUrl' | 'prepTime' | 'cookTime' | 'servings'> & {
+  isPublic: true;
+};
+
 export async function createDevClient(): Promise<IClient> {
   if (devClientInstance) {
     return devClientInstance;
@@ -164,7 +169,7 @@ export async function createDevClient(): Promise<IClient> {
       logUnexpectedSeedError('community user', communityResult.error);
 
       // Seed sample public recipes with images under another user so local save flows are testable.
-      const sampleRecipes = [
+      const sampleRecipes: PublicSeedRecipe[] = [
         {
           title: 'Creamy Tuscan Chicken',
           description: 'Pan-seared chicken breasts in a rich sun-dried tomato and spinach cream sauce.',
@@ -239,11 +244,41 @@ export async function createDevClient(): Promise<IClient> {
         },
       ];
 
+      const seenSeedTitles = new Set<string>();
+      const publicSeedRecipes = [...sampleRecipes, ...SAMPLE_RECIPES]
+        .filter(recipe => {
+          const normalizedTitle = recipe.title.toLowerCase();
+          if (seenSeedTitles.has(normalizedTitle)) return false;
+          seenSeedTitles.add(normalizedTitle);
+          return true;
+        })
+        .map(recipe => ({
+          title: recipe.title,
+          description: recipe.description || '',
+          ingredients: recipe.ingredients,
+          instructions: recipe.instructions,
+          tags: recipe.tags,
+          isPublic: true,
+          imageUrl: recipe.imageUrl || undefined,
+          prepTime: recipe.prepTime || undefined,
+          cookTime: recipe.cookTime || undefined,
+          servings: recipe.servings || undefined,
+        }));
+      const existingPublicRecipes = await client.discover.recipes({ limit: 300, offset: 0 });
+      const existingPublicTitles = new Set(
+        existingPublicRecipes.data?.recipes.map(recipe => recipe.title.toLowerCase()) || []
+      );
+
       const publicRecipeIds: string[] = [];
-      for (const recipe of sampleRecipes) {
+      for (const recipe of publicSeedRecipes) {
+        if (existingPublicTitles.has(recipe.title.toLowerCase())) {
+          continue;
+        }
+
         const result = await client.recipes.create(recipe);
         if (result.data?.id) {
           publicRecipeIds.push(result.data.id);
+          existingPublicTitles.add(recipe.title.toLowerCase());
         }
       }
 

@@ -143,10 +143,10 @@ describe('MyRecipesPage', () => {
     expect(screen.getByText('Test Recipe')).toBeDefined();
   });
 
-  it('allows editing a saved copy attributed to another chef', () => {
-    const savedCopy = {
+  it('allows editing a saved reference attributed to another chef', () => {
+    const savedReference = {
       ...mockRecipe,
-      id: 'saved-copy-1',
+      id: 'saved-reference-1',
       title: 'Saved Pasta',
       ownerId: 'community-chef',
       ownerName: 'Community Chef',
@@ -154,7 +154,7 @@ describe('MyRecipesPage', () => {
     };
 
     vi.mocked(RecipeContext.useRecipes).mockReturnValue({
-      recipes: [savedCopy],
+      recipes: [savedReference],
       isLoading: false,
       addRecipe: mockAddRecipe,
       updateRecipe: mockUpdateRecipe,
